@@ -95,8 +95,11 @@ pip install -r requirements.txt
 export GCP_PROJECT_ID="your-project-id"
 export CUTOFF_DATE="2024-05-01"
 
-# Run a test execution
-python main.py
+# Run IPE extraction (example)
+python -m src.core.main
+
+# Run timing difference bridge analysis
+python -m src.bridges.timing_difference
 ```
 
 ### Docker Deployment
@@ -112,27 +115,64 @@ docker run -e GCP_PROJECT_ID="your-project" soxauto-pg01
 
 ## 📦 **What's Inside**
 
-> *Note: This reflects the target project structure for the production-ready version. The POC phase focuses on core functionality validation.*
+> **Professional Python package structure for scalability and production readiness**
 
 ```
 PG-01/
-├── 📄 main.py                    # Main orchestrator (Cloud Run compatible)
-├── ⚙️ config.py                  # Configuration (secrets externalized)
-├── 🔧 gcp_utils.py              # Google Cloud utilities
-├── 🏃 ipe_runner.py              # IPE execution engine
-├── 🛡️ evidence_manager.py        # Digital evidence system
-├── 📊 classification_matrix.md   # Business rules documentation
-├── 🤝 meeting_questions.md       # Stakeholder alignment guide
-├── 🚀 deploy.md                  # Production deployment guide
-├── ☁️ aws_migration.md           # AWS compatibility layer
-├── 📋 evidence_documentation.md  # Evidence system documentation
-├── 🧪 test_evidence_system.py    # Evidence system demonstration
-├── 🐳 Dockerfile                # Container configuration
-├── ☁️ cloudbuild.yaml           # Google Cloud Build
-├── 📋 requirements.txt          # Python dependencies
-├── 🚫 .dockerignore             # Docker exclusions
-└── 🚫 .gitignore               # Git exclusions
+├── 📁 src/                          # Source code (Python package)
+│   ├── 📁 core/                     # Core application logic
+│   │   ├── 🐍 __init__.py          # Package initialization
+│   │   ├── 📄 main.py              # Flask orchestrator (Cloud Run entry point)
+│   │   ├── ⚙️ config.py             # IPE configurations (secure CTE patterns)
+│   │   ├── 🏃 ipe_runner.py         # IPE execution engine
+│   │   └── 🛡️ evidence_manager.py   # Digital evidence system (SHA-256)
+│   ├── � bridges/                  # Bridge analysis scripts
+│   │   ├── 🐍 __init__.py          # Package initialization
+│   │   └── 📊 timing_difference.py  # Timing difference bridge automation
+│   ├── 📁 agents/                   # Future: Classification & reconciliation agents
+│   │   └── 🐍 __init__.py          # Package initialization
+│   └── 📁 utils/                    # Shared utilities
+│       ├── 🐍 __init__.py          # Package initialization
+│       └── 🔧 gcp_utils.py         # Google Cloud Platform abstractions
+│
+├── 📁 docs/                         # Comprehensive documentation
+│   ├── 📁 architecture/             # Architecture diagrams
+│   ├── 📁 deployment/               # Deployment guides
+│   │   ├── 🚀 deploy.md            # GCP production deployment
+│   │   └── ☁️ aws_migration.md     # AWS compatibility layer
+│   ├── 📁 development/              # Development documentation
+│   │   ├── 📊 classification_matrix.md    # Business rules
+│   │   ├── 🤝 meeting_questions.md        # Stakeholder guide
+│   │   ├── 📋 evidence_documentation.md   # Evidence system specs
+│   │   └── 🔒 SECURITY_FIXES.md          # Security audit report
+│   └── 📁 setup/                    # Setup instructions
+│       └── 📝 TIMING_DIFFERENCE_SETUP.md  # Bridge setup guide
+│
+├── 📁 scripts/                      # Automation scripts
+│   ├── 🔧 quick_wins.sh            # Quick documentation setup
+│   └── 🔄 restructure.sh           # Project restructuring script
+│
+├── 📁 data/                         # Data files (gitignored)
+│   ├── 📁 credentials/              # Service account credentials
+│   └── 📁 outputs/                  # Bridge analysis outputs
+│
+├── 🐳 Dockerfile                   # Multi-stage production container
+├── ☁️ cloudbuild.yaml              # Google Cloud Build configuration
+├── 📋 requirements.txt             # Python dependencies
+├── 🚫 .dockerignore               # Docker exclusions
+└── 🚫 .gitignore                  # Git exclusions (includes data/)
 ```
+
+### Key Technologies
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| **Orchestration** | Python + Flask | Cloud Run web server for workflow coordination |
+| **Database Access** | pyodbc + pandas | Secure parameterized SQL execution |
+| **Cloud Platform** | GCP (Secret Manager, BigQuery, Drive) | Enterprise cloud services |
+| **Evidence System** | hashlib (SHA-256) | Cryptographic integrity verification |
+| **Bridge Analysis** | gspread + Google Sheets API | Automated reconciliation identification |
+| **Containerization** | Docker (multi-stage build) | Production-grade deployment |
 
 ---
 
@@ -202,22 +242,40 @@ gcloud secrets create GOOGLE_SERVICE_ACCOUNT_CREDENTIALS \
 ```
 
 ### IPE Configuration
-IPEs are configured in `config.py`:
+IPEs are configured in `src/core/config.py` using a **secure CTE (Common Table Expression) pattern** to prevent SQL injection:
+
 ```python
 IPE_CONFIGS = [
     {
         "id": "IPE_07",
         "description": "Customer ledger entries reconciliation",
         "secret_name": "DB_CREDENTIALS_NAV_BI",
-        "main_query": "SELECT ... FROM [Customer Ledger Entries] WHERE ...",
+        "main_query": """
+            SELECT ... FROM [Customer Ledger Entry] WHERE [Posting Date] < ?
+        """,
         "validation": {
-            "completeness_query": "SELECT COUNT(*) FROM ...",
-            "accuracy_positive_query": "SELECT COUNT(*) WHERE witness_id = ...",
-            "accuracy_negative_query": "SELECT COUNT(*) WHERE excluded_id = ..."
+            # Security: All validation queries use self-contained CTEs
+            "completeness_query": """
+                WITH main_data AS (
+                    -- Full query with parameterized placeholders
+                    SELECT ... WHERE [Posting Date] < ?
+                )
+                SELECT COUNT(*) FROM main_data
+            """,
+            "accuracy_positive_query": """
+                WITH main_data AS (...)
+                SELECT COUNT(*) FROM main_data WHERE witness_id = 239726184
+            """,
+            "accuracy_negative_query": """
+                WITH main_data AS (...)
+                SELECT COUNT(*) FROM main_data WHERE [Document No_] = 'EXCLUDED'
+            """
         }
     }
 ]
 ```
+
+**Security Note**: All queries use parameterized `?` placeholders and CTE patterns to eliminate SQL injection risks.
 
 ---
 

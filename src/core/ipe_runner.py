@@ -1,8 +1,8 @@
 # ipe_runner.py
 """
-Classe IPERunner pour encapsuler la logique d'extraction et de validation d'un seul IPE.
-Cette classe gère l'exécution complète d'un IPE, de la connexion à la base de données
-jusqu'à la validation des données extraites.
+IPERunner class to encapsulate the extraction and validation logic for a single IPE.
+This class manages the complete execution of an IPE, from database connection
+to data validation and evidence generation.
 """
 
 import logging
@@ -13,43 +13,43 @@ from typing import Dict, Any, Optional, Tuple
 from src.utils.gcp_utils import GCPSecretManager
 from src.core.evidence_manager import DigitalEvidenceManager, IPEEvidenceGenerator
 
-# Configuration du logging
+# Logging configuration
 logger = logging.getLogger(__name__)
 
 
 class IPEValidationError(Exception):
-    """Exception levée en cas d'échec de validation d'un IPE."""
+    """Exception raised when IPE validation fails."""
     pass
 
 
 class IPEConnectionError(Exception):
-    """Exception levée en cas de problème de connexion à la base de données."""
+    """Exception raised when database connection fails."""
     pass
 
 
 class IPERunner:
     """
-    Classe responsable de l'exécution d'un seul IPE.
-    Gère l'extraction, la validation et le nettoyage des données.
+    Class responsible for executing a single IPE.
+    Manages data extraction, validation, and cleanup.
     """
     
     def __init__(self, ipe_config: Dict[str, Any], secret_manager: GCPSecretManager,
                  cutoff_date: Optional[str] = None, evidence_manager: Optional[DigitalEvidenceManager] = None):
         """
-        Initialise le runner pour un IPE spécifique.
+        Initialize the runner for a specific IPE.
         
         Args:
-            ipe_config: Configuration de l'IPE (depuis config.py)
-            secret_manager: Instance du gestionnaire de secrets GCP
-            cutoff_date: Date de coupure pour les extractions (format: YYYY-MM-DD)
-            evidence_manager: Gestionnaire d'évidence digitale pour SOX
+            ipe_config: IPE configuration (from config.py)
+            secret_manager: GCP secret manager instance
+            cutoff_date: Cutoff date for extractions (format: YYYY-MM-DD)
+            evidence_manager: Digital evidence manager for SOX compliance
         """
         self.config = ipe_config
         self.secret_manager = secret_manager
         self.ipe_id = ipe_config['id']
         self.description = ipe_config['description']
         
-        # Date de coupure par défaut: premier jour du mois courant
+        # Default cutoff date: first day of current month
         if cutoff_date:
             self.cutoff_date = cutoff_date
         else:
@@ -61,43 +61,43 @@ class IPERunner:
         self.extracted_data = None
         self.validation_results = {}
         
-        # Gestionnaire d'évidence SOX
+        # SOX evidence manager
         self.evidence_manager = evidence_manager or DigitalEvidenceManager()
         self.evidence_generator = None
         
-        logger.info(f"IPERunner initialisé pour {self.ipe_id} - Date de coupure: {self.cutoff_date}")
+        logger.info(f"IPERunner initialized for {self.ipe_id} - Cutoff date: {self.cutoff_date}")
     
     def _get_database_connection(self) -> pyodbc.Connection:
         """
-        Établit la connexion à la base de données en utilisant les credentials du Secret Manager.
+        Establish database connection using credentials from Secret Manager.
         
         Returns:
-            Connexion pyodbc à la base de données
+            pyodbc connection to the database
             
         Raises:
-            IPEConnectionError: En cas d'échec de connexion
+            IPEConnectionError: If connection fails
         """
         try:
-            # Récupérer la chaîne de connexion depuis le Secret Manager
+            # Retrieve connection string from Secret Manager
             connection_string = self.secret_manager.get_secret(self.config['secret_name'])
             
-            # Établir la connexion
+            # Establish connection
             connection = pyodbc.connect(connection_string)
-            logger.info(f"[{self.ipe_id}] Connexion à la base de données établie")
+            logger.info(f"[{self.ipe_id}] Database connection established")
             return connection
             
         except Exception as e:
-            error_msg = f"[{self.ipe_id}] Erreur de connexion à la base de données: {e}"
+            error_msg = f"[{self.ipe_id}] Database connection error: {e}"
             logger.error(error_msg)
             raise IPEConnectionError(error_msg)
     
     def _execute_query_with_parameters(self, query: str, parameters: Optional[Tuple] = None) -> pd.DataFrame:
         """
-        Exécute une requête SQL avec des paramètres sécurisés.
+        Execute SQL query with secure parameterized values.
         
         Args:
-            query: La requête SQL à exécuter
-            parameters: Les paramètres à injecter dans la requête
+            query: SQL query to execute
+            parameters: Parameters to inject into the query
             
         Returns:
             DataFrame contenant les résultats de la requête
@@ -137,11 +137,9 @@ class IPERunner:
                 logger.warning(f"[{self.ipe_id}] Pas de requête de complétude définie")
                 return True
             
-            # Construire la requête de validation
-            main_query = self.config['main_query']
-            completeness_query = self.config['validation']['completeness_query'].format(
-                main_query=f"({main_query})"
-            )
+            # Security: CTEs are now self-contained and don't require .format()
+            # Execute the validation query directly with parameters
+            completeness_query = self.config['validation']['completeness_query']
             
             # Exécuter la validation
             validation_df = self._execute_query_with_parameters(completeness_query)
@@ -187,11 +185,9 @@ class IPERunner:
                 logger.warning(f"[{self.ipe_id}] Pas de requête d'exactitude positive définie")
                 return True
             
-            # Construire la requête de validation
-            main_query = self.config['main_query']
-            accuracy_query = self.config['validation']['accuracy_positive_query'].format(
-                main_query=f"({main_query})"
-            )
+            # Security: CTEs are now self-contained and don't require .format()
+            # Execute the validation query directly with parameters
+            accuracy_query = self.config['validation']['accuracy_positive_query']
             
             # Exécuter la validation
             validation_df = self._execute_query_with_parameters(accuracy_query)
@@ -235,24 +231,9 @@ class IPERunner:
                 logger.warning(f"[{self.ipe_id}] Pas de requête d'exactitude négative définie")
                 return True
             
-            # Créer une version modifiée de la requête principale pour le test négatif
-            main_query = self.config['main_query']
-            
-            # Logique spécifique pour modifier la requête selon l'IPE
-            if self.ipe_id == "IPE_07":
-                # Exemple de modification pour IPE_07
-                main_query_modified = main_query.replace(
-                    "in ('13010','13009','13006','13005','13004','13003')",
-                    "in ('13010','13006','13005','13004','13003')"
-                )
-            else:
-                # Pour les autres IPE, utiliser la requête originale
-                main_query_modified = main_query
-            
-            # Construire la requête de validation
-            accuracy_query = self.config['validation']['accuracy_negative_query'].format(
-                main_query_modified=f"({main_query_modified})"
-            )
+            # Security: CTEs are now self-contained and don't require .format()
+            # Execute the validation query directly with parameters
+            accuracy_query = self.config['validation']['accuracy_negative_query']
             
             # Exécuter la validation
             validation_df = self._execute_query_with_parameters(accuracy_query)
