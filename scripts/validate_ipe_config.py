@@ -21,7 +21,7 @@ from typing import List, Dict, Tuple
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.core.config import IPE_CONFIGS, GCP_PROJECT_ID
+from src.core.config import IPE_CONFIGS, AWS_REGION
 
 
 class IPEConfigValidator:
@@ -55,7 +55,7 @@ class IPEConfigValidator:
         return len(self.errors) == 0
     
     def _check_environment_config(self):
-        """Check that GCP_PROJECT_ID uses environment variable."""
+        """Check that AWS_REGION uses environment variable."""
         print("\n🔍 Checking Environment Configuration...")
         print("-" * 70)
         
@@ -67,15 +67,15 @@ class IPEConfigValidator:
             with open(config_file, 'r') as f:
                 content = f.read()
                 
-            if 'os.getenv("GCP_PROJECT_ID"' in content or 'os.getenv(\'GCP_PROJECT_ID\'' in content:
-                print("✅ GCP_PROJECT_ID: Using os.getenv() for environment variable")
+            if 'os.getenv("AWS_REGION"' in content or 'os.getenv(\'AWS_REGION\'' in content:
+                print("✅ AWS_REGION: Using os.getenv() for environment variable")
                 self.passed_tests += 1
             else:
-                error = "❌ GCP_PROJECT_ID: Not using os.getenv() (should read from environment)"
+                error = "❌ AWS_REGION: Not using os.getenv() (should read from environment)"
                 print(error)
                 self.errors.append(error)
         except FileNotFoundError:
-            warning = "⚠️  Could not read config.py to verify GCP_PROJECT_ID"
+            warning = "⚠️  Could not read config.py to verify AWS_REGION"
             print(warning)
             self.warnings.append(warning)
     

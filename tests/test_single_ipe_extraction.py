@@ -177,14 +177,14 @@ def main():
     print()
     
     # Check environment
-    if not os.getenv("GCP_PROJECT_ID"):
-        print("❌ ERROR: GCP_PROJECT_ID environment variable not set")
+    if not os.getenv("AWS_REGION"):
+        print("❌ ERROR: AWS_REGION environment variable not set")
         print("\n💡 Set it with:")
-        print("   export GCP_PROJECT_ID='your-project-id'")
+        print("   export AWS_REGION='eu-west-1'")
         return False
     
     print(f"Environment:")
-    print(f"  GCP_PROJECT_ID: {os.getenv('GCP_PROJECT_ID')}")
+    print(f"  AWS_REGION: {os.getenv('AWS_REGION')}")
     print(f"  CUTOFF_DATE: {os.getenv('CUTOFF_DATE', '2024-01-01 (default)')}")
     print()
     

@@ -98,9 +98,9 @@ def main():
     print("=" * 70)
     
     # Check environment
-    if not os.getenv("GCP_PROJECT_ID"):
-        print("❌ GCP_PROJECT_ID environment variable not set")
-        print("   Run: export GCP_PROJECT_ID='your-project-id'")
+    if not os.getenv("AWS_REGION"):
+        print("❌ AWS_REGION environment variable not set")
+        print("   Run: export AWS_REGION='eu-west-1'")
         return False
     
     # Test sequence

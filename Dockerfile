@@ -85,9 +85,9 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# Set environment variables for Google Cloud
+# Set environment variables for AWS
 ENV PORT=8080
-ENV GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID}
+ENV AWS_REGION=${AWS_REGION}
 
 # Command to run the application
 # Use gunicorn for production WSGI server with module syntax

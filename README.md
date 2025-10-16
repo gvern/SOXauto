@@ -92,7 +92,7 @@ cd SOXauto
 pip install -r requirements.txt
 
 # Set environment variables
-export GCP_PROJECT_ID="your-project-id"
+export AWS_REGION="eu-west-1"
 export CUTOFF_DATE="2024-05-01"
 
 # Run IPE extraction (example)
@@ -108,7 +108,7 @@ python -m src.bridges.timing_difference
 docker build -t soxauto-pg01 .
 
 # Run the container
-docker run -e GCP_PROJECT_ID="your-project" soxauto-pg01
+docker run -e AWS_REGION="eu-west-1" soxauto-pg01
 ```
 
 ---
@@ -219,26 +219,23 @@ altered_hash   = "9z8y7x6w5v4u3t2s1r0q9p8o7n6m..."
 
 ### Environment Variables
 ```bash
-# Google Cloud Platform
-export GCP_PROJECT_ID="your-gcp-project"
-export GCP_REGION="europe-west1"
-
-# BigQuery Configuration
-export BIGQUERY_DATASET="jumia_sox_reconciliation"
+# AWS Configuration
+export AWS_REGION="eu-west-1"
 
 # Execution Parameters
 export CUTOFF_DATE="2024-05-01"  # Optional, defaults to current month
 ```
 
-### Required Secrets (Google Secret Manager)
+### Required Secrets (AWS Secrets Manager)
 ```bash
 # Database connection string
-gcloud secrets create DB_CREDENTIALS_NAV_BI \
-  --data-file=connection_string.txt
+aws secretsmanager create-secret \
+  --name DB_CREDENTIALS_NAV_BI \
+  --secret-string file://connection_string.txt \
+  --region eu-west-1
 
-# Google service account credentials
-gcloud secrets create GOOGLE_SERVICE_ACCOUNT_CREDENTIALS \
-  --data-file=service-account.json
+# AWS credentials are managed via IAM roles in production
+# For local development, use AWS CLI configuration
 ```
 
 ### IPE Configuration

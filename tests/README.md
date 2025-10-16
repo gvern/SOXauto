@@ -8,13 +8,13 @@ This directory contains integration and unit tests for the SOXauto PG-01 applica
 Tests database connectivity and basic query execution.
 
 **Tests:**
-- GCP Secret Manager access
+- AWS Secrets Manager access
 - Database connection establishment
 - Parameterized query execution
 
 **Run:**
 ```bash
-export GCP_PROJECT_ID="your-project-id"
+export AWS_REGION="eu-west-1"
 python3 tests/test_database_connection.py
 ```
 
@@ -30,7 +30,7 @@ Tests complete IPE extraction flow with validation and evidence generation.
 
 **Run:**
 ```bash
-export GCP_PROJECT_ID="your-project-id"
+export AWS_REGION="eu-west-1"
 export CUTOFF_DATE="2024-01-01"  # Optional
 
 # Test default IPE (IPE_07)
@@ -46,19 +46,21 @@ Before running tests:
 
 1. **Set environment variables:**
    ```bash
-   export GCP_PROJECT_ID="your-gcp-project-id"
+   export AWS_REGION="eu-west-1"
    export CUTOFF_DATE="2024-01-01"  # Optional
    ```
 
-2. **Authenticate with GCP:**
+2. **Configure AWS credentials:**
    ```bash
-   gcloud auth application-default login
-   gcloud config set project $GCP_PROJECT_ID
+   aws configure
+   # Or use environment variables:
+   export AWS_ACCESS_KEY_ID="your-access-key"
+   export AWS_SECRET_ACCESS_KEY="your-secret-key"
    ```
 
-3. **Verify database credentials are in Secret Manager:**
+3. **Verify database credentials are in Secrets Manager:**
    ```bash
-   gcloud secrets list --project=$GCP_PROJECT_ID | grep DB_CREDENTIALS
+   aws secretsmanager list-secrets --region eu-west-1 | grep DB_CREDENTIALS
    ```
 
 ## Test Execution Order
@@ -99,18 +101,18 @@ Follow this order for integration testing:
 
 ### Common Issues
 
-**Issue**: `GCP_PROJECT_ID not set`
+**Issue**: `AWS_REGION not set`
 ```bash
-export GCP_PROJECT_ID="your-actual-project-id"
+export AWS_REGION="eu-west-1"
 ```
 
 **Issue**: `Secret not found`
 ```bash
 # Verify secret exists
-gcloud secrets list --project=$GCP_PROJECT_ID | grep DB_CREDENTIALS
+aws secretsmanager list-secrets --region eu-west-1 | grep DB_CREDENTIALS
 
 # Check permissions
-gcloud secrets get-iam-policy DB_CREDENTIALS_NAV_BI --project=$GCP_PROJECT_ID
+aws secretsmanager describe-secret --secret-id DB_CREDENTIALS_NAV_BI --region eu-west-1
 ```
 
 **Issue**: `Connection refused`
@@ -148,7 +150,9 @@ These tests can be integrated into CI/CD pipelines:
 # Example GitHub Actions workflow
 - name: Run Integration Tests
   env:
-    GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+    AWS_REGION: ${{ secrets.AWS_REGION }}
+    AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     CUTOFF_DATE: "2024-01-01"
   run: |
     python3 scripts/validate_ipe_config.py
