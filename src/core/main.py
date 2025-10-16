@@ -1,7 +1,7 @@
 # main.py
 """
-Orchestrateur principal pour l'automatisation du processus SOX PG-01.
-Point d'entrée compatible avec Google Cloud Run.
+Main orchestrator for SOX PG-01 automation process.
+Entry point compatible with Google Cloud Run.
 """
 
 import logging
@@ -22,36 +22,36 @@ from src.utils.gcp_utils import initialize_gcp_services, get_drive_manager
 from src.core.ipe_runner import IPERunner, IPEValidationError, IPEConnectionError
 from src.core.evidence_manager import DigitalEvidenceManager
 
-# Configuration du logging
+# Logging configuration
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Initialisation de Flask pour Cloud Run
+# Flask initialization for Cloud Run
 app = Flask(__name__)
 
 
 class WorkflowExecutionError(Exception):
-    """Exception levée en cas d'échec du workflow global."""
+    """Exception raised when the global workflow fails."""
     pass
 
 
 def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
     """
-    Exécute le workflow complet d'extraction et validation des IPEs.
+    Executes the complete IPE extraction and validation workflow.
     
     Args:
-        cutoff_date: Date de coupure optionnelle (format YYYY-MM-DD)
+        cutoff_date: Optional cutoff date (format YYYY-MM-DD)
         
     Returns:
-        Tuple contenant (résultats, code_statut_HTTP)
+        Tuple containing (results, HTTP_status_code)
     """
     workflow_start_time = datetime.now()
-    logger.info("===== DÉBUT DU WORKFLOW D'AUTOMATISATION SOX PG-01 =====")
+    logger.info("===== STARTING SOX PG-01 AUTOMATION WORKFLOW =====")
     
-    # Résultats globaux du workflow
+    # Global workflow results
     workflow_results = {
         'workflow_id': f"SOXauto_PG01_{workflow_start_time.strftime('%Y%m%d_%H%M%S')}",
         'start_time': workflow_start_time.isoformat(),
@@ -66,14 +66,14 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
     }
     
     try:
-        # 1. Initialiser les services GCP et le gestionnaire d'évidence
-        logger.info("Initialisation des services Google Cloud...")
+        # 1. Initialize GCP services and evidence manager
+        logger.info("Initializing Google Cloud services...")
         secret_manager, bigquery_client = initialize_gcp_services(GCP_PROJECT_ID)
         
-        # Créer le gestionnaire d'évidence SOX
+        # Create SOX evidence manager
         evidence_manager = DigitalEvidenceManager("evidence_sox_pg01")
         
-        # 2. Traiter chaque IPE
+        # 2. Process each IPE
         for ipe_config in IPE_CONFIGS:
             ipe_id = ipe_config['id']
             ipe_result = {
@@ -85,9 +85,9 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
             }
             
             try:
-                logger.info(f"--- Traitement de l'IPE: {ipe_id} ---")
+                logger.info(f"--- Processing IPE: {ipe_id} ---")
                 
-                # Créer et exécuter le runner IPE avec évidence SOX
+                # Create and execute IPE runner with SOX evidence
                 runner = IPERunner(
                     ipe_config=ipe_config,
                     secret_manager=secret_manager,
@@ -95,10 +95,10 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
                     evidence_manager=evidence_manager
                 )
                 
-                # Exécuter l'extraction et validation
+                # Execute extraction and validation
                 validated_data = runner.run()
                 
-                # Stocker les résultats dans BigQuery
+                # Store results in BigQuery
                 table_id = f"{BIGQUERY_RESULTS_TABLE_PREFIX}_{ipe_id.lower()}"
                 bigquery_client.write_dataframe(
                     dataframe=validated_data,
@@ -106,7 +106,7 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
                     table_id=table_id
                 )
                 
-                # Mettre à jour les résultats
+                # Update results
                 ipe_result.update({
                     'status': 'SUCCESS',
                     'end_time': datetime.now().isoformat(),
@@ -118,7 +118,7 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
                 workflow_results['summary']['successful_ipes'] += 1
                 workflow_results['summary']['total_rows_processed'] += len(validated_data)
                 
-                logger.info(f"IPE {ipe_id} traité avec succès - {len(validated_data)} lignes")
+                logger.info(f"IPE {ipe_id} processed successfully - {len(validated_data)} rows")
                 
             except (IPEValidationError, IPEConnectionError) as e:
                 ipe_result.update({
@@ -128,14 +128,14 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
                 })
                 workflow_results['summary']['failed_ipes'] += 1
                 
-                logger.error(f"Échec du traitement de l'IPE {ipe_id}: {e}")
+                logger.error(f"IPE {ipe_id} processing failed: {e}")
                 
-                # En cas d'échec critique, arrêter le workflow
+                # In case of critical failure, stop workflow
                 workflow_results['end_time'] = datetime.now().isoformat()
                 workflow_results['overall_status'] = 'FAILED'
-                workflow_results['failure_reason'] = f"Échec critique sur l'IPE {ipe_id}"
+                workflow_results['failure_reason'] = f"Critical failure on IPE {ipe_id}"
                 
-                # Envoyer une alerte (à implémenter selon vos besoins)
+                # Send alert (to be implemented according to your needs)
                 _send_failure_alert(workflow_results)
                 
                 return workflow_results, 500
@@ -144,41 +144,41 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
                 ipe_result.update({
                     'status': 'ERROR',
                     'end_time': datetime.now().isoformat(),
-                    'error_message': f"Erreur inattendue: {str(e)}"
+                    'error_message': f"Unexpected error: {str(e)}"
                 })
                 workflow_results['summary']['failed_ipes'] += 1
                 
-                logger.error(f"Erreur inattendue lors du traitement de l'IPE {ipe_id}: {e}")
+                logger.error(f"Unexpected error processing IPE {ipe_id}: {e}")
                 
-                # Continuer avec les autres IPE en cas d'erreur non critique
+                # Continue with other IPEs in case of non-critical error
                 
             finally:
                 workflow_results['ipe_results'][ipe_id] = ipe_result
         
-        # 3. Finaliser le workflow
+        # 3. Finalize workflow
         workflow_results['end_time'] = datetime.now().isoformat()
         
         if workflow_results['summary']['failed_ipes'] == 0:
             workflow_results['overall_status'] = 'SUCCESS'
-            logger.info("===== WORKFLOW TERMINÉ AVEC SUCCÈS =====")
+            logger.info("===== WORKFLOW COMPLETED SUCCESSFULLY =====")
             
-            # Créer un log d'audit complet
+            # Create complete audit log
             _create_audit_log(secret_manager, workflow_results)
             
             return workflow_results, 200
         else:
             workflow_results['overall_status'] = 'PARTIAL_SUCCESS'
-            logger.warning("===== WORKFLOW TERMINÉ AVEC ÉCHECS PARTIELS =====")
+            logger.warning("===== WORKFLOW COMPLETED WITH PARTIAL FAILURES =====")
             return workflow_results, 206  # Partial Content
             
     except Exception as e:
         workflow_results.update({
             'end_time': datetime.now().isoformat(),
             'overall_status': 'ERROR',
-            'error_message': f"Erreur fatale du workflow: {str(e)}"
+            'error_message': f"Fatal workflow error: {str(e)}"
         })
         
-        logger.error(f"Erreur fatale du workflow: {e}")
+        logger.error(f"Fatal workflow error: {e}")
         _send_failure_alert(workflow_results)
         
         return workflow_results, 500
@@ -186,73 +186,73 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
 
 def _send_failure_alert(workflow_results: Dict[str, Any]) -> None:
     """
-    Envoie une alerte en cas d'échec du workflow.
-    À adapter selon vos besoins (email, Slack, etc.)
+    Sends an alert in case of workflow failure.
+    To be adapted according to your needs (email, Slack, etc.)
     """
     try:
-        # Placeholder pour l'envoi d'alertes
-        # Vous pouvez implémenter ici l'envoi d'emails, notifications Slack, etc.
-        logger.critical("ALERTE: Échec du workflow SOX PG-01")
-        logger.critical(f"Détails: {json.dumps(workflow_results, indent=2)}")
+        # Placeholder for alert sending
+        # You can implement email sending, Slack notifications, etc. here
+        logger.critical("ALERT: SOX PG-01 workflow failure")
+        logger.critical(f"Details: {json.dumps(workflow_results, indent=2)}")
         
-        # Exemple d'implémentation future:
+        # Example of future implementation:
         # send_email_alert(workflow_results)
         # send_slack_notification(workflow_results)
         
     except Exception as e:
-        logger.error(f"Erreur lors de l'envoi d'alerte: {e}")
+        logger.error(f"Error sending alert: {e}")
 
 
 def _create_audit_log(secret_manager, workflow_results: Dict[str, Any]) -> None:
     """
-    Crée un log d'audit complet du workflow.
+    Creates a complete audit log of the workflow.
     """
     try:
-        # Créer le gestionnaire Google Drive si configuré
+        # Create Google Drive manager if configured
         if GOOGLE_DRIVE_FOLDER_ID:
             try:
                 drive_manager = get_drive_manager(secret_manager, "GOOGLE_SERVICE_ACCOUNT_CREDENTIALS")
                 audit_log_id = drive_manager.create_audit_log(GOOGLE_DRIVE_FOLDER_ID, workflow_results)
-                logger.info(f"Log d'audit créé: {audit_log_id}")
+                logger.info(f"Audit log created: {audit_log_id}")
             except Exception as e:
-                logger.warning(f"Impossible de créer le log d'audit sur Drive: {e}")
+                logger.warning(f"Unable to create audit log on Drive: {e}")
         
-        # Log local en backup
-        logger.info(f"Résumé du workflow: {json.dumps(workflow_results['summary'], indent=2)}")
+        # Local log as backup
+        logger.info(f"Workflow summary: {json.dumps(workflow_results['summary'], indent=2)}")
         
     except Exception as e:
-        logger.error(f"Erreur lors de la création du log d'audit: {e}")
+        logger.error(f"Error creating audit log: {e}")
 
 
 @app.route('/', methods=['POST'])
 def cloud_run_handler():
     """
-    Point d'entrée pour Google Cloud Run.
-    Accepte les requêtes HTTP POST avec des paramètres optionnels.
+    Entry point for Google Cloud Run.
+    Accepts HTTP POST requests with optional parameters.
     """
     try:
-        # Récupérer les paramètres de la requête
+        # Retrieve request parameters
         request_data = request.get_json() or {}
         cutoff_date = request_data.get('cutoff_date')
         
-        # Exécuter le workflow
+        # Execute workflow
         results, status_code = execute_ipe_workflow(cutoff_date)
         
         return results, status_code
         
     except Exception as e:
         error_response = {
-            'error': 'Erreur interne du serveur',
+            'error': 'Internal server error',
             'message': str(e),
             'timestamp': datetime.now().isoformat()
         }
-        logger.error(f"Erreur du gestionnaire Cloud Run: {e}")
+        logger.error(f"Cloud Run handler error: {e}")
         return error_response, 500
 
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Point de contrôle de santé pour Cloud Run."""
+    """Health check endpoint for Cloud Run."""
     return {
         'status': 'healthy',
         'service': 'SOXauto-PG01',
@@ -262,7 +262,7 @@ def health_check():
 
 @app.route('/config', methods=['GET'])
 def get_configuration():
-    """Retourne la configuration actuelle (sans les secrets)."""
+    """Returns current configuration (without secrets)."""
     config_info = {
         'project_id': GCP_PROJECT_ID,
         'bigquery_dataset': BIGQUERY_DATASET,
@@ -280,15 +280,15 @@ def get_configuration():
 
 def main_workflow_local(cutoff_date: str = None):
     """
-    Point d'entrée pour l'exécution locale (développement/test).
+    Entry point for local execution (development/test).
     
     Args:
-        cutoff_date: Date de coupure optionnelle
+        cutoff_date: Optional cutoff date
     """
     results, status = execute_ipe_workflow(cutoff_date)
     
     print("\n" + "="*60)
-    print("RÉSULTATS DU WORKFLOW SOX PG-01")
+    print("SOX PG-01 WORKFLOW RESULTS")
     print("="*60)
     print(json.dumps(results, indent=2, ensure_ascii=False))
     print("="*60)
@@ -297,7 +297,7 @@ def main_workflow_local(cutoff_date: str = None):
 
 
 if __name__ == "__main__":
-    # Exécution locale pour développement
+    # Local execution for development
     import sys
     
     cutoff_date_param = None
@@ -307,7 +307,7 @@ if __name__ == "__main__":
     try:
         main_workflow_local(cutoff_date_param)
     except KeyboardInterrupt:
-        logger.info("Workflow interrompu par l'utilisateur")
+        logger.info("Workflow interrupted by user")
     except Exception as e:
-        logger.error(f"Erreur lors de l'exécution locale: {e}")
+        logger.error(f"Error during local execution: {e}")
         sys.exit(1)
