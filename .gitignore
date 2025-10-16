@@ -5,3 +5,4 @@ data/
 credentials.json
 *.csv
 !tests/fixtures/*.csv
+NOtes.md
