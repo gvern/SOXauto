@@ -3,7 +3,7 @@
 Test database connectivity and basic query execution.
 
 This test verifies:
-1. GCP Secret Manager access
+1. AWS Secrets Manager access
 2. Database connection establishment
 3. Parameterized query execution
 
@@ -17,23 +17,23 @@ import pyodbc
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.utils.gcp_utils import GCPSecretManager
-from src.core.config import GCP_PROJECT_ID
+from src.utils.aws_utils import AWSSecretsManager
+from src.core.config import AWS_REGION
 
 
 def test_secret_manager():
-    """Test Secret Manager access."""
-    print("\n🔍 Testing Secret Manager Access...")
+    """Test AWS Secrets Manager access."""
+    print("\n🔍 Testing AWS Secrets Manager Access...")
     print("-" * 70)
     
     try:
-        sm = GCPSecretManager(GCP_PROJECT_ID)
+        sm = AWSSecretsManager(AWS_REGION)
         conn_str = sm.get_secret("DB_CREDENTIALS_NAV_BI")
         print(f"✅ Secret retrieved successfully")
         print(f"   Connection string format: {conn_str[:20]}...")
         return conn_str
     except Exception as e:
-        print(f"❌ Secret Manager error: {e}")
+        print(f"❌ Secrets Manager error: {e}")
         return None
 
 

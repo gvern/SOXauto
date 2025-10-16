@@ -10,7 +10,7 @@ import pandas as pd
 import pyodbc
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple
-from src.utils.gcp_utils import GCPSecretManager
+from src.utils.aws_utils import AWSSecretsManager
 from src.core.evidence_manager import DigitalEvidenceManager, IPEEvidenceGenerator
 
 # Logging configuration
@@ -33,14 +33,14 @@ class IPERunner:
     Manages data extraction, validation, and cleanup.
     """
     
-    def __init__(self, ipe_config: Dict[str, Any], secret_manager: GCPSecretManager,
+    def __init__(self, ipe_config: Dict[str, Any], secret_manager: AWSSecretsManager,
                  cutoff_date: Optional[str] = None, evidence_manager: Optional[DigitalEvidenceManager] = None):
         """
         Initialize the runner for a specific IPE.
         
         Args:
             ipe_config: IPE configuration (from config.py)
-            secret_manager: GCP secret manager instance
+            secret_manager: AWS Secrets Manager instance
             cutoff_date: Cutoff date for extractions (format: YYYY-MM-DD)
             evidence_manager: Digital evidence manager for SOX compliance
         """

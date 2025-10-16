@@ -1,7 +1,7 @@
 # main.py
 """
 Main orchestrator for SOX PG-01 automation process.
-Entry point compatible with Google Cloud Run.
+Entry point compatible with AWS Lambda and ECS.
 """
 
 import logging
@@ -12,13 +12,14 @@ from typing import Dict, Any, Tuple
 from flask import Flask, request
 
 from src.core.config import (
-    GCP_PROJECT_ID, 
+    AWS_REGION,
     IPE_CONFIGS, 
-    BIGQUERY_DATASET, 
-    BIGQUERY_RESULTS_TABLE_PREFIX,
-    GOOGLE_DRIVE_FOLDER_ID
+    ATHENA_DATABASE,
+    ATHENA_OUTPUT_LOCATION,
+    S3_RESULTS_BUCKET,
+    S3_RESULTS_PREFIX
 )
-from src.utils.gcp_utils import initialize_gcp_services, get_drive_manager
+from src.utils.aws_utils import initialize_aws_services
 from src.core.ipe_runner import IPERunner, IPEValidationError, IPEConnectionError
 from src.core.evidence_manager import DigitalEvidenceManager
 
@@ -66,9 +67,9 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
     }
     
     try:
-        # 1. Initialize GCP services and evidence manager
-        logger.info("Initializing Google Cloud services...")
-        secret_manager, bigquery_client = initialize_gcp_services(GCP_PROJECT_ID)
+        # 1. Initialize AWS services and evidence manager
+        logger.info("Initializing AWS services...")
+        secrets_manager, s3_client, athena_client = initialize_aws_services(AWS_REGION)
         
         # Create SOX evidence manager
         evidence_manager = DigitalEvidenceManager("evidence_sox_pg01")
@@ -90,7 +91,7 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
                 # Create and execute IPE runner with SOX evidence
                 runner = IPERunner(
                     ipe_config=ipe_config,
-                    secret_manager=secret_manager,
+                    secret_manager=secrets_manager,
                     cutoff_date=cutoff_date,
                     evidence_manager=evidence_manager
                 )
@@ -98,12 +99,12 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
                 # Execute extraction and validation
                 validated_data = runner.run()
                 
-                # Store results in BigQuery
-                table_id = f"{BIGQUERY_RESULTS_TABLE_PREFIX}_{ipe_id.lower()}"
-                bigquery_client.write_dataframe(
+                # Store results in S3 as parquet
+                s3_key = f"{S3_RESULTS_PREFIX}/{ipe_id.lower()}/{datetime.now().strftime('%Y%m%d_%H%M%S')}.parquet"
+                s3_client.write_dataframe_to_s3(
                     dataframe=validated_data,
-                    dataset_id=BIGQUERY_DATASET,
-                    table_id=table_id
+                    bucket=S3_RESULTS_BUCKET,
+                    key=s3_key
                 )
                 
                 # Update results
@@ -112,7 +113,7 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
                     'end_time': datetime.now().isoformat(),
                     'rows_extracted': len(validated_data),
                     'validation_summary': runner.get_validation_summary(),
-                    'bigquery_table': f"{BIGQUERY_DATASET}.{table_id}"
+                    's3_location': f"s3://{S3_RESULTS_BUCKET}/{s3_key}"
                 })
                 
                 workflow_results['summary']['successful_ipes'] += 1
@@ -163,7 +164,7 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
             logger.info("===== WORKFLOW COMPLETED SUCCESSFULLY =====")
             
             # Create complete audit log
-            _create_audit_log(secret_manager, workflow_results)
+            _create_audit_log(secrets_manager, s3_client, workflow_results)
             
             return workflow_results, 200
         else:
@@ -203,19 +204,19 @@ def _send_failure_alert(workflow_results: Dict[str, Any]) -> None:
         logger.error(f"Error sending alert: {e}")
 
 
-def _create_audit_log(secret_manager, workflow_results: Dict[str, Any]) -> None:
+def _create_audit_log(secrets_manager, s3_client, workflow_results: Dict[str, Any]) -> None:
     """
-    Creates a complete audit log of the workflow.
+    Creates a complete audit log of the workflow and stores it in S3.
     """
     try:
-        # Create Google Drive manager if configured
-        if GOOGLE_DRIVE_FOLDER_ID:
-            try:
-                drive_manager = get_drive_manager(secret_manager, "GOOGLE_SERVICE_ACCOUNT_CREDENTIALS")
-                audit_log_id = drive_manager.create_audit_log(GOOGLE_DRIVE_FOLDER_ID, workflow_results)
-                logger.info(f"Audit log created: {audit_log_id}")
-            except Exception as e:
-                logger.warning(f"Unable to create audit log on Drive: {e}")
+        # Store audit log in S3
+        audit_log_key = f"audit-logs/{workflow_results['workflow_id']}.json"
+        s3_client.upload_json_to_s3(
+            data=workflow_results,
+            bucket=S3_RESULTS_BUCKET,
+            key=audit_log_key
+        )
+        logger.info(f"Audit log stored in S3: s3://{S3_RESULTS_BUCKET}/{audit_log_key}")
         
         # Local log as backup
         logger.info(f"Workflow summary: {json.dumps(workflow_results['summary'], indent=2)}")
@@ -225,9 +226,9 @@ def _create_audit_log(secret_manager, workflow_results: Dict[str, Any]) -> None:
 
 
 @app.route('/', methods=['POST'])
-def cloud_run_handler():
+def lambda_handler():
     """
-    Entry point for Google Cloud Run.
+    Entry point for AWS Lambda and ECS.
     Accepts HTTP POST requests with optional parameters.
     """
     try:
@@ -246,13 +247,13 @@ def cloud_run_handler():
             'message': str(e),
             'timestamp': datetime.now().isoformat()
         }
-        logger.error(f"Cloud Run handler error: {e}")
+        logger.error(f"Lambda handler error: {e}")
         return error_response, 500
 
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint for Cloud Run."""
+    """Health check endpoint for AWS ECS/Lambda."""
     return {
         'status': 'healthy',
         'service': 'SOXauto-PG01',
@@ -264,8 +265,8 @@ def health_check():
 def get_configuration():
     """Returns current configuration (without secrets)."""
     config_info = {
-        'project_id': GCP_PROJECT_ID,
-        'bigquery_dataset': BIGQUERY_DATASET,
+        'aws_region': AWS_REGION,
+        'athena_database': ATHENA_DATABASE,
         'configured_ipes': [
             {
                 'id': ipe['id'],

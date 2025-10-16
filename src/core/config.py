@@ -7,16 +7,27 @@ Centralized configuration for IPE extractions and validations.
 import os
 
 # --- General Configuration ---
-# GCP Project ID - retrieved from environment variable for portability
-GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "votre-projet-gcp")
-GCP_REGION = "europe-west1"
+# AWS Configuration - retrieved from environment variables for portability
+AWS_REGION = os.getenv("AWS_REGION", "eu-west-1")
+AWS_ACCOUNT_ID = os.getenv("AWS_ACCOUNT_ID")
 
-# BigQuery destination configuration
-BIGQUERY_DATASET = "jumia_sox_reconciliation"
-BIGQUERY_RESULTS_TABLE_PREFIX = "pg01_validated_ipe"
+# Data storage configuration
+# Redshift cluster for structured data warehouse
+REDSHIFT_CLUSTER_ENDPOINT = os.getenv("REDSHIFT_CLUSTER_ENDPOINT")
+REDSHIFT_DATABASE = os.getenv("REDSHIFT_DATABASE", "jumia_sox")
+REDSHIFT_SCHEMA = "reconciliation"
+REDSHIFT_TABLE_PREFIX = "pg01_validated_ipe"
 
-# Google Drive configuration for evidence storage
-GOOGLE_DRIVE_FOLDER_ID = "id_du_dossier_google_drive"
+# Athena configuration for S3 data lake queries (alternative to Redshift)
+ATHENA_DATABASE = "jumia_sox_db"
+ATHENA_WORKGROUP = "sox-automation"
+S3_ATHENA_OUTPUT = f"s3://jumia-sox-data-lake/athena-results/"
+
+# S3 configuration for evidence storage and data staging
+S3_BUCKET_EVIDENCE = os.getenv("S3_BUCKET_EVIDENCE", "jumia-sox-evidence")
+S3_BUCKET_DATA = os.getenv("S3_BUCKET_DATA", "jumia-sox-data-lake")
+S3_PREFIX_EVIDENCE = "sox-automation/pg01/evidence/"
+S3_PREFIX_VALIDATED_DATA = "sox-automation/pg01/validated-data/"
 
 # --- IPE Specifications ---
 # Each dictionary contains metadata for one IPE extraction
@@ -25,7 +36,7 @@ IPE_CONFIGS = [
     {
         "id": "IPE_07",
         "description": "Detailed customer ledger entries",
-        "secret_name": "DB_CREDENTIALS_NAV_BI",  # Secret Manager secret name
+        "secret_name": "jumia/sox/db-credentials-nav-bi",  # AWS Secrets Manager secret name
         "main_query": """
             SELECT vl.[id_company], vl.[Entry No_], vl.[Document No_], vl.[Document Type], vl.[External Document No_],
                    vl.[Posting Date], vl.[Customer No_], vl.[Description], vl.[Source Code], vl.[Busline Code],

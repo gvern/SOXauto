@@ -22,8 +22,8 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.core.ipe_runner import IPERunner
-from src.core.config import IPE_CONFIGS, GCP_PROJECT_ID
-from src.utils.gcp_utils import GCPSecretManager
+from src.core.config import IPE_CONFIGS, AWS_REGION
+from src.utils.aws_utils import AWSSecretsManager
 from src.core.evidence_manager import DigitalEvidenceManager
 
 
@@ -58,7 +58,7 @@ def test_ipe_extraction(ipe_id="IPE_07", cutoff_date=None):
     # Initialize components
     print("\n🔍 Initializing components...")
     try:
-        secret_manager = GCPSecretManager(GCP_PROJECT_ID)
+        secret_manager = AWSSecretsManager(AWS_REGION)
         evidence_manager = DigitalEvidenceManager()
         print("✅ Components initialized")
     except Exception as e:
