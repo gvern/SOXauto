@@ -1,7 +1,36 @@
-pandas
-pyodbc
-gspread
-oauth2client
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
+# Core dependencies for data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Database connectivity
+pyodbc>=4.0.39
+
+# Google Cloud Platform dependencies
+google-cloud-secret-manager>=2.16.0
+google-cloud-bigquery>=3.11.0
+google-cloud-storage>=2.10.0
+
+# Google Workspace integration
+gspread>=5.10.0
+google-auth>=2.22.0
+google-auth-oauthlib>=1.0.0
+google-auth-httplib2>=0.1.0
+google-api-python-client>=2.95.0
+
+# Web framework for Cloud Run
+Flask>=2.3.0
+gunicorn>=21.2.0
+
+# Utilities and logging
+python-dateutil>=2.8.0
+pytz>=2023.3
+
+# Development and testing (optional)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.7.0
+flake8>=6.0.0
+
+# Security and performance
+cryptography>=41.0.0
+requests>=2.31.0

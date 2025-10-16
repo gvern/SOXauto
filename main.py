@@ -1,123 +1,308 @@
 # main.py
-import pandas as pd
-import pyodbc
-import gspread
-from google.oauth2.service_account import Credentials
+"""
+Orchestrateur principal pour l'automatisation du processus SOX PG-01.
+Point d'entrée compatible avec Google Cloud Run.
+"""
+
 import logging
-from config import IPE_CONFIGS, DB_CONNECTIONS, GSHEET_NAME
+import os
+import json
+from datetime import datetime
+from typing import Dict, Any, Tuple
+from flask import Flask, request
 
-# --- Configuration du Logging ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+from config import (
+    GCP_PROJECT_ID, 
+    IPE_CONFIGS, 
+    BIGQUERY_DATASET, 
+    BIGQUERY_RESULTS_TABLE_PREFIX,
+    GOOGLE_DRIVE_FOLDER_ID
+)
+from gcp_utils import initialize_gcp_services, get_drive_manager
+from ipe_runner import IPERunner, IPEValidationError, IPEConnectionError
 
-# --- Fonctions de Connexion ---
-def get_db_connection(connection_name):
-    """Crée et retourne une connexion à la base de données."""
-    try:
-        conn_str = DB_CONNECTIONS[connection_name]
-        return pyodbc.connect(conn_str)
-    except Exception as e:
-        logging.error(f"Erreur de connexion à la base de données '{connection_name}': {e}")
-        raise
+# Configuration du logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-def get_gsheet_client():
-    """Crée et retourne un client pour interagir avec Google Sheets."""
-    try:
-        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-        # Assurez-vous d'avoir un fichier credentials.json dans le même répertoire
-        creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
-        return gspread.authorize(creds)
-    except Exception as e:
-        logging.error(f"Erreur de connexion à Google Sheets: {e}")
-        raise
+# Initialisation de Flask pour Cloud Run
+app = Flask(__name__)
 
-# --- Fonction d'Écriture sur Google Sheets ---
-def write_to_gsheet(client, data_df, tab_name):
-    """Écrit un DataFrame Pandas dans un onglet spécifique d'un Google Sheet."""
-    try:
-        spreadsheet = client.open(GSHEET_NAME)
-        try:
-            worksheet = spreadsheet.worksheet(tab_name)
-            worksheet.clear()
-        except gspread.WorksheetNotFound:
-            worksheet = spreadsheet.add_worksheet(title=tab_name, rows="1", cols="1")
 
-        # Convertir le DataFrame en liste de listes et l'écrire
-        worksheet.update([data_df.columns.values.tolist()] + data_df.values.tolist())
-        logging.info(f"Données écrites avec succès dans l'onglet '{tab_name}' du Google Sheet '{GSHEET_NAME}'.")
-    except Exception as e:
-        logging.error(f"Erreur lors de l'écriture sur Google Sheets: {e}")
-        raise
+class WorkflowExecutionError(Exception):
+    """Exception levée en cas d'échec du workflow global."""
+    pass
 
-# --- Cœur de la Logique d'Extraction et Validation ---
-def run_ipe_extraction(ipe_config):
-    """Exécute l'extraction et la validation pour une configuration IPE donnée."""
-    ipe_id = ipe_config['id']
-    logging.info(f"--- Début du traitement de l'IPE: {ipe_id} ---")
 
-    try:
-        conn = get_db_connection(ipe_config['db_connection_name'])
+def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
+    """
+    Exécute le workflow complet d'extraction et validation des IPEs.
+    
+    Args:
+        cutoff_date: Date de coupure optionnelle (format YYYY-MM-DD)
         
-        # 1. Extraction des données principales
-        logging.info(f"[{ipe_id}] Extraction des données principales...")
-        main_query = ipe_config['main_query']
-        df = pd.read_sql(main_query, conn)
-        logging.info(f"[{ipe_id}] {len(df)} lignes extraites.")
-
-        # 2. Validation de complétude
-        logging.info(f"[{ipe_id}] Validation de complétude...")
-        completeness_query = ipe_config['validation']['completeness_query'].format(main_query=main_query)
-        expected_rows = pd.read_sql(completeness_query, conn).iloc[0, 0]
-        if len(df) != expected_rows:
-            raise Exception(f"Échec de la validation de complétude. Attendu: {expected_rows}, Obtenu: {len(df)}")
-        logging.info(f"[{ipe_id}] Validation de complétude: SUCCÈS.")
-
-        # 3. Validation d'exactitude (Positive)
-        logging.info(f"[{ipe_id}] Validation d'exactitude (Positive)...")
-        accuracy_pos_query = ipe_config['validation']['accuracy_positive_query'].format(main_query=main_query)
-        pos_check_result = pd.read_sql(accuracy_pos_query, conn).iloc[0, 0]
-        if pos_check_result == 0:
-            raise Exception("Échec du test d'exactitude positif. La transaction témoin n'a pas été trouvée.")
-        logging.info(f"[{ipe_id}] Validation d'exactitude (Positive): SUCCÈS.")
-
-        # 4. Validation d'exactitude (Négative)
-        logging.info(f"[{ipe_id}] Validation d'exactitude (Négative)...")
-        # Pour le test négatif, il faut parfois modifier la requête principale.
-        # Ici, nous supposons qu'une requête modifiée est fournie ou que le test peut être fait sur la requête de base.
-        if 'accuracy_negative_query' in ipe_config['validation']:
-            main_query_modified = main_query.replace("in ('13010','13009','13006','13005','13004','13003')", "in ('13010','13006','13005','13004','13003')") # Exemple pour IPE_07
-            accuracy_neg_query = ipe_config['validation']['accuracy_negative_query'].format(main_query_modified=main_query_modified)
-            neg_check_result = pd.read_sql(accuracy_neg_query, conn).iloc[0, 0]
-            if neg_check_result > 0:
-                raise Exception("Échec du test d'exactitude négatif. Une transaction exclue a été trouvée.")
-            logging.info(f"[{ipe_id}] Validation d'exactitude (Négative): SUCCÈS.")
-
-        conn.close()
-        return df
-
-    except Exception as e:
-        logging.error(f"[{ipe_id}] ERREUR LORS DU TRAITEMENT: {e}")
-        return None
-
-# --- Orchestrateur ---
-def main():
-    """Fonction principale pour orchestrer l'extraction de tous les IPEs."""
-    logging.info("===== DÉBUT DU WORKFLOW D'EXTRACTION DE DONNÉES =====")
+    Returns:
+        Tuple contenant (résultats, code_statut_HTTP)
+    """
+    workflow_start_time = datetime.now()
+    logger.info("===== DÉBUT DU WORKFLOW D'AUTOMATISATION SOX PG-01 =====")
     
-    gsheet_client = get_gsheet_client()
+    # Résultats globaux du workflow
+    workflow_results = {
+        'workflow_id': f"SOXauto_PG01_{workflow_start_time.strftime('%Y%m%d_%H%M%S')}",
+        'start_time': workflow_start_time.isoformat(),
+        'cutoff_date': cutoff_date,
+        'ipe_results': {},
+        'summary': {
+            'total_ipes': len(IPE_CONFIGS),
+            'successful_ipes': 0,
+            'failed_ipes': 0,
+            'total_rows_processed': 0
+        }
+    }
     
-    for ipe in IPE_CONFIGS:
-        result_df = run_ipe_extraction(ipe)
-        if result_df is not None:
-            logging.info(f"Traitement de l'IPE {ipe['id']} terminé avec succès.")
-            # Écrire les données validées dans un onglet du Google Sheet
-            write_to_gsheet(gsheet_client, result_df, f"IPE_{ipe['id']}_Data")
+    try:
+        # 1. Initialiser les services GCP
+        logger.info("Initialisation des services Google Cloud...")
+        secret_manager, bigquery_client = initialize_gcp_services(GCP_PROJECT_ID)
+        
+        # 2. Traiter chaque IPE
+        for ipe_config in IPE_CONFIGS:
+            ipe_id = ipe_config['id']
+            ipe_result = {
+                'status': 'PENDING',
+                'start_time': datetime.now().isoformat(),
+                'rows_extracted': 0,
+                'validation_summary': {},
+                'error_message': None
+            }
+            
+            try:
+                logger.info(f"--- Traitement de l'IPE: {ipe_id} ---")
+                
+                # Créer et exécuter le runner IPE
+                runner = IPERunner(
+                    ipe_config=ipe_config,
+                    secret_manager=secret_manager,
+                    cutoff_date=cutoff_date
+                )
+                
+                # Exécuter l'extraction et validation
+                validated_data = runner.run()
+                
+                # Stocker les résultats dans BigQuery
+                table_id = f"{BIGQUERY_RESULTS_TABLE_PREFIX}_{ipe_id.lower()}"
+                bigquery_client.write_dataframe(
+                    dataframe=validated_data,
+                    dataset_id=BIGQUERY_DATASET,
+                    table_id=table_id
+                )
+                
+                # Mettre à jour les résultats
+                ipe_result.update({
+                    'status': 'SUCCESS',
+                    'end_time': datetime.now().isoformat(),
+                    'rows_extracted': len(validated_data),
+                    'validation_summary': runner.get_validation_summary(),
+                    'bigquery_table': f"{BIGQUERY_DATASET}.{table_id}"
+                })
+                
+                workflow_results['summary']['successful_ipes'] += 1
+                workflow_results['summary']['total_rows_processed'] += len(validated_data)
+                
+                logger.info(f"IPE {ipe_id} traité avec succès - {len(validated_data)} lignes")
+                
+            except (IPEValidationError, IPEConnectionError) as e:
+                ipe_result.update({
+                    'status': 'FAILED',
+                    'end_time': datetime.now().isoformat(),
+                    'error_message': str(e)
+                })
+                workflow_results['summary']['failed_ipes'] += 1
+                
+                logger.error(f"Échec du traitement de l'IPE {ipe_id}: {e}")
+                
+                # En cas d'échec critique, arrêter le workflow
+                workflow_results['end_time'] = datetime.now().isoformat()
+                workflow_results['overall_status'] = 'FAILED'
+                workflow_results['failure_reason'] = f"Échec critique sur l'IPE {ipe_id}"
+                
+                # Envoyer une alerte (à implémenter selon vos besoins)
+                _send_failure_alert(workflow_results)
+                
+                return workflow_results, 500
+                
+            except Exception as e:
+                ipe_result.update({
+                    'status': 'ERROR',
+                    'end_time': datetime.now().isoformat(),
+                    'error_message': f"Erreur inattendue: {str(e)}"
+                })
+                workflow_results['summary']['failed_ipes'] += 1
+                
+                logger.error(f"Erreur inattendue lors du traitement de l'IPE {ipe_id}: {e}")
+                
+                # Continuer avec les autres IPE en cas d'erreur non critique
+                
+            finally:
+                workflow_results['ipe_results'][ipe_id] = ipe_result
+        
+        # 3. Finaliser le workflow
+        workflow_results['end_time'] = datetime.now().isoformat()
+        
+        if workflow_results['summary']['failed_ipes'] == 0:
+            workflow_results['overall_status'] = 'SUCCESS'
+            logger.info("===== WORKFLOW TERMINÉ AVEC SUCCÈS =====")
+            
+            # Créer un log d'audit complet
+            _create_audit_log(secret_manager, workflow_results)
+            
+            return workflow_results, 200
         else:
-            logging.error(f"Le traitement de l'IPE {ipe['id']} a échoué. Arrêt du workflow.")
-            # Dans un vrai scénario, on enverrait une alerte ici.
-            break # Arrête le processus en cas d'erreur sur un IPE
+            workflow_results['overall_status'] = 'PARTIAL_SUCCESS'
+            logger.warning("===== WORKFLOW TERMINÉ AVEC ÉCHECS PARTIELS =====")
+            return workflow_results, 206  # Partial Content
+            
+    except Exception as e:
+        workflow_results.update({
+            'end_time': datetime.now().isoformat(),
+            'overall_status': 'ERROR',
+            'error_message': f"Erreur fatale du workflow: {str(e)}"
+        })
+        
+        logger.error(f"Erreur fatale du workflow: {e}")
+        _send_failure_alert(workflow_results)
+        
+        return workflow_results, 500
 
-    logging.info("===== FIN DU WORKFLOW D'EXTRACTION DE DONNÉES =====")
+
+def _send_failure_alert(workflow_results: Dict[str, Any]) -> None:
+    """
+    Envoie une alerte en cas d'échec du workflow.
+    À adapter selon vos besoins (email, Slack, etc.)
+    """
+    try:
+        # Placeholder pour l'envoi d'alertes
+        # Vous pouvez implémenter ici l'envoi d'emails, notifications Slack, etc.
+        logger.critical("ALERTE: Échec du workflow SOX PG-01")
+        logger.critical(f"Détails: {json.dumps(workflow_results, indent=2)}")
+        
+        # Exemple d'implémentation future:
+        # send_email_alert(workflow_results)
+        # send_slack_notification(workflow_results)
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de l'envoi d'alerte: {e}")
+
+
+def _create_audit_log(secret_manager, workflow_results: Dict[str, Any]) -> None:
+    """
+    Crée un log d'audit complet du workflow.
+    """
+    try:
+        # Créer le gestionnaire Google Drive si configuré
+        if GOOGLE_DRIVE_FOLDER_ID:
+            try:
+                drive_manager = get_drive_manager(secret_manager, "GOOGLE_SERVICE_ACCOUNT_CREDENTIALS")
+                audit_log_id = drive_manager.create_audit_log(GOOGLE_DRIVE_FOLDER_ID, workflow_results)
+                logger.info(f"Log d'audit créé: {audit_log_id}")
+            except Exception as e:
+                logger.warning(f"Impossible de créer le log d'audit sur Drive: {e}")
+        
+        # Log local en backup
+        logger.info(f"Résumé du workflow: {json.dumps(workflow_results['summary'], indent=2)}")
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la création du log d'audit: {e}")
+
+
+@app.route('/', methods=['POST'])
+def cloud_run_handler():
+    """
+    Point d'entrée pour Google Cloud Run.
+    Accepte les requêtes HTTP POST avec des paramètres optionnels.
+    """
+    try:
+        # Récupérer les paramètres de la requête
+        request_data = request.get_json() or {}
+        cutoff_date = request_data.get('cutoff_date')
+        
+        # Exécuter le workflow
+        results, status_code = execute_ipe_workflow(cutoff_date)
+        
+        return results, status_code
+        
+    except Exception as e:
+        error_response = {
+            'error': 'Erreur interne du serveur',
+            'message': str(e),
+            'timestamp': datetime.now().isoformat()
+        }
+        logger.error(f"Erreur du gestionnaire Cloud Run: {e}")
+        return error_response, 500
+
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Point de contrôle de santé pour Cloud Run."""
+    return {
+        'status': 'healthy',
+        'service': 'SOXauto-PG01',
+        'timestamp': datetime.now().isoformat()
+    }, 200
+
+
+@app.route('/config', methods=['GET'])
+def get_configuration():
+    """Retourne la configuration actuelle (sans les secrets)."""
+    config_info = {
+        'project_id': GCP_PROJECT_ID,
+        'bigquery_dataset': BIGQUERY_DATASET,
+        'configured_ipes': [
+            {
+                'id': ipe['id'],
+                'description': ipe['description']
+            }
+            for ipe in IPE_CONFIGS
+        ],
+        'total_ipes': len(IPE_CONFIGS)
+    }
+    return config_info, 200
+
+
+def main_workflow_local(cutoff_date: str = None):
+    """
+    Point d'entrée pour l'exécution locale (développement/test).
+    
+    Args:
+        cutoff_date: Date de coupure optionnelle
+    """
+    results, status = execute_ipe_workflow(cutoff_date)
+    
+    print("\n" + "="*60)
+    print("RÉSULTATS DU WORKFLOW SOX PG-01")
+    print("="*60)
+    print(json.dumps(results, indent=2, ensure_ascii=False))
+    print("="*60)
+    
+    return results
 
 
 if __name__ == "__main__":
-    main()
+    # Exécution locale pour développement
+    import sys
+    
+    cutoff_date_param = None
+    if len(sys.argv) > 1:
+        cutoff_date_param = sys.argv[1]
+    
+    try:
+        main_workflow_local(cutoff_date_param)
+    except KeyboardInterrupt:
+        logger.info("Workflow interrompu par l'utilisateur")
+    except Exception as e:
+        logger.error(f"Erreur lors de l'exécution locale: {e}")
+        sys.exit(1)
