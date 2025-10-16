@@ -104,17 +104,17 @@ class IPERunner:
         """
         try:
             if parameters is None:
-                # Compter le nombre de placeholders dans la requête
+                # Count placeholders in the query
                 placeholder_count = query.count('?')
                 parameters = tuple([self.cutoff_date] * placeholder_count)
             
-            logger.debug(f"[{self.ipe_id}] Exécution de la requête avec paramètres: {parameters}")
+            logger.debug(f"[{self.ipe_id}] Executing query with parameters: {parameters}")
             df = pd.read_sql(query, self.connection, params=parameters)
-            logger.info(f"[{self.ipe_id}] Requête exécutée: {len(df)} lignes retournées")
+            logger.info(f"[{self.ipe_id}] Query executed: {len(df)} rows returned")
             return df
             
         except Exception as e:
-            logger.error(f"[{self.ipe_id}] Erreur lors de l'exécution de la requête: {e}")
+            logger.error(f"[{self.ipe_id}] Error executing query: {e}")
             raise
     
     def _validate_completeness(self, main_dataframe: pd.DataFrame) -> bool:
@@ -128,20 +128,20 @@ class IPERunner:
             True si la validation réussit, False sinon
             
         Raises:
-            IPEValidationError: En cas d'échec de validation
+            IPEValidationError: If validation fails
         """
         try:
-            logger.info(f"[{self.ipe_id}] Démarrage de la validation de complétude...")
+            logger.info(f"[{self.ipe_id}] Starting completeness validation...")
             
             if 'completeness_query' not in self.config['validation']:
-                logger.warning(f"[{self.ipe_id}] Pas de requête de complétude définie")
+                logger.warning(f"[{self.ipe_id}] No completeness query defined")
                 return True
             
             # Security: CTEs are now self-contained and don't require .format()
             # Execute the validation query directly with parameters
             completeness_query = self.config['validation']['completeness_query']
             
-            # Exécuter la validation
+            # Execute validation
             validation_df = self._execute_query_with_parameters(completeness_query)
             expected_count = validation_df.iloc[0, 0]
             actual_count = len(main_dataframe)
@@ -153,43 +153,43 @@ class IPERunner:
             }
             
             if expected_count != actual_count:
-                error_msg = (f"[{self.ipe_id}] Échec de validation de complétude. "
-                           f"Attendu: {expected_count}, Obtenu: {actual_count}")
+                error_msg = (f"[{self.ipe_id}] Completeness validation failed. "
+                           f"Expected: {expected_count}, Got: {actual_count}")
                 logger.error(error_msg)
                 raise IPEValidationError(error_msg)
             
-            logger.info(f"[{self.ipe_id}] Validation de complétude: SUCCÈS ({actual_count} lignes)")
+            logger.info(f"[{self.ipe_id}] Completeness validation: SUCCESS ({actual_count} rows)")
             return True
             
         except IPEValidationError:
             raise
         except Exception as e:
-            error_msg = f"[{self.ipe_id}] Erreur lors de la validation de complétude: {e}"
+            error_msg = f"[{self.ipe_id}] Error during completeness validation: {e}"
             logger.error(error_msg)
             raise IPEValidationError(error_msg)
     
     def _validate_accuracy_positive(self) -> bool:
         """
-        Validation d'exactitude positive: vérifie qu'une transaction témoin est présente.
+        Positive accuracy validation: verifies that a witness transaction is present.
         
         Returns:
-            True si la validation réussit, False sinon
+            True if validation succeeds, False otherwise
             
         Raises:
-            IPEValidationError: En cas d'échec de validation
+            IPEValidationError: If validation fails
         """
         try:
-            logger.info(f"[{self.ipe_id}] Démarrage de la validation d'exactitude positive...")
+            logger.info(f"[{self.ipe_id}] Starting positive accuracy validation...")
             
             if 'accuracy_positive_query' not in self.config['validation']:
-                logger.warning(f"[{self.ipe_id}] Pas de requête d'exactitude positive définie")
+                logger.warning(f"[{self.ipe_id}] No positive accuracy query defined")
                 return True
             
             # Security: CTEs are now self-contained and don't require .format()
             # Execute the validation query directly with parameters
             accuracy_query = self.config['validation']['accuracy_positive_query']
             
-            # Exécuter la validation
+            # Execute validation
             validation_df = self._execute_query_with_parameters(accuracy_query)
             witness_count = validation_df.iloc[0, 0]
             
@@ -199,43 +199,43 @@ class IPERunner:
             }
             
             if witness_count == 0:
-                error_msg = (f"[{self.ipe_id}] Échec de validation d'exactitude positive. "
-                           f"Aucune transaction témoin trouvée")
+                error_msg = (f"[{self.ipe_id}] Positive accuracy validation failed. "
+                           f"No witness transaction found")
                 logger.error(error_msg)
                 raise IPEValidationError(error_msg)
             
-            logger.info(f"[{self.ipe_id}] Validation d'exactitude positive: SUCCÈS ({witness_count} témoins)")
+            logger.info(f"[{self.ipe_id}] Positive accuracy validation: SUCCESS ({witness_count} witnesses)")
             return True
             
         except IPEValidationError:
             raise
         except Exception as e:
-            error_msg = f"[{self.ipe_id}] Erreur lors de la validation d'exactitude positive: {e}"
+            error_msg = f"[{self.ipe_id}] Error during positive accuracy validation: {e}"
             logger.error(error_msg)
             raise IPEValidationError(error_msg)
     
     def _validate_accuracy_negative(self) -> bool:
         """
-        Validation d'exactitude négative: vérifie qu'aucune transaction exclue n'est présente.
+        Negative accuracy validation: verifies that no excluded transaction is present.
         
         Returns:
-            True si la validation réussit, False sinon
+            True if validation succeeds, False otherwise
             
         Raises:
-            IPEValidationError: En cas d'échec de validation
+            IPEValidationError: If validation fails
         """
         try:
-            logger.info(f"[{self.ipe_id}] Démarrage de la validation d'exactitude négative...")
+            logger.info(f"[{self.ipe_id}] Starting negative accuracy validation...")
             
             if 'accuracy_negative_query' not in self.config['validation']:
-                logger.warning(f"[{self.ipe_id}] Pas de requête d'exactitude négative définie")
+                logger.warning(f"[{self.ipe_id}] No negative accuracy query defined")
                 return True
             
             # Security: CTEs are now self-contained and don't require .format()
             # Execute the validation query directly with parameters
             accuracy_query = self.config['validation']['accuracy_negative_query']
             
-            # Exécuter la validation
+            # Execute validation
             validation_df = self._execute_query_with_parameters(accuracy_query)
             excluded_count = validation_df.iloc[0, 0]
             
@@ -245,45 +245,45 @@ class IPERunner:
             }
             
             if excluded_count > 0:
-                error_msg = (f"[{self.ipe_id}] Échec de validation d'exactitude négative. "
-                           f"{excluded_count} transactions exclues trouvées")
+                error_msg = (f"[{self.ipe_id}] Negative accuracy validation failed. "
+                           f"{excluded_count} excluded transactions found")
                 logger.error(error_msg)
                 raise IPEValidationError(error_msg)
             
-            logger.info(f"[{self.ipe_id}] Validation d'exactitude négative: SUCCÈS")
+            logger.info(f"[{self.ipe_id}] Negative accuracy validation: SUCCESS")
             return True
             
         except IPEValidationError:
             raise
         except Exception as e:
-            error_msg = f"[{self.ipe_id}] Erreur lors de la validation d'exactitude négative: {e}"
+            error_msg = f"[{self.ipe_id}] Error during negative accuracy validation: {e}"
             logger.error(error_msg)
             raise IPEValidationError(error_msg)
     
     def _cleanup_connection(self):
-        """Ferme proprement la connexion à la base de données."""
+        """Cleanly closes the database connection."""
         if self.connection:
             try:
                 self.connection.close()
-                logger.info(f"[{self.ipe_id}] Connexion fermée")
+                logger.info(f"[{self.ipe_id}] Connection closed")
             except Exception as e:
-                logger.warning(f"[{self.ipe_id}] Erreur lors de la fermeture de connexion: {e}")
+                logger.warning(f"[{self.ipe_id}] Error closing connection: {e}")
     
     def run(self) -> pd.DataFrame:
         """
-        Exécute l'IPE complet: extraction, validation et génération d'évidence SOX.
+        Execute complete IPE: extraction, validation and SOX evidence generation.
         
         Returns:
-            DataFrame contenant les données extraites et validées
+            DataFrame containing extracted and validated data
             
         Raises:
-            IPEValidationError: En cas d'échec de validation
-            IPEConnectionError: En cas de problème de connexion
+            IPEValidationError: If validation fails
+            IPEConnectionError: If connection problem occurs
         """
         try:
-            logger.info(f"[{self.ipe_id}] ==> DÉBUT DE L'EXÉCUTION DE L'IPE")
+            logger.info(f"[{self.ipe_id}] ==> STARTING IPE EXECUTION")
             
-            # 1. Créer le package d'évidence SOX
+            # 1. Create SOX evidence package
             execution_metadata = {
                 'ipe_id': self.ipe_id,
                 'description': self.description,
@@ -298,59 +298,59 @@ class IPERunner:
             )
             self.evidence_generator = IPEEvidenceGenerator(evidence_dir, self.ipe_id)
             
-            # 2. Établir la connexion
+            # 2. Establish connection
             self.connection = self._get_database_connection()
             
-            # 3. Extraire les données principales
-            logger.info(f"[{self.ipe_id}] Extraction des données principales...")
+            # 3. Extract main data
+            logger.info(f"[{self.ipe_id}] Extracting main data...")
             main_query = self.config['main_query']
             
-            # Compter le nombre de placeholders et préparer les paramètres
+            # Count placeholders and prepare parameters
             placeholder_count = main_query.count('?')
             parameters = [self.cutoff_date] * placeholder_count
             
-            # Sauvegarder la requête exacte avec paramètres AVANT l'exécution
+            # Save exact query with parameters BEFORE execution
             self.evidence_generator.save_executed_query(
                 main_query, 
                 {'cutoff_date': self.cutoff_date, 'parameters': parameters}
             )
             
-            # Exécuter la requête
+            # Execute query
             self.extracted_data = self._execute_query_with_parameters(main_query, tuple(parameters))
             
-            # Ajouter des métadonnées de traçabilité
+            # Add traceability metadata
             self.extracted_data['_ipe_id'] = self.ipe_id
             self.extracted_data['_extraction_date'] = datetime.now().isoformat()
             self.extracted_data['_cutoff_date'] = self.cutoff_date
             
-            # 4. Générer immédiatement les preuves des données extraites
-            logger.info(f"[{self.ipe_id}] Génération des preuves d'évidence...")
+            # 4. Generate evidence proofs immediately
+            logger.info(f"[{self.ipe_id}] Generating evidence proofs...")
             self.evidence_generator.save_data_snapshot(self.extracted_data)
             integrity_hash = self.evidence_generator.generate_integrity_hash(self.extracted_data)
             
-            logger.info(f"[{self.ipe_id}] Données extraites: {len(self.extracted_data)} lignes, "
+            logger.info(f"[{self.ipe_id}] Data extracted: {len(self.extracted_data)} rows, "
                        f"Hash: {integrity_hash[:16]}...")
             
-            # 5. Exécuter les validations SOX
-            logger.info(f"[{self.ipe_id}] Démarrage des validations SOX...")
+            # 5. Execute SOX validations
+            logger.info(f"[{self.ipe_id}] Starting SOX validations...")
             
             self._validate_completeness(self.extracted_data)
             self._validate_accuracy_positive()
             self._validate_accuracy_negative()
             
-            # 6. Sauvegarder les résultats de validation
+            # 6. Save validation results
             self.validation_results['overall_status'] = 'SUCCESS'
             self.validation_results['execution_time'] = datetime.now().isoformat()
             self.validation_results['data_integrity_hash'] = integrity_hash
             
             self.evidence_generator.save_validation_results(self.validation_results)
             
-            # 7. Finaliser le package d'évidence
+            # 7. Finalize evidence package
             evidence_zip = self.evidence_generator.finalize_evidence_package()
             
-            logger.info(f"[{self.ipe_id}] ==> IPE EXÉCUTÉ AVEC SUCCÈS - "
-                       f"{len(self.extracted_data)} lignes validées")
-            logger.info(f"[{self.ipe_id}] Package d'évidence SOX: {evidence_zip}")
+            logger.info(f"[{self.ipe_id}] ==> IPE EXECUTED SUCCESSFULLY - "
+                       f"{len(self.extracted_data)} rows validated")
+            logger.info(f"[{self.ipe_id}] SOX evidence package: {evidence_zip}")
             
             return self.extracted_data
             
@@ -362,22 +362,22 @@ class IPERunner:
             raise
         except Exception as e:
             self.validation_results['overall_status'] = 'ERROR'
-            error_msg = f"[{self.ipe_id}] Erreur inattendue lors de l'exécution: {e}"
+            error_msg = f"[{self.ipe_id}] Unexpected error during execution: {e}"
             if self.evidence_generator:
                 self.evidence_generator.save_validation_results(self.validation_results)
                 self.evidence_generator.finalize_evidence_package()
             logger.error(error_msg)
             raise Exception(error_msg)
         finally:
-            # 8. Nettoyer les ressources
+            # 8. Clean up resources
             self._cleanup_connection()
     
     def get_validation_summary(self) -> Dict[str, Any]:
         """
-        Retourne un résumé des résultats de validation.
+        Returns a summary of validation results.
         
         Returns:
-            Dictionnaire contenant le résumé des validations
+            Dictionary containing validation summary
         """
         return {
             'ipe_id': self.ipe_id,

@@ -1,7 +1,7 @@
 # gcp_utils.py
 """
-Module dédié aux interactions avec les services Google Cloud Platform.
-Ce module gère l'accès aux secrets, BigQuery, et Google Drive de manière sécurisée.
+Module dedicated to interactions with Google Cloud Platform services.
+This module handles secure access to Secrets, BigQuery, and Google Drive.
 """
 
 import logging
@@ -14,12 +14,12 @@ import json
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-# Configuration du logging
+# Logging configuration
 logger = logging.getLogger(__name__)
 
 
 class GCPSecretManager:
-    """Gestionnaire pour l'accès aux secrets dans Google Secret Manager."""
+    """Manager for accessing secrets in Google Secret Manager."""
     
     def __init__(self, project_id: str):
         self.project_id = project_id
@@ -27,52 +27,52 @@ class GCPSecretManager:
     
     def get_secret(self, secret_id: str, version_id: str = "latest") -> str:
         """
-        Récupère un secret depuis Google Secret Manager.
+        Retrieves a secret from Google Secret Manager.
         
         Args:
-            secret_id: L'identifiant du secret
-            version_id: La version du secret (par défaut 'latest')
+            secret_id: The secret identifier
+            version_id: The secret version (default 'latest')
             
         Returns:
-            La valeur du secret sous forme de chaîne
+            The secret value as a string
             
         Raises:
-            Exception: Si le secret n'est pas trouvé ou inaccessible
+            Exception: If the secret is not found or inaccessible
         """
         try:
             name = f"projects/{self.project_id}/secrets/{secret_id}/versions/{version_id}"
             response = self.client.access_secret_version(request={"name": name})
             secret_value = response.payload.data.decode("UTF-8")
-            logger.info(f"Secret '{secret_id}' récupéré avec succès")
+            logger.info(f"Secret '{secret_id}' retrieved successfully")
             return secret_value
         except NotFound:
-            logger.error(f"Secret '{secret_id}' non trouvé dans le projet {self.project_id}")
+            logger.error(f"Secret '{secret_id}' not found in project {self.project_id}")
             raise
         except Exception as e:
-            logger.error(f"Erreur lors de la récupération du secret '{secret_id}': {e}")
+            logger.error(f"Error retrieving secret '{secret_id}': {e}")
             raise
 
     def get_json_secret(self, secret_id: str, version_id: str = "latest") -> Dict[str, Any]:
         """
-        Récupère un secret JSON et le retourne sous forme de dictionnaire.
+        Retrieves a JSON secret and returns it as a dictionary.
         
         Args:
-            secret_id: L'identifiant du secret JSON
-            version_id: La version du secret
+            secret_id: The JSON secret identifier
+            version_id: The secret version
             
         Returns:
-            Le secret parsé en dictionnaire
+            The parsed secret as a dictionary
         """
         try:
             secret_value = self.get_secret(secret_id, version_id)
             return json.loads(secret_value)
         except json.JSONDecodeError as e:
-            logger.error(f"Erreur de parsing JSON pour le secret '{secret_id}': {e}")
+            logger.error(f"JSON parsing error for secret '{secret_id}': {e}")
             raise
 
 
 class GCPBigQuery:
-    """Gestionnaire pour les interactions avec BigQuery."""
+    """Manager for BigQuery interactions."""
     
     def __init__(self, project_id: str):
         self.project_id = project_id
@@ -81,13 +81,13 @@ class GCPBigQuery:
     def write_dataframe(self, dataframe: pd.DataFrame, dataset_id: str, table_id: str,
                        write_disposition: str = "WRITE_TRUNCATE") -> None:
         """
-        Écrit un DataFrame Pandas dans une table BigQuery.
+        Writes a Pandas DataFrame to a BigQuery table.
         
         Args:
-            dataframe: Le DataFrame à écrire
-            dataset_id: L'identifiant du dataset BigQuery
-            table_id: L'identifiant de la table BigQuery
-            write_disposition: Mode d'écriture ('WRITE_TRUNCATE', 'WRITE_APPEND', 'WRITE_EMPTY')
+            dataframe: The DataFrame to write
+            dataset_id: The BigQuery dataset identifier
+            table_id: The BigQuery table identifier
+            write_disposition: Write mode ('WRITE_TRUNCATE', 'WRITE_APPEND', 'WRITE_EMPTY')
         """
         try:
             table_ref = self.client.dataset(dataset_id).table(table_id)
@@ -98,7 +98,7 @@ class GCPBigQuery:
                 autodetect=True
             )
             
-            # Ajout de métadonnées de traçabilité
+            # Add traceability metadata
             timestamp = datetime.now().isoformat()
             dataframe_copy = dataframe.copy()
             dataframe_copy['_processing_timestamp'] = timestamp
@@ -107,45 +107,45 @@ class GCPBigQuery:
             job = self.client.load_table_from_dataframe(
                 dataframe_copy, table_ref, job_config=job_config
             )
-            job.result()  # Attend la fin du job
+            job.result()  # Wait for job completion
             
-            logger.info(f"Données écrites avec succès dans BigQuery: {dataset_id}.{table_id} "
-                       f"({len(dataframe)} lignes)")
+            logger.info(f"Data written successfully to BigQuery: {dataset_id}.{table_id} "
+                       f"({len(dataframe)} rows)")
             
         except Exception as e:
-            logger.error(f"Erreur lors de l'écriture dans BigQuery {dataset_id}.{table_id}: {e}")
+            logger.error(f"Error writing to BigQuery {dataset_id}.{table_id}: {e}")
             raise
     
     def query_to_dataframe(self, query: str) -> pd.DataFrame:
         """
-        Exécute une requête BigQuery et retourne les résultats sous forme de DataFrame.
+        Executes a BigQuery query and returns results as a DataFrame.
         
         Args:
-            query: La requête SQL à exécuter
+            query: The SQL query to execute
             
         Returns:
-            DataFrame contenant les résultats de la requête
+            DataFrame containing query results
         """
         try:
             query_job = self.client.query(query)
             results = query_job.result()
             df = results.to_dataframe()
-            logger.info(f"Requête BigQuery exécutée avec succès ({len(df)} lignes)")
+            logger.info(f"BigQuery query executed successfully ({len(df)} rows)")
             return df
         except Exception as e:
-            logger.error(f"Erreur lors de l'exécution de la requête BigQuery: {e}")
+            logger.error(f"Error executing BigQuery query: {e}")
             raise
     
     def table_exists(self, dataset_id: str, table_id: str) -> bool:
         """
-        Vérifie si une table existe dans BigQuery.
+        Checks if a table exists in BigQuery.
         
         Args:
-            dataset_id: L'identifiant du dataset
-            table_id: L'identifiant de la table
+            dataset_id: The dataset identifier
+            table_id: The table identifier
             
         Returns:
-            True si la table existe, False sinon
+            True if table exists, False otherwise
         """
         try:
             table_ref = self.client.dataset(dataset_id).table(table_id)
@@ -156,14 +156,14 @@ class GCPBigQuery:
 
 
 class GCPDriveManager:
-    """Gestionnaire pour les interactions avec Google Drive."""
+    """Manager for Google Drive interactions."""
     
     def __init__(self, service_account_info: Dict[str, Any]):
         """
-        Initialise le gestionnaire Google Drive.
+        Initializes the Google Drive manager.
         
         Args:
-            service_account_info: Les informations du compte de service (dict JSON)
+            service_account_info: Service account information (JSON dict)
         """
         self.scopes = [
             "https://www.googleapis.com/auth/spreadsheets",
@@ -175,20 +175,20 @@ class GCPDriveManager:
                 service_account_info, scopes=self.scopes
             )
             self.gspread_client = gspread.authorize(credentials)
-            logger.info("Client Google Drive initialisé avec succès")
+            logger.info("Google Drive client initialized successfully")
         except Exception as e:
-            logger.error(f"Erreur lors de l'initialisation du client Google Drive: {e}")
+            logger.error(f"Error initializing Google Drive client: {e}")
             raise
     
     def write_to_sheet(self, dataframe: pd.DataFrame, spreadsheet_name: str, 
                       worksheet_name: str) -> None:
         """
-        Écrit un DataFrame dans un Google Sheet.
+        Writes a DataFrame to a Google Sheet.
         
         Args:
-            dataframe: Le DataFrame à écrire
-            spreadsheet_name: Le nom du Google Sheet
-            worksheet_name: Le nom de l'onglet
+            dataframe: The DataFrame to write
+            spreadsheet_name: The Google Sheet name
+            worksheet_name: The worksheet tab name
         """
         try:
             spreadsheet = self.gspread_client.open(spreadsheet_name)
@@ -201,81 +201,81 @@ class GCPDriveManager:
                     title=worksheet_name, rows=1000, cols=50
                 )
             
-            # Convertir le DataFrame en liste de listes
+            # Convert DataFrame to list of lists
             data_to_write = [dataframe.columns.values.tolist()] + dataframe.values.tolist()
             worksheet.update(data_to_write)
             
-            logger.info(f"Données écrites avec succès dans Google Sheet: "
-                       f"{spreadsheet_name}/{worksheet_name} ({len(dataframe)} lignes)")
+            logger.info(f"Data written successfully to Google Sheet: "
+                       f"{spreadsheet_name}/{worksheet_name} ({len(dataframe)} rows)")
             
         except Exception as e:
-            logger.error(f"Erreur lors de l'écriture dans Google Sheet: {e}")
+            logger.error(f"Error writing to Google Sheet: {e}")
             raise
     
     def create_audit_log(self, folder_id: str, log_data: Dict[str, Any]) -> str:
         """
-        Crée un fichier de log d'audit dans Google Drive.
+        Creates an audit log file in Google Drive.
         
         Args:
-            folder_id: L'identifiant du dossier de destination
-            log_data: Les données de log à enregistrer
+            folder_id: The destination folder identifier
+            log_data: The log data to save
             
         Returns:
-            L'identifiant du fichier créé
+            The created file identifier
         """
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"SOXauto_PG01_audit_{timestamp}.json"
             
-            # Cette fonctionnalité nécessiterait l'API Google Drive
-            # Pour simplifier, on log les informations importantes
-            logger.info(f"Audit log créé: {filename}")
-            logger.info(f"Données d'audit: {log_data}")
+            # This feature would require the Google Drive API
+            # For simplicity, we log the important information
+            logger.info(f"Audit log created: {filename}")
+            logger.info(f"Audit data: {log_data}")
             
             return f"audit_log_{timestamp}"
             
         except Exception as e:
-            logger.error(f"Erreur lors de la création du log d'audit: {e}")
+            logger.error(f"Error creating audit log: {e}")
             raise
 
 
 def initialize_gcp_services(project_id: str) -> tuple:
     """
-    Initialise tous les services GCP nécessaires.
+    Initializes all necessary GCP services.
     
     Args:
-        project_id: L'identifiant du projet GCP
+        project_id: The GCP project identifier
         
     Returns:
-        Tuple contenant (secret_manager, bigquery_client)
+        Tuple containing (secret_manager, bigquery_client)
     """
     try:
         secret_manager = GCPSecretManager(project_id)
         bigquery_client = GCPBigQuery(project_id)
         
-        logger.info(f"Services GCP initialisés pour le projet: {project_id}")
+        logger.info(f"GCP services initialized for project: {project_id}")
         return secret_manager, bigquery_client
         
     except Exception as e:
-        logger.error(f"Erreur lors de l'initialisation des services GCP: {e}")
+        logger.error(f"Error initializing GCP services: {e}")
         raise
 
 
 def get_drive_manager(secret_manager: GCPSecretManager, 
                      service_account_secret_name: str) -> GCPDriveManager:
     """
-    Initialise le gestionnaire Google Drive en utilisant les credentials du Secret Manager.
+    Initializes the Google Drive manager using credentials from Secret Manager.
     
     Args:
-        secret_manager: Instance du gestionnaire de secrets
-        service_account_secret_name: Nom du secret contenant les credentials du service account
+        secret_manager: Secret manager instance
+        service_account_secret_name: Secret name containing service account credentials
         
     Returns:
-        Instance du gestionnaire Google Drive
+        Google Drive manager instance
     """
     try:
         service_account_info = secret_manager.get_json_secret(service_account_secret_name)
         return GCPDriveManager(service_account_info)
     except Exception as e:
-        logger.error(f"Erreur lors de l'initialisation du gestionnaire Drive: {e}")
+        logger.error(f"Error initializing Drive manager: {e}")
         raise
