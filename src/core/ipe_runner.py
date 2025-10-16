@@ -10,8 +10,8 @@ import pandas as pd
 import pyodbc
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple
-from gcp_utils import GCPSecretManager
-from evidence_manager import DigitalEvidenceManager, IPEEvidenceGenerator
+from src.utils.gcp_utils import GCPSecretManager
+from src.core.evidence_manager import DigitalEvidenceManager, IPEEvidenceGenerator
 
 # Configuration du logging
 logger = logging.getLogger(__name__)
@@ -279,32 +279,6 @@ class IPERunner:
             logger.error(error_msg)
             raise IPEValidationError(error_msg)
     
-    def _extract_main_data(self) -> pd.DataFrame:
-        """
-        Extrait les données principales selon la configuration de l'IPE.
-        
-        Returns:
-            DataFrame contenant les données extraites
-        """
-        try:
-            logger.info(f"[{self.ipe_id}] Démarrage de l'extraction des données principales...")
-            
-            main_query = self.config['main_query']
-            dataframe = self._execute_query_with_parameters(main_query)
-            
-            # Ajout de métadonnées
-            dataframe['_ipe_id'] = self.ipe_id
-            dataframe['_extraction_date'] = datetime.now().isoformat()
-            dataframe['_cutoff_date'] = self.cutoff_date
-            
-            logger.info(f"[{self.ipe_id}] Extraction terminée: {len(dataframe)} lignes extraites")
-            return dataframe
-            
-        except Exception as e:
-            error_msg = f"[{self.ipe_id}] Erreur lors de l'extraction des données: {e}"
-            logger.error(error_msg)
-            raise
-    
     def _cleanup_connection(self):
         """Ferme proprement la connexion à la base de données."""
         if self.connection:
@@ -316,7 +290,7 @@ class IPERunner:
     
     def run(self) -> pd.DataFrame:
         """
-        Exécute l'IPE complet: extraction et validation.
+        Exécute l'IPE complet: extraction, validation et génération d'évidence SOX.
         
         Returns:
             DataFrame contenant les données extraites et validées
@@ -328,38 +302,93 @@ class IPERunner:
         try:
             logger.info(f"[{self.ipe_id}] ==> DÉBUT DE L'EXÉCUTION DE L'IPE")
             
-            # 1. Établir la connexion
+            # 1. Créer le package d'évidence SOX
+            execution_metadata = {
+                'ipe_id': self.ipe_id,
+                'description': self.description,
+                'cutoff_date': self.cutoff_date,
+                'execution_start': datetime.now().isoformat(),
+                'secret_name': self.config['secret_name'],
+                'sox_compliance_required': True
+            }
+            
+            evidence_dir = self.evidence_manager.create_evidence_package(
+                self.ipe_id, execution_metadata
+            )
+            self.evidence_generator = IPEEvidenceGenerator(evidence_dir, self.ipe_id)
+            
+            # 2. Établir la connexion
             self.connection = self._get_database_connection()
             
-            # 2. Extraire les données principales
-            self.extracted_data = self._extract_main_data()
+            # 3. Extraire les données principales
+            logger.info(f"[{self.ipe_id}] Extraction des données principales...")
+            main_query = self.config['main_query']
             
-            # 3. Exécuter les validations
-            logger.info(f"[{self.ipe_id}] Démarrage des validations...")
+            # Compter le nombre de placeholders et préparer les paramètres
+            placeholder_count = main_query.count('?')
+            parameters = [self.cutoff_date] * placeholder_count
+            
+            # Sauvegarder la requête exacte avec paramètres AVANT l'exécution
+            self.evidence_generator.save_executed_query(
+                main_query, 
+                {'cutoff_date': self.cutoff_date, 'parameters': parameters}
+            )
+            
+            # Exécuter la requête
+            self.extracted_data = self._execute_query_with_parameters(main_query, tuple(parameters))
+            
+            # Ajouter des métadonnées de traçabilité
+            self.extracted_data['_ipe_id'] = self.ipe_id
+            self.extracted_data['_extraction_date'] = datetime.now().isoformat()
+            self.extracted_data['_cutoff_date'] = self.cutoff_date
+            
+            # 4. Générer immédiatement les preuves des données extraites
+            logger.info(f"[{self.ipe_id}] Génération des preuves d'évidence...")
+            self.evidence_generator.save_data_snapshot(self.extracted_data)
+            integrity_hash = self.evidence_generator.generate_integrity_hash(self.extracted_data)
+            
+            logger.info(f"[{self.ipe_id}] Données extraites: {len(self.extracted_data)} lignes, "
+                       f"Hash: {integrity_hash[:16]}...")
+            
+            # 5. Exécuter les validations SOX
+            logger.info(f"[{self.ipe_id}] Démarrage des validations SOX...")
             
             self._validate_completeness(self.extracted_data)
             self._validate_accuracy_positive()
             self._validate_accuracy_negative()
             
-            # 4. Marquer le succès
+            # 6. Sauvegarder les résultats de validation
             self.validation_results['overall_status'] = 'SUCCESS'
             self.validation_results['execution_time'] = datetime.now().isoformat()
+            self.validation_results['data_integrity_hash'] = integrity_hash
+            
+            self.evidence_generator.save_validation_results(self.validation_results)
+            
+            # 7. Finaliser le package d'évidence
+            evidence_zip = self.evidence_generator.finalize_evidence_package()
             
             logger.info(f"[{self.ipe_id}] ==> IPE EXÉCUTÉ AVEC SUCCÈS - "
                        f"{len(self.extracted_data)} lignes validées")
+            logger.info(f"[{self.ipe_id}] Package d'évidence SOX: {evidence_zip}")
             
             return self.extracted_data
             
         except (IPEValidationError, IPEConnectionError):
             self.validation_results['overall_status'] = 'FAILED'
+            if self.evidence_generator:
+                self.evidence_generator.save_validation_results(self.validation_results)
+                self.evidence_generator.finalize_evidence_package()
             raise
         except Exception as e:
             self.validation_results['overall_status'] = 'ERROR'
             error_msg = f"[{self.ipe_id}] Erreur inattendue lors de l'exécution: {e}"
+            if self.evidence_generator:
+                self.evidence_generator.save_validation_results(self.validation_results)
+                self.evidence_generator.finalize_evidence_package()
             logger.error(error_msg)
             raise Exception(error_msg)
         finally:
-            # 5. Nettoyer les ressources
+            # 8. Nettoyer les ressources
             self._cleanup_connection()
     
     def get_validation_summary(self) -> Dict[str, Any]:

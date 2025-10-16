@@ -1,2 +1,7 @@
 PG-01 Diagram.png
 PG-01.pages
+# Data and credentials (added by quick_wins.sh)
+data/
+credentials.json
+*.csv
+!tests/fixtures/*.csv

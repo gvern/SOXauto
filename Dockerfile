@@ -66,8 +66,10 @@ RUN groupadd --gid 1000 appuser \
 # Create application directory
 WORKDIR /app
 
-# Copy application code
-COPY --chown=appuser:appuser . .
+# Copy application code with new structure
+COPY --chown=appuser:appuser src/ /app/src/
+COPY --chown=appuser:appuser requirements.txt /app/
+COPY --chown=appuser:appuser Dockerfile /app/
 
 # Set ownership and permissions
 RUN chown -R appuser:appuser /app \
@@ -88,5 +90,5 @@ ENV PORT=8080
 ENV GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID}
 
 # Command to run the application
-# Use gunicorn for production WSGI server
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 --worker-class gthread main:app
+# Use gunicorn for production WSGI server with module syntax
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 --worker-class gthread src.core.main:app

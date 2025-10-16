@@ -98,8 +98,8 @@ Open `timing_difference_analysis.py` and update the configuration section at the
 GSHEET_NAME = "Name of the Google Sheet Islam Shared"  # UPDATE THIS
 VOUCHERS_WORKSHEET_NAME = "Name of the Tab with Voucher Data"  # UPDATE THIS
 USAGE_WORKSHEET_NAME = "Name of the Tab with Gdash Usage Data"  # UPDATE THIS
-CREDENTIALS_FILE = "credentials.json"  # Should be in same folder
-OUTPUT_FILE = "timing_difference_bridge_september.csv"
+CREDENTIALS_FILE = "data/credentials/credentials.json"  # Place credentials in data/credentials/
+OUTPUT_FILE = "data/outputs/timing_difference_bridge_september.csv"
 ```
 
 **Important:** The names must match exactly as they appear in Google Sheets (case-sensitive).
@@ -164,8 +164,8 @@ Results saved to timing_difference_bridge_september.csv
 ## 🐛 Troubleshooting
 
 ### Error: "Credentials file not found"
-- Make sure `credentials.json` is in the same folder as the script
-- Check the `CREDENTIALS_FILE` variable in the script
+- Make sure `credentials.json` is in `data/credentials/` folder
+- Check the `CREDENTIALS_FILE` variable points to `data/credentials/credentials.json`
 
 ### Error: "Spreadsheet not found"
 - Check that `GSHEET_NAME` matches exactly (including case)
@@ -189,7 +189,7 @@ Results saved to timing_difference_bridge_september.csv
 
 ## 📊 Output File
 
-The script generates `timing_difference_bridge_september.csv` containing:
+The script generates `data/outputs/timing_difference_bridge_september.csv` containing:
 - `voucher_id` - The voucher identifier
 - `order_id` - The associated order
 - `amount` - The voucher amount

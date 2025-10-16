@@ -11,15 +11,16 @@ from datetime import datetime
 from typing import Dict, Any, Tuple
 from flask import Flask, request
 
-from config import (
+from src.core.config import (
     GCP_PROJECT_ID, 
     IPE_CONFIGS, 
     BIGQUERY_DATASET, 
     BIGQUERY_RESULTS_TABLE_PREFIX,
     GOOGLE_DRIVE_FOLDER_ID
 )
-from gcp_utils import initialize_gcp_services, get_drive_manager
-from ipe_runner import IPERunner, IPEValidationError, IPEConnectionError
+from src.utils.gcp_utils import initialize_gcp_services, get_drive_manager
+from src.core.ipe_runner import IPERunner, IPEValidationError, IPEConnectionError
+from src.core.evidence_manager import DigitalEvidenceManager
 
 # Configuration du logging
 logging.basicConfig(
@@ -65,9 +66,12 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
     }
     
     try:
-        # 1. Initialiser les services GCP
+        # 1. Initialiser les services GCP et le gestionnaire d'évidence
         logger.info("Initialisation des services Google Cloud...")
         secret_manager, bigquery_client = initialize_gcp_services(GCP_PROJECT_ID)
+        
+        # Créer le gestionnaire d'évidence SOX
+        evidence_manager = DigitalEvidenceManager("evidence_sox_pg01")
         
         # 2. Traiter chaque IPE
         for ipe_config in IPE_CONFIGS:
@@ -83,11 +87,12 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
             try:
                 logger.info(f"--- Traitement de l'IPE: {ipe_id} ---")
                 
-                # Créer et exécuter le runner IPE
+                # Créer et exécuter le runner IPE avec évidence SOX
                 runner = IPERunner(
                     ipe_config=ipe_config,
                     secret_manager=secret_manager,
-                    cutoff_date=cutoff_date
+                    cutoff_date=cutoff_date,
+                    evidence_manager=evidence_manager
                 )
                 
                 # Exécuter l'extraction et validation

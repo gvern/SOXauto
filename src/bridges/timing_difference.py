@@ -9,8 +9,8 @@ import sys
 GSHEET_NAME = "Name of the Google Sheet Islam Shared"
 VOUCHERS_WORKSHEET_NAME = "Name of the Tab with Voucher Data"
 USAGE_WORKSHEET_NAME = "Name of the Tab with Gdash Usage Data" # Or keep as CSV if it's a separate file
-CREDENTIALS_FILE = "credentials.json" # Your Google service account key file
-OUTPUT_FILE = "timing_difference_bridge_september.csv"
+CREDENTIALS_FILE = "data/credentials/credentials.json" # Your Google service account key file
+OUTPUT_FILE = "data/outputs/timing_difference_bridge_september.csv"
 
 # --- 1. Load the Data from Google Sheets ---
 def load_data():
