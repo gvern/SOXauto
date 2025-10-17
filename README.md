@@ -241,6 +241,23 @@ export AWS_REGION=eu-west-1
 
 📚 **Detailed guide**: See [docs/setup/OKTA_AWS_SETUP.md](docs/setup/OKTA_AWS_SETUP.md)
 
+### Database Connection
+
+SOXauto supports **two authentication methods** for database access:
+
+1. **AWS Secrets Manager** (Production) - Secure, managed credentials
+2. **Environment Variable** (Development) - Direct connection string for testing
+
+```bash
+# Option 1: AWS Secrets Manager (requires permissions)
+# Credentials retrieved automatically from AWS Secrets Manager
+
+# Option 2: Environment Variable Fallback
+export DB_CONNECTION_STRING="DRIVER={ODBC Driver 17 for SQL Server};SERVER=your-server;DATABASE=NAV_BI;UID=user;PWD=pass;"
+```
+
+📚 **Database setup guide**: See [docs/setup/DATABASE_CONNECTION.md](docs/setup/DATABASE_CONNECTION.md)
+
 ### Environment Variables
 ```bash
 # AWS Okta Configuration
@@ -250,6 +267,9 @@ export AWS_REGION=eu-west-1
 
 # Execution Parameters
 export CUTOFF_DATE=2024-12-31  # Optional, defaults to current month
+
+# Database Connection (Optional - fallback if Secrets Manager unavailable)
+export DB_CONNECTION_STRING="DRIVER={...};SERVER=...;DATABASE=...;"
 ```
 
 You can also use a `.env` file (copy from `.env.example`):

@@ -6,6 +6,7 @@ to data validation and evidence generation.
 """
 
 import logging
+import os
 import pandas as pd
 import pyodbc
 from datetime import datetime, timedelta
@@ -69,7 +70,11 @@ class IPERunner:
     
     def _get_database_connection(self) -> pyodbc.Connection:
         """
-        Establish database connection using credentials from Secret Manager.
+        Establish database connection using credentials from Secret Manager or environment variable.
+        
+        Fallback order:
+        1. DB_CONNECTION_STRING environment variable (if set)
+        2. AWS Secrets Manager (using secret_name from config)
         
         Returns:
             pyodbc connection to the database
@@ -78,8 +83,15 @@ class IPERunner:
             IPEConnectionError: If connection fails
         """
         try:
-            # Retrieve connection string from Secret Manager
-            connection_string = self.secret_manager.get_secret(self.config['secret_name'])
+            # Check for environment variable fallback first
+            connection_string = os.getenv('DB_CONNECTION_STRING')
+            
+            if connection_string:
+                logger.info(f"[{self.ipe_id}] Using DB_CONNECTION_STRING from environment variable")
+            else:
+                # Retrieve connection string from Secret Manager
+                logger.info(f"[{self.ipe_id}] Retrieving connection string from Secrets Manager")
+                connection_string = self.secret_manager.get_secret(self.config['secret_name'])
             
             # Establish connection
             connection = pyodbc.connect(connection_string)

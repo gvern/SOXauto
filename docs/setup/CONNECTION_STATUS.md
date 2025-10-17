@@ -1,8 +1,9 @@
 # AWS Connection Status - Jumia SOX Project
 
-**Date**: 16 Octobre 2025  
+**Date**: 17 Octobre 2025  
 **Utilisateur**: gustavevernayavisia  
-**Compte AWS**: 007809111365 (jumia-data-prod-datalake)
+**Compte AWS**: 007809111365 (jumia-data-prod-datalake)  
+**Status**: ✅ Connecté (credentials temporaires)
 
 ---
 
@@ -118,10 +119,13 @@ for bucket in response['Buckets']:
 ### 2. Permissions Manquantes
 - **Secrets Manager**: Vous ne pouvez pas accéder aux secrets AWS
   - **Impact**: Impossible de récupérer automatiquement les chaînes de connexion DB
-  - **Solution**: 
-    - Option 1: Demander les permissions Secrets Manager à votre admin AWS
-    - Option 2: Utiliser les credentials DB directement dans votre code (moins sécurisé)
-    - Option 3: Stocker les credentials dans des variables d'environnement
+  - **Solution Implémentée**: ✅ Fallback vers variable d'environnement `DB_CONNECTION_STRING`
+  - **Options**: 
+    - Option 1 (Recommandée): Utiliser `DB_CONNECTION_STRING` en variable d'environnement
+    - Option 2: Demander les permissions Secrets Manager à votre admin AWS
+    - Option 3: Attendre la configuration du Secrets Manager
+
+**📖 Voir**: [DATABASE_CONNECTION.md](DATABASE_CONNECTION.md) pour la configuration complète
 
 ### 3. AWS SSO Login
 - L'authentification via `aws sso login` ne fonctionne pas correctement
