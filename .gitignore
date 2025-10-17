@@ -59,3 +59,7 @@ htmlcov/
 # Environment variables
 .env
 .env.local
+
+# Evidence packages (runtime artifacts)
+evidence/
+*.zip

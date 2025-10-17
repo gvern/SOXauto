@@ -2,6 +2,7 @@
 """
 Module dedicated to interactions with Amazon Web Services (AWS).
 This module handles secure access to Secrets Manager, Redshift, Athena, and S3.
+Supports Okta SSO authentication for enhanced security.
 """
 
 import logging
@@ -12,27 +13,64 @@ import json
 from datetime import datetime
 from typing import Optional, Dict, Any
 import io
+import os
 
 # Logging configuration
 logger = logging.getLogger(__name__)
 
+# Import Okta authentication if available
+try:
+    from .okta_aws_auth import OktaAWSAuth
+    OKTA_AUTH_AVAILABLE = True
+except ImportError:
+    OKTA_AUTH_AVAILABLE = False
+    logger.debug("Okta authentication module not available, using standard AWS credentials")
+
 
 class AWSSecretsManager:
-    """Manager for accessing secrets in AWS Secrets Manager."""
+    """Manager for accessing secrets in AWS Secrets Manager with Okta SSO support."""
     
-    def __init__(self, region_name: str = 'eu-west-1'):
+    def __init__(
+        self, 
+        region_name: str = 'eu-west-1',
+        use_okta: bool = None,
+        profile_name: Optional[str] = None
+    ):
         """
         Initializes the AWS Secrets Manager client.
         
         Args:
             region_name: AWS region (default 'eu-west-1')
+            use_okta: Whether to use Okta authentication (auto-detect if None)
+            profile_name: AWS profile name for Okta SSO (e.g., 'jumia-sox-prod')
         """
         self.region_name = region_name
+        self.use_okta = use_okta if use_okta is not None else os.getenv('USE_OKTA_AUTH', 'false').lower() == 'true'
+        self.profile_name = profile_name or os.getenv('AWS_PROFILE')
+        
         try:
-            self.client = boto3.client('secretsmanager', region_name=region_name)
-            logger.info(f"AWS Secrets Manager client initialized for region: {region_name}")
+            # Use Okta authentication if enabled and available
+            if self.use_okta and OKTA_AUTH_AVAILABLE:
+                logger.info("Using Okta SSO authentication for AWS")
+                okta_auth = OktaAWSAuth(
+                    profile_name=self.profile_name,
+                    region_name=region_name
+                )
+                self.client = okta_auth.get_client('secretsmanager')
+                logger.info(f"AWS Secrets Manager client initialized via Okta for region: {region_name}")
+            else:
+                # Standard boto3 client (uses AWS credentials from environment/config)
+                if self.profile_name:
+                    session = boto3.Session(profile_name=self.profile_name, region_name=region_name)
+                    self.client = session.client('secretsmanager')
+                    logger.info(f"AWS Secrets Manager client initialized with profile '{self.profile_name}'")
+                else:
+                    self.client = boto3.client('secretsmanager', region_name=region_name)
+                    logger.info(f"AWS Secrets Manager client initialized for region: {region_name}")
+                    
         except NoCredentialsError:
-            logger.error("AWS credentials not found. Configure credentials properly.")
+            logger.error("AWS credentials not found. Please configure AWS CLI or Okta SSO.")
+            logger.error("Run 'aws sso login --profile <profile-name>' if using Okta SSO")
             raise
     
     def get_secret(self, secret_name: str) -> str:
@@ -202,25 +240,52 @@ class AWSRedshift:
 
 
 class AWSAthena:
-    """Manager for Amazon Athena interactions."""
+    """Manager for Amazon Athena interactions with Okta SSO support."""
     
-    def __init__(self, region_name: str = 'eu-west-1', 
-                 s3_output_location: str = None):
+    def __init__(
+        self, 
+        region_name: str = 'eu-west-1', 
+        s3_output_location: str = None,
+        use_okta: bool = None,
+        profile_name: Optional[str] = None
+    ):
         """
         Initializes the Athena client.
         
         Args:
             region_name: AWS region
             s3_output_location: S3 location for query results
+            use_okta: Whether to use Okta authentication (auto-detect if None)
+            profile_name: AWS profile name for Okta SSO
         """
         self.region_name = region_name
         self.s3_output_location = s3_output_location
+        self.use_okta = use_okta if use_okta is not None else os.getenv('USE_OKTA_AUTH', 'false').lower() == 'true'
+        self.profile_name = profile_name or os.getenv('AWS_PROFILE')
         
         try:
-            self.client = boto3.client('athena', region_name=region_name)
-            logger.info(f"AWS Athena client initialized for region: {region_name}")
+            # Use Okta authentication if enabled and available
+            if self.use_okta and OKTA_AUTH_AVAILABLE:
+                logger.info("Using Okta SSO authentication for Athena")
+                okta_auth = OktaAWSAuth(
+                    profile_name=self.profile_name,
+                    region_name=region_name
+                )
+                self.client = okta_auth.get_client('athena')
+                logger.info(f"AWS Athena client initialized via Okta for region: {region_name}")
+            else:
+                # Standard boto3 client
+                if self.profile_name:
+                    session = boto3.Session(profile_name=self.profile_name, region_name=region_name)
+                    self.client = session.client('athena')
+                    logger.info(f"AWS Athena client initialized with profile '{self.profile_name}'")
+                else:
+                    self.client = boto3.client('athena', region_name=region_name)
+                    logger.info(f"AWS Athena client initialized for region: {region_name}")
+                    
         except NoCredentialsError:
-            logger.error("AWS credentials not found. Configure credentials properly.")
+            logger.error("AWS credentials not found. Please configure AWS CLI or Okta SSO.")
+            logger.error("Run 'aws sso login --profile <profile-name>' if using Okta SSO")
             raise
     
     def query_to_dataframe(self, query: str, database: str) -> pd.DataFrame:
@@ -285,23 +350,53 @@ class AWSAthena:
 
 
 class AWSS3Manager:
-    """Manager for Amazon S3 interactions."""
+    """Manager for Amazon S3 interactions with Okta SSO support."""
     
-    def __init__(self, region_name: str = 'eu-west-1'):
+    def __init__(
+        self, 
+        region_name: str = 'eu-west-1',
+        use_okta: bool = None,
+        profile_name: Optional[str] = None
+    ):
         """
         Initializes the S3 client.
         
         Args:
             region_name: AWS region
+            use_okta: Whether to use Okta authentication (auto-detect if None)
+            profile_name: AWS profile name for Okta SSO
         """
         self.region_name = region_name
+        self.use_okta = use_okta if use_okta is not None else os.getenv('USE_OKTA_AUTH', 'false').lower() == 'true'
+        self.profile_name = profile_name or os.getenv('AWS_PROFILE')
         
         try:
-            self.client = boto3.client('s3', region_name=region_name)
-            self.resource = boto3.resource('s3', region_name=region_name)
-            logger.info(f"AWS S3 client initialized for region: {region_name}")
+            # Use Okta authentication if enabled and available
+            if self.use_okta and OKTA_AUTH_AVAILABLE:
+                logger.info("Using Okta SSO authentication for S3")
+                okta_auth = OktaAWSAuth(
+                    profile_name=self.profile_name,
+                    region_name=region_name
+                )
+                self.client = okta_auth.get_client('s3')
+                session = okta_auth.get_session()
+                self.resource = session.resource('s3')
+                logger.info(f"AWS S3 client initialized via Okta for region: {region_name}")
+            else:
+                # Standard boto3 client
+                if self.profile_name:
+                    session = boto3.Session(profile_name=self.profile_name, region_name=region_name)
+                    self.client = session.client('s3')
+                    self.resource = session.resource('s3')
+                    logger.info(f"AWS S3 client initialized with profile '{self.profile_name}'")
+                else:
+                    self.client = boto3.client('s3', region_name=region_name)
+                    self.resource = boto3.resource('s3', region_name=region_name)
+                    logger.info(f"AWS S3 client initialized for region: {region_name}")
+                    
         except NoCredentialsError:
-            logger.error("AWS credentials not found. Configure credentials properly.")
+            logger.error("AWS credentials not found. Please configure AWS CLI or Okta SSO.")
+            logger.error("Run 'aws sso login --profile <profile-name>' if using Okta SSO")
             raise
     
     def upload_dataframe_as_csv(self, dataframe: pd.DataFrame, bucket: str, 

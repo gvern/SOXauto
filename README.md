@@ -217,13 +217,45 @@ altered_hash   = "9z8y7x6w5v4u3t2s1r0q9p8o7n6m..."
 
 ## 🔧 **Configuration & Setup**
 
+### AWS Authentication with Okta SSO
+
+SOXauto supports **Okta SSO authentication** for secure AWS access. This is the recommended method for production use.
+
+#### Quick Setup
+```bash
+# 1. Install AWS CLI v2 (required for SSO)
+brew install awscli  # macOS
+# or download from https://aws.amazon.com/cli/
+
+# 2. Configure Okta profile (interactive)
+python3 scripts/setup_okta_profile.py
+
+# 3. Login via Okta
+aws sso login --profile jumia-sox-prod
+
+# 4. Set environment variables
+export AWS_PROFILE=jumia-sox-prod
+export USE_OKTA_AUTH=true
+export AWS_REGION=eu-west-1
+```
+
+📚 **Detailed guide**: See [docs/setup/OKTA_AWS_SETUP.md](docs/setup/OKTA_AWS_SETUP.md)
+
 ### Environment Variables
 ```bash
-# AWS Configuration
-export AWS_REGION="eu-west-1"
+# AWS Okta Configuration
+export USE_OKTA_AUTH=true
+export AWS_PROFILE=jumia-sox-prod
+export AWS_REGION=eu-west-1
 
 # Execution Parameters
-export CUTOFF_DATE="2024-05-01"  # Optional, defaults to current month
+export CUTOFF_DATE=2024-12-31  # Optional, defaults to current month
+```
+
+You can also use a `.env` file (copy from `.env.example`):
+```bash
+cp .env.example .env
+# Edit .env with your settings
 ```
 
 ### Required Secrets (AWS Secrets Manager)
@@ -232,10 +264,11 @@ export CUTOFF_DATE="2024-05-01"  # Optional, defaults to current month
 aws secretsmanager create-secret \
   --name DB_CREDENTIALS_NAV_BI \
   --secret-string file://connection_string.txt \
-  --region eu-west-1
+  --region eu-west-1 \
+  --profile jumia-sox-prod
 
 # AWS credentials are managed via IAM roles in production
-# For local development, use AWS CLI configuration
+# For local development, use Okta SSO (recommended) or AWS CLI configuration
 ```
 
 ### IPE Configuration
