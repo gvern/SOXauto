@@ -1,6 +1,6 @@
 # Timing Difference Bridge - Setup Guide
 
-This guide will help you set up and run the `timing_difference_analysis.py` script to identify vouchers with timing differences between order and delivery/cancellation dates.
+This guide will help you set up and run the `src/bridges/timing_difference.py` script to identify vouchers with timing differences between order and delivery/cancellation dates.
 
 ---
 
@@ -91,7 +91,7 @@ Make sure the Google Sheets API is enabled for your project:
 
 ### 5. Configure the Script
 
-Open `timing_difference_analysis.py` and update the configuration section at the top:
+Open `src/bridges/timing_difference.py` (or run it with CLI flags) and update the configuration section at the top or pass overrides on the command line:
 
 ```python
 # --- CONFIGURATION ---
@@ -135,10 +135,17 @@ output_columns = ['voucher_id', 'order_id', 'amount', 'delivery_date', 'cancella
 
 ## 🚀 Running the Script
 
-Once everything is configured:
+Once everything is configured (or if you have a local Excel extract), place the Excel file in the project `Bridge_source/` folder and run the script from the project root. Example invocation (this mirrors what we used successfully):
 
 ```bash
-python timing_difference_analysis.py
+# Example: run using the provided Excel file in Bridge_source with explicit headers and column mappings
+python3 -m src.bridges.timing_difference \
+   --file "Bridge_source/All Countries - Sep.25 - Voucher TV Extract.xlsx" \
+   --issued "Issuance" --usage "Usage" --expiration "Expiration" \
+   --issued-header 9 --usage-header 7 --expiration-header 9 \
+   --voucher-id-col id --order-id-col Transaction_No --business-use-col business_use \
+   --amount-col "Total Used" --country-col ID_COMPANY --inactive-date-col "Inactive at" \
+   --order-date-col created_at --country-filter EC_NG
 ```
 
 ### Expected Output
@@ -156,7 +163,7 @@ Identified 87 vouchers with a timing difference.
 1  VCH234567   ORD890123  25000.0    2025-10-12               NaT
 ...
 
-Results saved to timing_difference_bridge_september.csv
+Results saved to `data/outputs/timing_difference_bridge_september.csv` (script will create the folder if missing).
 ```
 
 ---
@@ -207,6 +214,16 @@ The script generates `data/outputs/timing_difference_bridge_september.csv` conta
    - "Does this list match your manual analysis?"
    - "Is the logic complete, or are there edge cases?"
    - "What's the next bridge we should tackle?"
+
+   ---
+
+   ## 📌 What changed (quick)
+
+   - The script was renamed/moved during refactor: the active entry point is now `src/bridges/timing_difference.py` (run with `python3 -m src.bridges.timing_difference`).
+   - For ad-hoc runs you can drop the downloaded Excel into the repository `Bridge_source/` folder and call the script with `--file` and header/column overrides (example shown above).
+   - The script will create `data/outputs/` for the CSV result.
+
+   __Doc updated to reflect current repository structure and local-excel workflow.__
 
 ---
 

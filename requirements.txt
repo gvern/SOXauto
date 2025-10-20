@@ -2,6 +2,7 @@
 pandas>=2.0.0
 numpy>=1.24.0
 pyarrow>=12.0.0  # For parquet file support
+openpyxl>=3.1.2  # For reading Excel files
 
 # Database connectivity
 pyodbc>=4.0.39  # Keep for backward compatibility (legacy)

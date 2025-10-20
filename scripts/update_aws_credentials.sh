@@ -19,7 +19,7 @@ echo " AWS Temporary Credentials Updater"
 echo " Profile: $PROFILE"
 echo "=============================================="
 
-echo "Paste the credentials block (3 lines) and then press Ctrl+D when finished:" 
+echo "Paste the credentials block (3 lines) and then press Ctrl+D when finished:"
 cat <<'__EOF_PROMPT__'
 Example input:
 aws_access_key_id=ASIA...
@@ -28,24 +28,81 @@ aws_session_token=...
 __EOF_PROMPT__
 
 # Read whole stdin until EOF
-CREDENTIALS_RAW=$(cat)
+CREDENTIALS_RAW=$(cat || true)
 
 # Extract values (trim whitespace)
-ACCESS_KEY=$(echo "$CREDENTIALS_RAW" | grep -i "aws_access_key_id" | sed -E 's/.*=\s*//I' | tr -d '\r' | tr -d '\n' | xargs)
-SECRET_KEY=$(echo "$CREDENTIALS_RAW" | grep -i "aws_secret_access_key" | sed -E 's/.*=\s*//I' | tr -d '\r' | tr -d '\n' | xargs)
-SESSION_TOKEN=$(echo "$CREDENTIALS_RAW" | grep -i "aws_session_token" | sed -E 's/.*=\s*//I' | tr -d '\r' | tr -d '\n' | xargs)
+ACCESS_KEY=$(echo "$CREDENTIALS_RAW" | grep -iE "^[[:space:]]*aws_access_key_id[[:space:]]*=" | sed -E 's/.*=\s*//I' | tr -d '\r' | tr -d '\n' | xargs || true)
+SECRET_KEY=$(echo "$CREDENTIALS_RAW" | grep -iE "^[[:space:]]*aws_secret_access_key[[:space:]]*=" | sed -E 's/.*=\s*//I' | tr -d '\r' | tr -d '\n' | xargs || true)
+SESSION_TOKEN=$(echo "$CREDENTIALS_RAW" | grep -iE "^[[:space:]]*aws_session_token[[:space:]]*=" | sed -E 's/.*=\s*//I' | tr -d '\r' | tr -d '\n' | xargs || true)
 
-if [ -z "$ACCESS_KEY" ] || [ -z "$SECRET_KEY" ] || [ -z "$SESSION_TOKEN" ]; then
-  echo "Error: Could not parse all three credential values. Please paste the block exactly as provided by AWS." >&2
-  exit 1
+# If parsing failed, offer manual entry fallback
+if [ -z "${ACCESS_KEY:-}" ] || [ -z "${SECRET_KEY:-}" ] || [ -z "${SESSION_TOKEN:-}" ]; then
+  echo "\nCouldn't parse credentials from pasted block. Switching to manual entry..."
+  echo "Tip: Paste only the 3 lines without the [profile] header."
+  echo ""
+  read -r -p "AWS Access Key ID: " ACCESS_KEY
+  if [ -z "$ACCESS_KEY" ]; then echo "Access Key ID cannot be empty" >&2; exit 1; fi
+  read -rs -p "AWS Secret Access Key: " SECRET_KEY; echo
+  if [ -z "$SECRET_KEY" ]; then echo "Secret Access Key cannot be empty" >&2; exit 1; fi
+  echo "Paste AWS Session Token (end with Enter):"
+  IFS= read -r SESSION_TOKEN
+  if [ -z "$SESSION_TOKEN" ]; then echo "Session Token cannot be empty" >&2; exit 1; fi
 fi
 
 echo "Applying credentials to AWS CLI profile: $PROFILE"
 
-# Use aws cli to set values so we don't directly edit files. This keeps file permissions and format correct.
-aws configure set aws_access_key_id "$ACCESS_KEY" --profile "$PROFILE"
-aws configure set aws_secret_access_key "$SECRET_KEY" --profile "$PROFILE"
-aws configure set aws_session_token "$SESSION_TOKEN" --profile "$PROFILE"
+# Ensure ~/.aws exists
+AWS_DIR="$HOME/.aws"
+mkdir -p "$AWS_DIR"
+CRED_FILE="$AWS_DIR/credentials"
+
+# If credentials file exists but is malformed (no [section] headers), reset it safely
+NEED_RESET=0
+if [ -f "$CRED_FILE" ]; then
+  if ! grep -qE '^\s*\[.+\]\s*$' "$CRED_FILE"; then
+    NEED_RESET=1
+  fi
+fi
+
+if [ "$NEED_RESET" -eq 1 ]; then
+  TS=$(date +%Y%m%d-%H%M%S)
+  cp "$CRED_FILE" "$CRED_FILE.bak-$TS" || true
+  echo "⚠️  Detected malformed credentials file. Backed up to $CRED_FILE.bak-$TS"
+  # Write a minimal valid INI with our profile
+  cat > "$CRED_FILE" <<EOF
+[$PROFILE]
+aws_access_key_id=$ACCESS_KEY
+aws_secret_access_key=$SECRET_KEY
+aws_session_token=$SESSION_TOKEN
+EOF
+  chmod 600 "$CRED_FILE"
+else
+  # Try using aws configure set. If it fails (e.g., due to parse errors), fall back to rewriting the file
+  set +e
+  aws configure set aws_access_key_id "$ACCESS_KEY" --profile "$PROFILE"
+  CFG_RC1=$?
+  aws configure set aws_secret_access_key "$SECRET_KEY" --profile "$PROFILE"
+  CFG_RC2=$?
+  aws configure set aws_session_token "$SESSION_TOKEN" --profile "$PROFILE"
+  CFG_RC3=$?
+  set -e
+
+  if [ $CFG_RC1 -ne 0 ] || [ $CFG_RC2 -ne 0 ] || [ $CFG_RC3 -ne 0 ]; then
+    echo "⚠️  aws configure failed to update credentials. Falling back to writing a clean credentials file."
+    TS=$(date +%Y%m%d-%H%M%S)
+    if [ -f "$CRED_FILE" ]; then
+      cp "$CRED_FILE" "$CRED_FILE.bak-$TS" || true
+      echo "   Backup: $CRED_FILE.bak-$TS"
+    fi
+    cat > "$CRED_FILE" <<EOF
+[$PROFILE]
+aws_access_key_id=$ACCESS_KEY
+aws_secret_access_key=$SECRET_KEY
+aws_session_token=$SESSION_TOKEN
+EOF
+    chmod 600 "$CRED_FILE"
+  fi
+fi
 
 echo "Credentials applied. Verifying with STS..."
 
@@ -59,62 +116,3 @@ else
 fi
 
 echo "Done."
-#!/bin/bash
-#
-# AWS Credentials Quick Update
-#
-# This script provides a simple, secure way to update your temporary AWS credentials daily.
-# It reads credentials pasted into the terminal and writes them to the AWS credentials file.
-#
-# Usage:
-# 1. Copy the 3 credential lines from the AWS portal.
-# 2. Run this script: ./scripts/update_aws_credentials.sh
-# 3. Paste the credentials into the terminal.
-# 4. Press Ctrl+D to save and finish.
-#
-
-set -e # Exit immediately if a command exits with a non-zero status.
-
-PROFILE_NAME="007809111365_Data-Prod-DataAnalyst-NonFinance"
-CREDS_FILE="$HOME/.aws/credentials"
-
-echo "╔════════════════════════════════════════════════════════════╗"
-echo "║              AWS Credentials Quick Update                  ║"
-echo "╚════════════════════════════════════════════════════════════╝"
-echo ""
-echo "Paste your 3 credential lines from the AWS portal below."
-echo "Press Ctrl+D when you are done."
-echo "----------------------------------------------------------------"
-
-# Read all input from stdin until EOF (Ctrl+D)
-CREDENTIALS=$(cat)
-
-# Basic validation to see if we got any input
-if [ -z "$CREDENTIALS" ]; then
-    echo "❌ No input received. Aborting."
-    exit 1
-fi
-
-# Create .aws directory if it doesn't exist
-mkdir -p "$(dirname "$CREDS_FILE")"
-
-# Write credentials to the file, overwriting previous content.
-# This is safer as it removes any other profiles and ensures a clean state.
-cat > "$CREDS_FILE" << EOF
-[$PROFILE_NAME]
-$CREDENTIALS
-EOF
-
-# Make the credentials file readable only by the current user
-chmod 600 "$CREDS_FILE"
-
-echo ""
-echo "----------------------------------------------------------------"
-echo "✅ Credentials updated successfully for profile: [$PROFILE_NAME]"
-echo ""
-echo "To verify, run:"
-echo "   aws sts get-caller-identity --profile $PROFILE_NAME"
-echo ""
-echo "To use these credentials in your project, run:"
-echo "   export AWS_PROFILE=$PROFILE_NAME"
-echo "╚════════════════════════════════════════════════════════════╝"

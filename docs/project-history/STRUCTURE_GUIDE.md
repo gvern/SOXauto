@@ -143,7 +143,7 @@ git commit -m "refactor: restructure for scalability"
 | Old Location | New Location | Purpose |
 |--------------|--------------|---------|
 | `main.py` | `src/core/main.py` | SOX orchestrator |
-| `timing_difference_analysis.py` | `src/bridges/timing_difference.py` | Bridge analysis |
+| `timing_difference_analysis.py` | `src/bridges/timing_difference.py` | Bridge analysis (entry point: `python3 -m src.bridges.timing_difference`; input Excel files are expected in `Bridge_source/`)
 | `gcp_utils.py` | `src/utils/gcp_utils.py` | Cloud utilities |
 | `deploy.md` | `docs/deployment/deploy.md` | Deploy guide |
 | `classification_matrix.md` | `docs/development/classification_matrix.md` | Business rules |
