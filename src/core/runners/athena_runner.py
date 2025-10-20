@@ -135,6 +135,9 @@ class IPERunnerAthena:
         """
         Execute SQL query on AWS Athena and return results as DataFrame.
         
+        awswrangler handles query submission, polling for completion, and result retrieval
+        automatically, eliminating the need for manual polling loops.
+        
         Args:
             query: SQL query to execute (Athena SQL syntax)
             
@@ -153,19 +156,16 @@ class IPERunnerAthena:
             # Create boto3 session with region
             session = boto3.Session(region_name=self.aws_region)
             
-            # Execute query using awswrangler in pure read-only mode
-            # - ctas_approach=False: Don't create temporary Glue tables (requires Glue:CreateTable)
-            # - unload_approach=False: Don't use UNLOAD command (requires S3 write beyond Athena output)
-            # - keep_files=True: Don't delete Athena result files (requires S3:DeleteObject)
-            # Note: Athena itself creates result files in S3 - this is unavoidable and handled by Athena service
+            # Execute query using awswrangler - it handles polling internally
+            # Note: awswrangler.athena.read_sql_query waits for query completion automatically
             df = wr.athena.read_sql_query(
                 sql=query,
                 database=self.athena_database,
                 s3_output=self.athena_s3_output,
                 boto3_session=session,
-                ctas_approach=False,
-                unload_approach=False,
-                keep_files=True
+                ctas_approach=False,      # No temp Glue tables (requires Glue:CreateTable)
+                unload_approach=False,    # No UNLOAD (requires additional S3 permissions)
+                keep_files=True           # Don't delete results (requires S3:DeleteObject)
             )
             
             logger.info(f"[{self.ipe_id}] Query successful - {len(df)} rows retrieved")
