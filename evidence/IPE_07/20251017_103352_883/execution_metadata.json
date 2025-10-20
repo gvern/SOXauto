@@ -1,8 +1,0 @@
-{
-  "ipe_id": "IPE_07",
-  "description": "Detailed customer ledger entries",
-  "cutoff_date": "2024-12-31",
-  "execution_start": "2025-10-17T10:33:52.883718",
-  "secret_name": "jumia/sox/db-credentials-nav-bi",
-  "sox_compliance_required": true
-}
