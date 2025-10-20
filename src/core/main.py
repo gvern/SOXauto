@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, Any, Tuple
 from flask import Flask, request
 
-from src.core.config import (
+from src.core.legacy.config import (
     AWS_REGION,
     IPE_CONFIGS, 
     ATHENA_DATABASE,
@@ -20,8 +20,8 @@ from src.core.config import (
     S3_RESULTS_PREFIX
 )
 from src.utils.aws_utils import initialize_aws_services
-from src.core.ipe_runner import IPERunner, IPEValidationError, IPEConnectionError
-from src.core.evidence_manager import DigitalEvidenceManager
+from src.core.runners import IPERunnerMSSQL as IPERunner, IPEValidationError, IPEConnectionError
+from src.core.evidence import DigitalEvidenceManager
 
 # Logging configuration
 logging.basicConfig(

@@ -21,10 +21,10 @@ from datetime import datetime
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.core.ipe_runner import IPERunner
-from src.core.config import IPE_CONFIGS, AWS_REGION
+from src.core.runners import IPERunnerMSSQL as IPERunner
+from src.core.legacy.config import IPE_CONFIGS, AWS_REGION
 from src.utils.aws_utils import AWSSecretsManager
-from src.core.evidence_manager import DigitalEvidenceManager
+from src.core.evidence import DigitalEvidenceManager
 
 
 def test_ipe_extraction(ipe_id="IPE_07", cutoff_date=None):

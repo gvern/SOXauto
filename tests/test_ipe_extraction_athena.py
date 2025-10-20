@@ -19,9 +19,9 @@ from datetime import datetime
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.core.ipe_runner_athena import IPERunnerAthena, IPEValidationError, IPEConnectionError
-from src.core.config_athena import IPEConfigAthena
-from src.core.evidence_manager import DigitalEvidenceManager
+from src.core.runners import IPERunnerAthena, IPEValidationError, IPEConnectionError
+from src.core.catalog import get_athena_config, list_athena_ipes
+from src.core.evidence import DigitalEvidenceManager
 
 
 def print_header(title: str):
@@ -60,8 +60,8 @@ def test_ipe_extraction_athena(ipe_id: str = 'IPE_09'):
     print_section(f"IPE EXTRACTION TEST: {ipe_id}")
     
     try:
-        # Load IPE configuration
-        config = IPEConfigAthena.load_ipe_config(ipe_id)
+        # Load IPE configuration from the unified catalog (single source of truth)
+        config = get_athena_config(ipe_id)
         print(f"\n✅ IPE Configuration loaded: {config['description']}")
         print(f"   Athena Database: {config['athena_database']}")
         print(f"   Cutoff date: {cutoff_date}")

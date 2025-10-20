@@ -18,7 +18,7 @@ import pyodbc
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.utils.aws_utils import AWSSecretsManager
-from src.core.config import AWS_REGION
+from src.core.legacy.config import AWS_REGION
 
 
 def test_secret_manager():
