@@ -68,8 +68,6 @@ WORKDIR /app
 
 # Copy application code with new structure
 COPY --chown=appuser:appuser src/ /app/src/
-COPY --chown=appuser:appuser requirements.txt /app/
-COPY --chown=appuser:appuser Dockerfile /app/
 
 # Set ownership and permissions
 RUN chown -R appuser:appuser /app \
