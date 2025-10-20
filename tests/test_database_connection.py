@@ -18,7 +18,6 @@ import pyodbc
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.utils.aws_utils import AWSSecretsManager
-from src.core.legacy.config import AWS_REGION
 
 
 def test_secret_manager():
@@ -26,8 +25,10 @@ def test_secret_manager():
     print("\n🔍 Testing AWS Secrets Manager Access...")
     print("-" * 70)
     
+    aws_region = os.getenv("AWS_REGION", "eu-west-1")
+    
     try:
-        sm = AWSSecretsManager(AWS_REGION)
+        sm = AWSSecretsManager(aws_region)
         conn_str = sm.get_secret("DB_CREDENTIALS_NAV_BI")
         print(f"✅ Secret retrieved successfully")
         print(f"   Connection string format: {conn_str[:20]}...")

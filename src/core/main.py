@@ -11,17 +11,17 @@ from datetime import datetime
 from typing import Dict, Any, Tuple
 from flask import Flask, request
 
-from src.core.legacy.config import (
-    AWS_REGION,
-    IPE_CONFIGS, 
-    ATHENA_DATABASE,
-    ATHENA_OUTPUT_LOCATION,
-    S3_RESULTS_BUCKET,
-    S3_RESULTS_PREFIX
-)
+from src.core.catalog import list_items, get_item_by_id
 from src.utils.aws_utils import initialize_aws_services
 from src.core.runners import IPERunnerMSSQL as IPERunner, IPEValidationError, IPEConnectionError
 from src.core.evidence import DigitalEvidenceManager
+
+# Configuration from environment
+AWS_REGION = os.getenv("AWS_REGION", "eu-west-1")
+ATHENA_DATABASE = os.getenv("ATHENA_DATABASE", "consume_pg_dwh")
+ATHENA_OUTPUT_LOCATION = os.getenv("ATHENA_OUTPUT_LOCATION", "s3://athena-query-results-s3-ew1-production-jdata/")
+S3_RESULTS_BUCKET = os.getenv("S3_RESULTS_BUCKET", "sox-pg01-results")
+S3_RESULTS_PREFIX = os.getenv("S3_RESULTS_PREFIX", "extractions/")
 
 # Logging configuration
 logging.basicConfig(
@@ -53,13 +53,14 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
     logger.info("===== STARTING SOX PG-01 AUTOMATION WORKFLOW =====")
     
     # Global workflow results
+    ipe_configs = list_items()
     workflow_results = {
         'workflow_id': f"SOXauto_PG01_{workflow_start_time.strftime('%Y%m%d_%H%M%S')}",
         'start_time': workflow_start_time.isoformat(),
         'cutoff_date': cutoff_date,
         'ipe_results': {},
         'summary': {
-            'total_ipes': len(IPE_CONFIGS),
+            'total_ipes': len(ipe_configs),
             'successful_ipes': 0,
             'failed_ipes': 0,
             'total_rows_processed': 0
@@ -75,7 +76,7 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
         evidence_manager = DigitalEvidenceManager("evidence_sox_pg01")
         
         # 2. Process each IPE
-        for ipe_config in IPE_CONFIGS:
+        for ipe_config in ipe_configs:
             ipe_id = ipe_config['id']
             ipe_result = {
                 'status': 'PENDING',
@@ -272,9 +273,9 @@ def get_configuration():
                 'id': ipe['id'],
                 'description': ipe['description']
             }
-            for ipe in IPE_CONFIGS
+            for ipe in list_items()
         ],
-        'total_ipes': len(IPE_CONFIGS)
+        'total_ipes': len(list_items())
     }
     return config_info, 200
 

@@ -3,7 +3,7 @@
 Test complete IPE extraction flow with a single IPE.
 
 This test verifies:
-1. IPE configuration loading
+1. IPE configuration loading from catalog
 2. Component initialization
 3. Full IPE extraction with validation
 4. Evidence package generation
@@ -22,7 +22,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.core.runners import IPERunnerMSSQL as IPERunner
-from src.core.legacy.config import IPE_CONFIGS, AWS_REGION
+from src.core.catalog import get_item_by_id, list_items
 from src.utils.aws_utils import AWSSecretsManager
 from src.core.evidence import DigitalEvidenceManager
 
@@ -42,23 +42,28 @@ def test_ipe_extraction(ipe_id="IPE_07", cutoff_date=None):
     print(f"SINGLE IPE EXTRACTION TEST: {ipe_id}")
     print("=" * 70)
     
-    # Get IPE config
+    # Get IPE config from catalog
     try:
-        ipe_config = next(c for c in IPE_CONFIGS if c['id'] == ipe_id)
+        ipe_config = get_item_by_id(ipe_id)
+        if not ipe_config:
+            print(f"\n❌ IPE '{ipe_id}' not found in catalog")
+            print(f"   Available IPEs: {', '.join([ipe['id'] for ipe in list_items()])}")
+            return False
         print(f"\n✅ IPE Configuration loaded: {ipe_config['description']}")
-    except StopIteration:
-        print(f"\n❌ IPE '{ipe_id}' not found in configuration")
-        print(f"   Available IPEs: {', '.join([c['id'] for c in IPE_CONFIGS])}")
+    except Exception as e:
+        print(f"\n❌ Error loading IPE: {e}")
         return False
     
     # Setup
     cutoff_date = cutoff_date or os.getenv("CUTOFF_DATE", "2024-01-01")
+    aws_region = os.getenv("AWS_REGION", "eu-west-1")
     print(f"   Cutoff date: {cutoff_date}")
+    print(f"   AWS Region: {aws_region}")
     
     # Initialize components
     print("\n🔍 Initializing components...")
     try:
-        secret_manager = AWSSecretsManager(AWS_REGION)
+        secret_manager = AWSSecretsManager(aws_region)
         evidence_manager = DigitalEvidenceManager()
         print("✅ Components initialized")
     except Exception as e:
