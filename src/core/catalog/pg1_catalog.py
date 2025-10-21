@@ -99,10 +99,11 @@ CPG1_CATALOG: List[CatalogItem] = [
         cross_reference=None,
         notes=(
             "Found in file '2. All Countries June-25 - IBSAR - Customer Accounts.xlsx', "
-            "GLs = 13003, 13004, 13009"
+            "GLs = 13003, 13004, 13009. "
+            "Baseline: IPE_07a__IPE Baseline__Detailed customer ledger entries.xlsx"
         ),
         evidence_ref="IPE_07",
-        descriptor_excel="IPE_FILES/IPE_07.xlsx",
+        descriptor_excel="IPE_FILES/IPE_07a__IPE Baseline__Detailed customer ledger entries.xlsx",
         sources=[
             _src_sql("[AIG_Nav_DW].[dbo].[Detailed Customer Ledg_ Entry]", system="NAV", domain="NAVBI"),
             _src_sql("[AIG_Nav_DW].[dbo].[Customer Ledger Entries]", system="NAV", domain="NAVBI"),
@@ -125,12 +126,21 @@ CPG1_CATALOG: List[CatalogItem] = [
         status="Completed",
         baseline_required=True,
         cross_reference=None,
-        notes=None,
+        notes=(
+            "Multiple baseline files: CR_05_test.xlsx, "
+            "CR_05a__IPE Baseline__FA table - FX rates.xlsx, "
+            "CR_05b__IPE Baseline__Daily FX rates.xlsx. "
+            "May require two separate Athena tables or one combined view."
+        ),
         evidence_ref="CR_05",
-        descriptor_excel="IPE_FILES/CR_05.xlsx",
+        descriptor_excel="IPE_FILES/CR_05a__IPE Baseline__FA table - FX rates.xlsx",
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]", system="NAV", domain="FinRec"),
         ],
+        # Athena placeholders (to be confirmed)
+        athena_database=None,
+        athena_query=None,
+        athena_validation=None,
     ),
     CatalogItem(
         item_id="IPE_11",
@@ -145,17 +155,21 @@ CPG1_CATALOG: List[CatalogItem] = [
         status="Completed",
         baseline_required=True,
         cross_reference="I.SC-NAV",
-        notes=None,
+        notes=(
+            "GL = 18304. "
+            "Baseline: IPE_11__IPE Baseline__Marketplace accrued revenues.xlsx"
+        ),
         evidence_ref="IPE_11",
-        descriptor_excel="IPE_FILES/IPE_11.xlsx",
+        descriptor_excel="IPE_FILES/IPE_11__IPE Baseline__Marketplace accrued revenues.xlsx",
         sources=[
-            _src_sql("SC values: RPT_SC_TRANSCATIONS, RPT_SC_ACCOUNTSTATEMENTS", system="Seller Center", domain="FinRec"),
-            _src_sql(
-                "NAV values: AIG_Nav_Jumia_Reconciliation.dbo.V_BS_ANAPLAN_IMPORT_IFRS_MAPPING",
-                system="NAV",
-                domain="FinRec",
-            ),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SC_TRANSCATIONS]", system="Seller Center", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SC_ACCOUNTSTATEMENTS]", system="Seller Center", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_BS_ANAPLAN_IMPORT_IFRS_MAPPING]", system="NAV", domain="FinRec"),
         ],
+        # Athena placeholders (to be confirmed)
+        athena_database=None,
+        athena_query=None,
+        athena_validation=None,
     ),
     CatalogItem(
         item_id="IPE_10",
@@ -171,13 +185,19 @@ CPG1_CATALOG: List[CatalogItem] = [
         baseline_required=True,
         cross_reference="I.OMS-NAV",
         notes=(
-            "Found in file '4. All Countries June-25 - IBSAR Other AR related Accounts.xlsx', GL=18350"
+            "Found in file '4. All Countries June-25 - IBSAR Other AR related Accounts.xlsx', GL=18350. "
+            "Uses RPT_SOI filtered for prepayments. "
+            "Baseline: IPE_10__IPE Baseline__Customer prepayments TV.xlsx"
         ),
         evidence_ref="IPE_10",
-        descriptor_excel="IPE_FILES/IPE_10.xlsx",
+        descriptor_excel="IPE_FILES/IPE_10__IPE Baseline__Customer prepayments TV.xlsx",
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
+        # Athena placeholders (to be confirmed)
+        athena_database=None,
+        athena_query=None,
+        athena_validation=None,
     ),
     CatalogItem(
         item_id="IPE_08",
@@ -194,10 +214,11 @@ CPG1_CATALOG: List[CatalogItem] = [
         cross_reference=None,
         notes=(
             "File '4. All Countries June-25 - IBSAR Other AR related Accounts.xlsx / Tab 18412' "
-            "-> All Countries - Jun.25 - Voucher TV Extract.xlsx"
+            "-> All Countries - Jun.25 - Voucher TV Extract.xlsx. GL = 18412. "
+            "Test data: IPE_08_test.xlsx"
         ),
         evidence_ref="IPE_08",
-        descriptor_excel="IPE_FILES/IPE_08.xlsx",
+        descriptor_excel="IPE_FILES/IPE_08_test.xlsx",
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING]", system="BOB", domain="FinRec"),
         ],
@@ -221,7 +242,8 @@ CPG1_CATALOG: List[CatalogItem] = [
         cross_reference=None,
         notes=(
             "Found in file 'Jun25 - ECL - CPMT detailed open balances - 08.07.2025.xlsx', "
-            "support for the Collection accounts TV"
+            "support for the Collection accounts TV. GL = 13001, 13002. "
+            "Complex 7-table join. Baseline: IPE_31.xlsx"
         ),
         evidence_ref="IPE_31",
         descriptor_excel="IPE_FILES/IPE_31.xlsx",
@@ -230,6 +252,9 @@ CPG1_CATALOG: List[CatalogItem] = [
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHREC_REALLOCATIONS]", system="OMS", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS]", system="OMS", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHDEPOSIT]", system="OMS", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PACKAGES]", system="OMS", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_HUBS_3PL_MAPPING]", system="OMS", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_BS_ANAPLAN_IMPORT_IFRS_MAPPING]", system="NAV", domain="FinRec"),
         ],
         # Athena placeholders (to be confirmed)
         athena_database=None,
@@ -249,12 +274,20 @@ CPG1_CATALOG: List[CatalogItem] = [
         status="Completed",
         baseline_required=True,
         cross_reference=None,
-        notes=("File '4. All Countries June-25 - IBSAR Other AR related Accounts.xlsx / Tab 18317'"),
+        notes=(
+            "File '4. All Countries June-25 - IBSAR Other AR related Accounts.xlsx / Tab 18317'. "
+            "GL = 18317. Uses RPT_SOI filtered for refunds. "
+            "Baseline: IPE_34__IPE Baseline__MPL refund liability - Target values.xlsx"
+        ),
         evidence_ref="IPE_34",
-        descriptor_excel="IPE_FILES/IPE_34.xlsx",
+        descriptor_excel="IPE_FILES/IPE_34__IPE Baseline__MPL refund liability - Target values.xlsx",
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
+        # Athena placeholders (to be confirmed)
+        athena_database=None,
+        athena_query=None,
+        athena_validation=None,
     ),
     CatalogItem(
         item_id="IPE_12",
@@ -271,10 +304,12 @@ CPG1_CATALOG: List[CatalogItem] = [
         cross_reference="I.OMS-NAV",
         notes=(
             "Found in files: - 2. All Countries June-25 - IBSAR - Customer Accounts.xlsx - GL 13005; "
-            "- 4. All Countries June-25 - IBSAR Other AR related Accounts.xlsx - GL 13024"
+            "- 4. All Countries June-25 - IBSAR Other AR related Accounts.xlsx - GL 13024. "
+            "Uses RPT_SOI filtered for unreconciled packages. "
+            "Baseline: IPE_12__IPE Baseline__TV - Packages delivered not reconciled.xlsx"
         ),
         evidence_ref="IPE_12",
-        descriptor_excel="IPE_FILES/IPE_12.xlsx",
+        descriptor_excel="IPE_FILES/IPE_12__IPE Baseline__TV - Packages delivered not reconciled.xlsx",
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
@@ -297,10 +332,12 @@ CPG1_CATALOG: List[CatalogItem] = [
         baseline_required=True,
         cross_reference=None,
         notes=(
-            "V_Anaplan_BS_View (Anaplan is retired but the view is active and pulls data from NAVBI and FinRec)"
+            "V_Anaplan_BS_View (Anaplan is retired but the view is active and pulls data from NAVBI and FinRec). "
+            "CRITICAL: This is the ACTUALS side of the reconciliation - all IPEs reconcile to this. "
+            "Test data: CR_04_testing.xlsx"
         ),
         evidence_ref="CR_04",
-        descriptor_excel="IPE_FILES/CR_04.xlsx",
+        descriptor_excel="IPE_FILES/CR_04_testing.xlsx",
         sources=[
             _src_sql(
                 "[AIG_Nav_Jumia_Reconciliation].[dbo].[V_BS_ANAPLAN_IMPORT_IFRS_MAPPING_CURRENCY_SPLIT]",
@@ -313,43 +350,32 @@ CPG1_CATALOG: List[CatalogItem] = [
         athena_query=None,
         athena_validation=None,
     ),
-    # Include an Athena-backed IPE used by tests: IPE_09 (BOB Sales Orders)
     CatalogItem(
-        item_id="IPE_09",
-        item_type="IPE",
+        item_id="CR_03",
+        item_type="CR",
         control="C-PG-1",
-        title="BOB Sales Orders",
+        title="NAV GL Entries",
         change_status="No changes",
-        last_updated="2025-01-01",
+        last_updated="2025-03-11",
         output_type="Query",
-        tool="Athena",
+        tool="PowerPivot",
         third_party=False,
         status="Completed",
-        baseline_required=False,
+        baseline_required=True,
         cross_reference=None,
-        notes="Confirmed working Athena dataset for testing",
-        evidence_ref="IPE_09",
-        descriptor_excel="IPE_FILES/IPE_09.xlsx",
+        notes=(
+            "Detailed GL transaction entries supporting CR_04 GL Balances. "
+            "Test data: CR_03_test.xlsx"
+        ),
+        evidence_ref="CR_03",
+        descriptor_excel="IPE_FILES/CR_03_test.xlsx",
         sources=[
-            CatalogSource(type="Athena", location="process_pg_bob.pg_bob_sales_order", system="BOB", domain=None)
+            _src_sql("[AIG_Nav_DW].[dbo].[G_L Entry]", system="NAV", domain="NAVBI"),
         ],
-        athena_database="process_pg_bob",
-        athena_query='''
-            SELECT 
-                order_date,
-                order_id,
-                customer_id,
-                total_amount,
-                order_status
-            FROM pg_bob_sales_order
-            WHERE order_date < {cutoff_date}
-            ORDER BY order_date DESC
-        ''',
-        athena_validation={
-            'critical_columns': ['order_date', 'order_id', 'customer_id', 'total_amount'],
-            'accuracy_positive': [{'name': 'has_completed_orders', 'condition': "order_status == 'completed'"}],
-            'accuracy_negative': [{'name': 'no_negative_amounts', 'condition': 'total_amount < 0'}],
-        },
+        # Athena placeholders (to be confirmed)
+        athena_database=None,
+        athena_query=None,
+        athena_validation=None,
     ),
 ]
 
