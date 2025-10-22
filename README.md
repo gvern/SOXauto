@@ -268,7 +268,7 @@ PG-01/│   │   └── 📊 timing_difference.py  # Timing difference bridg
 
 │   │   │   ├── 🐍 __init__.py│       ├── 🐍 __init__.py          # Package initialization
 
-│   │   │   └── 📋 pg1_catalog.py    # Unified C-PG-1 definitions│       └── 🔧 gcp_utils.py         # Google Cloud Platform abstractions
+│   │   │   └── 📋 cpg1.py            # Unified C-PG-1 definitions│       └── 🔧 gcp_utils.py         # Google Cloud Platform abstractions
 
 │   │   ├── 📁 runners/              # Execution engines│
 
@@ -564,7 +564,7 @@ SOXauto manages 10+ C-PG-1 IPEs and Control Reports:export CUTOFF_DATE=2024-12-3
 
 # Database connection string
 
-All IPE definitions live in `src/core/catalog/pg1_catalog.py` - the single source of truth.aws secretsmanager create-secret \
+All IPE definitions live in `src/core/catalog/cpg1.py` - the single source of truth.aws secretsmanager create-secret \
 
   --name DB_CREDENTIALS_NAV_BI \
 

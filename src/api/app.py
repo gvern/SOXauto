@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 from flask import Flask, request
 
-from src.core.catalog import list_items
+from src.core.catalog.cpg1 import list_items
 from src.orchestrators.workflow import execute_ipe_workflow
 
 # Configuration from environment

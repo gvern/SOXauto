@@ -4,7 +4,7 @@ C-PG-1 Catalog Package
 Unified source of truth for IPE/CR definitions and backend configurations.
 """
 
-from src.core.catalog.pg1_catalog import (
+from src.core.catalog.cpg1 import (
     CatalogItem,
     CatalogSource,
     CPG1_CATALOG,

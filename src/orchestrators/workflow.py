@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any, Tuple
 
-from src.core.catalog import list_items
+from src.core.catalog.cpg1 import list_items
 from src.utils.aws_utils import initialize_aws_services
 from src.core.runners import IPERunnerMSSQL as IPERunner, IPEValidationError, IPEConnectionError
 from src.core.evidence import DigitalEvidenceManager
