@@ -377,6 +377,83 @@ CPG1_CATALOG: List[CatalogItem] = [
         athena_query=None,
         athena_validation=None,
     ),
+    # =================================================================
+    # == 10. IPE-34: Marketplace Refund Liability
+    # =================================================================
+    CatalogItem(
+        id='IPE_34',
+        description="Marketplace refund liability (Page: MPL)",
+        control="C-PG-1",
+        title="Marketplace refund liability (Page: MPL)",
+        change_status="No changes",
+        last_updated="2025-03-11",
+        output_type="Custom Report",
+        tool="PowerBI",
+        third_party=False,
+        status="Completed",
+        baseline_required=True,
+        cross_reference=None,
+        notes=(
+            "File '4. All Countries June-25 - IBSAR Other AR related Accounts.xlsx / Tab 18317'. "
+            "GL = 18317. Uses RPT_SOI filtered for refunds. "
+            "Baseline: IPE_34__IPE Baseline__MPL refund liability - Target values.xlsx"
+        ),
+        evidence_ref="IPE_34",
+        descriptor_excel="IPE_FILES/IPE_34__IPE Baseline__MPL refund liability - Target values.xlsx",
+        sources=[
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
+        ],
+        # Athena placeholders (to be confirmed)
+        athena_database=None,
+        athena_query=None,
+        athena_validation=None,
+        active=False
+    ),
+
+    # =================================================================
+    # == JIRA TICKETS - AUDIT EXTRACTS
+    # =================================================================
+    # == DS-3900: GL Actuals (Auditor's View)
+    # =================================================================
+    CatalogItem(
+        id='DS-3900',
+        description="GL Actuals Extraction based on Auditor's View from ticket DS-3900",
+        source_type='athena',
+        owner='Finance',
+        complexity='medium',
+        recon_impact='critical',
+        dependencies=['DS-3899'],
+        tags=['gl', 'actuals', 'audit-extract'],
+        athena_database='process_central_fin_dwh',
+        athena_query="""
+-- Placeholder for the SQL query from GL_VIEWS_2025Q3.sql
+-- This query needs to be translated from the PDF attachment in Jira ticket DS-3900.
+-- It should replicate the exact view used to generate GL data for auditors.
+SELECT 1
+        """,
+        active=True
+    ),
+
+    # =================================================================
+    # == DS-3899: Revenue Target Values (Auditor's View)
+    # =================================================================
+    CatalogItem(
+        id='DS-3899',
+        description="Revenue Target Value Extraction from RPT_SOI based on Auditor's query from ticket DS-3899",
+        source_type='athena',
+        owner='Finance',
+        complexity='high',
+        recon_impact='critical',
+        dependencies=[],
+        tags=['revenue', 'rpt_soi', 'target-values', 'audit-extract'],
+        athena_database='process_central_fin_dwh',
+        athena_query="""
+-- Placeholder for the SQL query from RPT_SOI_Revenue Testing_Q3-2025_query.txt
+-- This query needs to be translated from the PDF attachment in Jira ticket DS-3899.
+SELECT 1
+        """,
+        active=True
+    ),
 ]
 
 

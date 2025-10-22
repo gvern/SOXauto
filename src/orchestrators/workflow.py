@@ -1,72 +1,20 @@
-# main.py
 """
-Main entry point for local execution of the SOX PG-01 automation process.
+Workflow orchestrator for SOX PG-01 automation process.
 """
-
-import logging
-import os
-import json
-import sys
-from datetime import datetime
-
-from src.orchestrators.workflow import execute_ipe_workflow
-
-# Logging configuration
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-
-def main_workflow_local(cutoff_date: str = None):
-    """
-    Entry point for local execution (development/test).
-    
-    Args:
-        cutoff_date: Optional cutoff date
-    """
-    results, status = execute_ipe_workflow(cutoff_date)
-    
-    print("\n" + "="*60)
-    print("SOX PG-01 WORKFLOW RESULTS")
-    print("="*60)
-    print(json.dumps(results, indent=2, ensure_ascii=False))
-    print("="*60)
-    
-    return results
-
-
-if __name__ == "__main__":
-    # Local execution for development
-    cutoff_date_param = None
-    if len(sys.argv) > 1:
-        cutoff_date_param = sys.argv[1]
-    
-    try:
-        main_workflow_local(cutoff_date_param)
-    except KeyboardInterrupt:
-        logger.info("Workflow interrupted by user")
-    except Exception as e:
-        logger.error(f"Error during local execution: {e}")
-        sys.exit(1)
 
 import logging
 import os
 import json
 from datetime import datetime
 from typing import Dict, Any, Tuple
-from flask import Flask, request
 
-from src.core.catalog import list_items, get_item_by_id
+from src.core.catalog import list_items
 from src.utils.aws_utils import initialize_aws_services
 from src.core.runners import IPERunnerMSSQL as IPERunner, IPEValidationError, IPEConnectionError
 from src.core.evidence import DigitalEvidenceManager
 
 # Configuration from environment
 AWS_REGION = os.getenv("AWS_REGION", "eu-west-1")
-ATHENA_DATABASE = os.getenv("ATHENA_DATABASE", "consume_pg_dwh")
-ATHENA_OUTPUT_LOCATION = os.getenv("ATHENA_OUTPUT_LOCATION", "s3://athena-query-results-s3-ew1-production-jdata/")
 S3_RESULTS_BUCKET = os.getenv("S3_RESULTS_BUCKET", "sox-pg01-results")
 S3_RESULTS_PREFIX = os.getenv("S3_RESULTS_PREFIX", "extractions/")
 
@@ -76,9 +24,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# Flask initialization for Cloud Run
-app = Flask(__name__)
 
 
 class WorkflowExecutionError(Exception):
@@ -271,92 +216,3 @@ def _create_audit_log(secrets_manager, s3_client, workflow_results: Dict[str, An
         
     except Exception as e:
         logger.error(f"Error creating audit log: {e}")
-
-
-@app.route('/', methods=['POST'])
-def lambda_handler():
-    """
-    Entry point for AWS Lambda and ECS.
-    Accepts HTTP POST requests with optional parameters.
-    """
-    try:
-        # Retrieve request parameters
-        request_data = request.get_json() or {}
-        cutoff_date = request_data.get('cutoff_date')
-        
-        # Execute workflow
-        results, status_code = execute_ipe_workflow(cutoff_date)
-        
-        return results, status_code
-        
-    except Exception as e:
-        error_response = {
-            'error': 'Internal server error',
-            'message': str(e),
-            'timestamp': datetime.now().isoformat()
-        }
-        logger.error(f"Lambda handler error: {e}")
-        return error_response, 500
-
-
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint for AWS ECS/Lambda."""
-    return {
-        'status': 'healthy',
-        'service': 'SOXauto-PG01',
-        'timestamp': datetime.now().isoformat()
-    }, 200
-
-
-@app.route('/config', methods=['GET'])
-def get_configuration():
-    """Returns current configuration (without secrets)."""
-    config_info = {
-        'aws_region': AWS_REGION,
-        'athena_database': ATHENA_DATABASE,
-        'configured_ipes': [
-            {
-                'id': ipe['id'],
-                'description': ipe['description']
-            }
-            for ipe in list_items()
-        ],
-        'total_ipes': len(list_items())
-    }
-    return config_info, 200
-
-
-def main_workflow_local(cutoff_date: str = None):
-    """
-    Entry point for local execution (development/test).
-    
-    Args:
-        cutoff_date: Optional cutoff date
-    """
-    results, status = execute_ipe_workflow(cutoff_date)
-    
-    print("\n" + "="*60)
-    print("SOX PG-01 WORKFLOW RESULTS")
-    print("="*60)
-    print(json.dumps(results, indent=2, ensure_ascii=False))
-    print("="*60)
-    
-    return results
-
-
-if __name__ == "__main__":
-    # Local execution for development
-    import sys
-    
-    cutoff_date_param = None
-    if len(sys.argv) > 1:
-        cutoff_date_param = sys.argv[1]
-    
-    try:
-        main_workflow_local(cutoff_date_param)
-    except KeyboardInterrupt:
-        logger.info("Workflow interrupted by user")
-    except Exception as e:
-        logger.error(f"Error during local execution: {e}")
-        sys.exit(1)
