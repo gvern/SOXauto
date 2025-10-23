@@ -11,8 +11,6 @@ from src.core.catalog.cpg1 import (
     list_items,
     get_item_by_id,
     to_dicts,
-    list_athena_ipes,
-    get_athena_config,
 )
 
 __all__ = [
@@ -22,6 +20,4 @@ __all__ = [
     'list_items',
     'get_item_by_id',
     'to_dicts',
-    'list_athena_ipes',
-    'get_athena_config',
 ]

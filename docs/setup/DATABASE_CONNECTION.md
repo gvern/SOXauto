@@ -98,17 +98,17 @@ os.environ['DB_CONNECTION_STRING'] = "DRIVER={...};SERVER=...;DATABASE=...;"
 
 #### SQL Server
 ```
-DRIVER={ODBC Driver 17 for SQL Server};SERVER=server.database.windows.net;DATABASE=NAV_BI;UID=username;PWD=password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;
+DRIVER={ODBC Driver 18 for SQL Server};SERVER=server.database.windows.net;DATABASE=NAV_BI;UID=username;PWD=password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;
 ```
 
 #### Azure SQL Database
 ```
-DRIVER={ODBC Driver 17 for SQL Server};SERVER=server.database.windows.net,1433;DATABASE=NAV_BI;UID=username@server;PWD=password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;
+DRIVER={ODBC Driver 18 for SQL Server};SERVER=server.database.windows.net,1433;DATABASE=NAV_BI;UID=username@server;PWD=password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;
 ```
 
 #### SQL Server with Windows Authentication
 ```
-DRIVER={ODBC Driver 17 for SQL Server};SERVER=server;DATABASE=NAV_BI;Trusted_Connection=yes;
+DRIVER={ODBC Driver 18 for SQL Server};SERVER=server;DATABASE=NAV_BI;Trusted_Connection=yes;
 ```
 
 ### Security Considerations
@@ -174,18 +174,21 @@ python3 tests/test_single_ipe_extraction.py
 **Solution**: Install the appropriate ODBC driver
 
 **macOS**:
+
 ```bash
 brew install unixodbc
-brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release
-brew install msodbcsql17
+# Install Microsoft ODBC Driver 18 for SQL Server (use the official pkg installer)
+# Download from: https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server
+# After installation, verify with: odbcinst -q -d | grep -i "ODBC Driver 18"
 ```
 
 **Ubuntu/Debian**:
+
 ```bash
 curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
-curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
+curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
 sudo apt-get update
-sudo ACCEPT_EULA=Y apt-get install -y msodbcsql17
+sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
 ```
 
 **Windows**:
@@ -194,6 +197,7 @@ Download from [Microsoft ODBC Driver](https://docs.microsoft.com/en-us/sql/conne
 ### Issue: "Login failed for user"
 
 **Solutions**:
+
 1. Verify username and password
 2. Check if user has database access
 3. Verify firewall rules allow connection
@@ -203,6 +207,7 @@ Download from [Microsoft ODBC Driver](https://docs.microsoft.com/en-us/sql/conne
 ### Issue: Connection timeout
 
 **Solutions**:
+
 1. Increase `Connection Timeout=30` to higher value
 2. Check network connectivity
 3. Verify server endpoint is correct
@@ -211,16 +216,19 @@ Download from [Microsoft ODBC Driver](https://docs.microsoft.com/en-us/sql/conne
 ## Best Practices
 
 ### Development
+
 - Use environment variable with read-only database account
 - Test locally before deploying
 - Document connection requirements
 
 ### Staging
+
 - Use Secrets Manager with limited permissions
 - Test with production-like data
 - Validate connection before IPE runs
 
 ### Production
+
 - **Always use Secrets Manager**
 - Enable CloudTrail logging for secret access
 - Rotate credentials quarterly
@@ -230,13 +238,16 @@ Download from [Microsoft ODBC Driver](https://docs.microsoft.com/en-us/sql/conne
 ## Migration Path
 
 ### Phase 1: Development (Current)
+
 ```bash
 export DB_CONNECTION_STRING="..."
 python3 tests/test_single_ipe_extraction.py
 ```
 
 ### Phase 2: Request Secrets Manager Access
+
 Contact AWS admin with this policy:
+
 ```json
 {
   "Effect": "Allow",
@@ -246,6 +257,7 @@ Contact AWS admin with this policy:
 ```
 
 ### Phase 3: Production
+
 Remove `DB_CONNECTION_STRING` and rely on Secrets Manager
 
 ## Examples
@@ -257,7 +269,7 @@ Remove `DB_CONNECTION_STRING` and rely on Secrets Manager
 export AWS_PROFILE=007809111365_Data-Prod-DataAnalyst-NonFinance
 export AWS_REGION=eu-west-1
 export CUTOFF_DATE=2024-12-31
-export DB_CONNECTION_STRING="DRIVER={ODBC Driver 17 for SQL Server};SERVER=nav-bi.database.windows.net;DATABASE=NAV_BI;UID=sox_reader;PWD=secure_password;"
+export DB_CONNECTION_STRING="DRIVER={ODBC Driver 18 for SQL Server};SERVER=nav-bi.database.windows.net;DATABASE=NAV_BI;UID=sox_reader;PWD=secure_password;"
 
 # Run extraction
 python3 tests/test_single_ipe_extraction.py
@@ -276,6 +288,28 @@ load_dotenv()
 connection_string = os.getenv('DB_CONNECTION_STRING')
 ```
 
+## Local Connectivity Check
+
+Run a quick connectivity test:
+
+```bash
+python3 scripts/check_mssql_connection.py
+```
+
+Expected output on success:
+
+```text
+✅ Connection successful
+Server version:
+Microsoft SQL Server ...
+```
+
+If you see an ODBC driver error, ensure msodbcsql18 is installed (see above) and the Driver name matches exactly.
+
+## Teleport / Bastion Access (optional)
+
+If access requires a Teleport/bastion path (e.g., fin-sql.jumia.local), ensure the tunnel is active and use the bastion-resolved hostname in MSSQL_SERVER or DB_CONNECTION_STRING. Coordinate with your infra team for the exact setup.
+
 ## Summary
 
 | Method | Use Case | Security | Setup Complexity |
@@ -287,6 +321,7 @@ Choose **Secrets Manager** for production environments with proper IAM policies.
 Use **Environment Variable** for development when Secrets Manager access is unavailable.
 
 ## Related Documentation
+
 - [OKTA_AWS_SETUP.md](OKTA_AWS_SETUP.md) - AWS authentication setup
 - [CONNECTION_STATUS.md](CONNECTION_STATUS.md) - Current connection status
 - [INTEGRATION_TESTING_PREP.md](../development/INTEGRATION_TESTING_PREP.md) - Testing guide
