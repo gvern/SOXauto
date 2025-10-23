@@ -140,7 +140,7 @@ SELECT [id_company]
 ,SUM([Amount]) as [Remaining Amount]
 ,SUM([Amount (LCY)]) as [Remaining Amount_LCY]
 FROM [dbo].[Detailed Customer Ledg_ Entry] vlle WITH (NOLOCK)
-where [Posting Date] < '2025-05-01'
+where [Posting Date] < '{cutoff_date}'
 and id_company in (select Company_Code from [AIG_Nav_Jumia_Reconciliation].fdw.dim_company where Flg_In_Conso_Scope = 1)
 Group by [id_company], [Cust_ Ledger Entry No_]) vlle ON vl.[Entry No_]=vlle.clen AND vl.id_company = vlle.id_company
 LEFT JOIN (
@@ -149,13 +149,13 @@ SELECT [id_company]
 ,SUM([Amount]) as [Remaining Amount]
 ,SUM([Amount (LCY)]) as Customer_Balance
 FROM [dbo].[Detailed Customer Ledg_ Entry] vlle WITH (NOLOCK)
-where [Posting Date] < '2025-05-01'
+where [Posting Date] < '{cutoff_date}'
 and id_company in (select Company_Code from [AIG_Nav_Jumia_Reconciliation].fdw.dim_company where Flg_In_Conso_Scope = 1)
 Group by [id_company], [Customer No_]) C ON vl.[Customer No_]=C.clen AND vl.id_company = C.id_company
 LEFT JOIN [dbo].[Customers] cus on cus.id_company = vl.id_company and cus.No_ = vl.[Customer No_]
 LEFT JOIN [dbo].[Customer Posting Group] cus_g on cus_g.id_company = cus.id_company and cus_g.Code = cus.[Customer Posting Group]
 LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_ChartOfAccounts] fdw on fdw.Company_Code = cus_g.id_company and fdw.[G/L_Account_No] = cus_g.[Receivables Account]
-where [Posting Date] < '2025-05-01'
+where [Posting Date] < '{cutoff_date}'
 and vl.id_company in (select Company_Code from [AIG_Nav_Jumia_Reconciliation].fdw.dim_company where Flg_In_Conso_Scope = 1)
 and fdw.Group_COA_Account_no in ('13010','13009','13006','13005','13004','13003')
 and vlle.[Remaining Amount_LCY] <> 0
@@ -218,7 +218,7 @@ and vl.[Currency]!=''""",
     sql_query="""SELECT TOP (1) [Currency Code],year([Starting Date]) year,month([Starting Date]) month,[Relational Exch_ Rate Amount]
 FROM [D365BC14_DZ].[dbo].[Jade DZ$Currency Exchange Rate]
 WHERE [Currency Code] = 'USD'
-and [Starting Date] = '2025-03-31 00:00:00.000'""",
+and [Starting Date] = '{fx_date}'""",
         
     ),
     CatalogItem(
@@ -675,9 +675,9 @@ Given the above, and that the period and date of extraction are validated in eve
                 domain="FinRec",
             ),
         ],
-        sql_query="""SELECT *
+    sql_query="""SELECT *
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_BS_ANAPLAN_IMPORT_IFRS_MAPPING_CURRENCY_SPLIT]
-where CLOSING_DATE between '2025-01-01' and '2025-12-31'
+where CLOSING_DATE between '{year_start}' and '{year_end}'
 and (
     GROUP_COA_ACCOUNT_NO like '145%' OR
     GROUP_COA_ACCOUNT_NO like '15%' OR
