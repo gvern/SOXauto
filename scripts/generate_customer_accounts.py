@@ -18,6 +18,8 @@ from typing import List, Optional
 import pandas as pd
 import pyodbc
 from datetime import datetime
+import getpass
+import socket
 
 # Make repo importable
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -26,6 +28,7 @@ if REPO_ROOT not in sys.path:
 
 from src.core.catalog.cpg1 import get_item_by_id  # noqa: E402
 from src.core.evidence.manager import DigitalEvidenceManager, IPEEvidenceGenerator  # noqa: E402
+from src.utils.sql_template import render_sql  # noqa: E402
 
 ITEM_ID = "IPE_07"
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", os.path.join(REPO_ROOT, "data", "outputs"))
@@ -106,16 +109,28 @@ def main():
 
     cs = build_connection_string()
     with pyodbc.connect(cs) as conn:
-        # Save executed query
-        generator.save_executed_query(item.sql_query, parameters={})
+        # Prepare parameters and render query
+        cutoff_date = os.getenv("CUTOFF_DATE")
+        rendered_query = render_sql(item.sql_query, {"cutoff_date": cutoff_date})
+        # Save executed query with parameters/context (ensures 02_query_parameters.json is created)
+        generator.save_executed_query(
+            rendered_query,
+            parameters={
+                "cutoff_date": cutoff_date,
+                "execution_context": {
+                    "user": getpass.getuser(),
+                    "host": socket.gethostname(),
+                },
+            },
+        )
         # Run query
-        df = pd.read_sql(item.sql_query, conn)
+        df = pd.read_sql(rendered_query, conn)
 
     # Save CSV
     df.to_csv(OUTPUT_FILE, index=False)
 
     # Evidence: snapshot, hash, validations
-    generator.save_data_snapshot(df)
+    generator.save_data_snapshot(df, snapshot_rows=100)
     data_hash = generator.generate_integrity_hash(df)
     validations = validate_output(df)
     generator.save_validation_results(validations)

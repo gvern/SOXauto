@@ -36,6 +36,7 @@ if REPO_ROOT not in sys.path:
     sys.path.append(REPO_ROOT)
 
 from src.core.catalog.cpg1 import CPG1_CATALOG  # noqa: E402
+from src.utils.sql_template import render_sql  # noqa: E402
 
 
 def build_connection_string() -> str:
@@ -68,7 +69,14 @@ def get_items_to_run(only_ids: Optional[List[str]]) -> List:
 
 
 def run_query_to_csv(conn: pyodbc.Connection, item, outdir: str) -> str:
-    df = pd.read_sql(item.sql_query, conn)
+    params = {
+        "cutoff_date": os.getenv("CUTOFF_DATE"),
+        "year_start": os.getenv("YEAR_START"),
+        "year_end": os.getenv("YEAR_END"),
+        "fx_date": os.getenv("FX_DATE"),
+    }
+    rendered = render_sql(item.sql_query, params)
+    df = pd.read_sql(rendered, conn)
     os.makedirs(outdir, exist_ok=True)
     out_path = os.path.join(outdir, f"{item.item_id}.csv")
     df.to_csv(out_path, index=False)

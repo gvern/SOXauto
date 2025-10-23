@@ -14,6 +14,8 @@ import sys
 import pandas as pd
 import pyodbc
 from datetime import datetime
+import getpass
+import socket
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
@@ -21,6 +23,7 @@ if REPO_ROOT not in sys.path:
 
 from src.core.catalog.cpg1 import get_item_by_id  # noqa: E402
 from src.core.evidence.manager import DigitalEvidenceManager, IPEEvidenceGenerator  # noqa: E402
+from src.utils.sql_template import render_sql  # noqa: E402
 
 ITEM_ID = "IPE_31"
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", os.path.join(REPO_ROOT, "data", "outputs"))
@@ -86,12 +89,24 @@ def main():
 
     cs = build_connection_string()
     with pyodbc.connect(cs) as conn:
-        generator.save_executed_query(item.sql_query)
-        df = pd.read_sql(item.sql_query, conn)
+        cutoff_date = os.getenv("CUTOFF_DATE")
+        rendered_query = render_sql(item.sql_query, {"cutoff_date": cutoff_date})
+        generator.save_executed_query(
+            rendered_query,
+            parameters={
+                "cutoff_date": cutoff_date,
+                "required_key_columns": KEY_COLUMNS,
+                "execution_context": {
+                    "user": getpass.getuser(),
+                    "host": socket.gethostname(),
+                },
+            },
+        )
+        df = pd.read_sql(rendered_query, conn)
 
     df.to_csv(OUTPUT_FILE, index=False)
 
-    generator.save_data_snapshot(df)
+    generator.save_data_snapshot(df, snapshot_rows=100)
     _ = generator.generate_integrity_hash(df)
     validations = validate_output(df)
     generator.save_validation_results(validations)

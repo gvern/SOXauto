@@ -16,6 +16,8 @@ from typing import List, Tuple
 import pandas as pd
 import pyodbc
 from datetime import datetime
+import getpass
+import socket
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
@@ -23,6 +25,7 @@ if REPO_ROOT not in sys.path:
 
 from src.core.catalog.cpg1 import get_item_by_id  # noqa: E402
 from src.core.evidence.manager import DigitalEvidenceManager, IPEEvidenceGenerator  # noqa: E402
+from src.utils.sql_template import render_sql  # noqa: E402
 
 CONTRIBUTORS = ["IPE_10", "IPE_08"]
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", os.path.join(REPO_ROOT, "data", "outputs"))
@@ -64,8 +67,20 @@ def run_contributor(ipe_id: str, conn: pyodbc.Connection) -> Tuple[str, pd.DataF
     evidence_dir = evidence_manager.create_evidence_package(ipe_id, metadata)
     generator = IPEEvidenceGenerator(evidence_dir, ipe_id)
 
-    generator.save_executed_query(item.sql_query)
-    df = pd.read_sql(item.sql_query, conn)
+    cutoff_date = os.getenv("CUTOFF_DATE")
+    rendered_query = render_sql(item.sql_query, {"cutoff_date": cutoff_date})
+    generator.save_executed_query(
+        rendered_query,
+        parameters={
+            "cutoff_date": cutoff_date,
+            "contributor": ipe_id,
+            "execution_context": {
+                "user": getpass.getuser(),
+                "host": socket.gethostname(),
+            },
+        },
+    )
+    df = pd.read_sql(rendered_query, conn)
     generator.save_data_snapshot(df)
     _ = generator.generate_integrity_hash(df)
     validations = {
