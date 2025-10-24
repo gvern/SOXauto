@@ -1,8 +1,27 @@
 # SOXauto PG-01
 
-> ⚠️ NOTE SUR L'ÉTAT ACTUEL DU PROJET
+> NOTE ON CURRENT PROJECT STATE
 >
-> La priorité immédiate est la réplication du processus manuel sur MSSQL (phase 1). L'architecture Athena décrite ci-dessous représente la cible d'une phase ultérieure. Pour l'état réel du projet et les prochaines actions, voir `PROJECT_DASHBOARD.md`.
+> Immediate priority is to replicate the manual process on MSSQL (phase 1). The Athena architecture below is the target for a later phase. For the current operational status and next actions, see `PROJECT_DASHBOARD.md`.
+
+## Offline plan while waiting for MSSQL access
+
+While waiting for the MSSQL service account credentials, development continues in offline mode. Goal: be ready to plug credentials and run the pipeline as-is.
+
+- Axis 1 — Application core (offline)
+  - MSSQL runner driven by the catalog (`src/core/catalog/cpg1.py`), handle `{...}` parameters, and an `_execute_mock_query()` fed by a CSV in `tests/fixtures/`.
+  - Evidence integration: `01_executed_query.sql`, `03_data_snapshot.csv`, `04_data_summary.json`, `05_integrity_hash.json`, `06_validation_results.json`, `07_execution_log.json`.
+  - Orchestration: `scripts/run_full_reconciliation.py` loops over IPEs (mock mode by default).
+- Axis 2 — Offline tests
+  - Catalog unit tests (load by ID, missing ID, non-empty query).
+  - Integration with mocked runner: evidence folder created and 7 files present (SHA‑256 check).
+- Axis 3 — Post-extraction logic
+  - `src/agents/classifier.py` implements rules from `docs/development/BRIDGES_RULES.md`.
+  - Final visualization file generator (CSV/Excel).
+- Axis 4 — Cleanup & docs
+  - Docstrings on `cpg1.py`, `mssql_runner.py`, Evidence Manager; update Dashboard and `docs/development/TODO_MANUAL_PROCESS.md`.
+
+Live tracking and detailed checklist: see `PROJECT_DASHBOARD.md`.
 
 ## Enterprise-Grade SOX Automation for Financial Reconciliation
 

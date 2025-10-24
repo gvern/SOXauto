@@ -69,6 +69,44 @@ Legend: [ ] Not started · [~] In progress · [x] Done
 
 ---
 
+## 🧪 Offline plan (while waiting for MSSQL access) — Progress control
+
+In parallel with the replication plan above, continue development in offline mode to secure ~90% of the pipeline.
+
+### Axis 1 — Application core (offline mode)
+
+- [ ] MSSQL runner driven by the catalog `src/core/catalog/cpg1.py`
+    - [ ] Load by `item_id` and extract `sql_query`
+    - [ ] Replace placeholders `{...}` via env/kwargs
+    - [ ] `_execute_mock_query()` reading a CSV from `tests/fixtures/` → DataFrame
+- [ ] Evidence integration (inside the runner)
+    - [ ] `01_executed_query.sql`
+    - [ ] `03_data_snapshot.csv`, `04_data_summary.json`, `05_integrity_hash.json`
+    - [ ] `06_validation_results.json` (dummy: {"status": "PASS"})
+    - [ ] `07_execution_log.json`
+- [ ] Orchestration `scripts/run_full_reconciliation.py` (loop IPEs, mock mode)
+
+### Axis 2 — Tests (offline strategy)
+
+- [ ] Catalog unit tests `cpg1.py` (load by ID, missing ID → None, non-empty query)
+- [ ] Mocked runner integration
+    - [ ] Orchestrator test: evidence folder creation
+    - [ ] Evidence test: 7 files present + SHA‑256 check
+
+### Axis 3 — Post-extraction business logic
+
+- [ ] `src/agents/classifier.py` — implement rules from `docs/development/BRIDGES_RULES.md`
+- [ ] Unit tests for classification on small DataFrames
+- [ ] Final visualization file generator (CSV/Excel)
+
+### Axis 4 — Cleanup & documentation
+
+- [ ] Docstrings: `cpg1.py`, `mssql_runner.py`, Evidence Manager
+- [ ] Update `PROJECT_DASHBOARD.md` (Decisions, Next actions)
+- [ ] Align this document as a comprehensive checklist
+
+---
+
 ## 📌 Immediate priorities (this sprint)
 
 1. Access & Connectivity
