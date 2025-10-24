@@ -1,4 +1,5 @@
 # C-PG-1 Table Mapping - Quick Reference Card
+<!-- markdownlint-disable -->
 
 **For**: Carlos/Joao (Technical Team)  
 **From**: Gustave (SOXauto Automation)  

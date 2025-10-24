@@ -1,5 +1,9 @@
 # SOXauto PG-01
 
+> ⚠️ NOTE SUR L'ÉTAT ACTUEL DU PROJET
+>
+> La priorité immédiate est la réplication du processus manuel sur MSSQL (phase 1). L'architecture Athena décrite ci-dessous représente la cible d'une phase ultérieure. Pour l'état réel du projet et les prochaines actions, voir `PROJECT_DASHBOARD.md`.
+
 ## Enterprise-Grade SOX Automation for Financial Reconciliation
 
 [![POC In Progress](https://img.shields.io/badge/Status-POC%20In%20Progress-blue.svg)](https://github.com/gvern/SOXauto)
@@ -161,6 +165,7 @@ docker run -e AWS_REGION="eu-west-1" soxauto-pg01
 ```
 
 ------
+
 ## Project Structure
 
 > **Professional Python package structure with clear separation of concerns**
@@ -271,6 +276,7 @@ Every IPE extraction generates a tamper-proof **Digital Evidence Package**:
 This is **legally admissible** evidence for SOX audits.
 
 ------
+
 ## Authentication & Security
 
 ### Okta SSO Integration
@@ -297,6 +303,7 @@ bash scripts/update_aws_credentials.sh
 See `docs/development/SECURITY_FIXES.md` for security audit details.
 
 ------
+
 ## IPE Catalog
 
 SOXauto manages 10+ C-PG-1 IPEs and Control Reports:
@@ -317,6 +324,7 @@ SOXauto manages 10+ C-PG-1 IPEs and Control Reports:
 All IPE definitions live in `src/core/catalog/cpg1.py` - the single source of truth.
 
 ------
+
 ## Testing
 
 ### Run Tests
@@ -344,6 +352,7 @@ python3 scripts/validate_ipe_config.py
 - Okta authentication
 
 ------
+
 ## Documentation
 
 Comprehensive documentation available in `docs/`:

@@ -56,15 +56,15 @@ Legend: [ ] Not started · [~] In progress · [x] Done
 - [x] Catalog pivot away from Athena (retain SQL queries/descriptions)
 - [x] IPE_07 SQL present in catalog (restored)
 - [x] Generic SQL→CSV runner in `scripts/run_sql_from_catalog.py`
-- [ ] Confirm SQL Server access path (Teleport/fin-sql.jumia.local)
+- [~] Confirm SQL Server access path (Teleport/fin-sql.jumia.local) — connectivity script/docs in place; run pending
 - [ ] Map exact content/columns for 3 intermediates
-- [ ] Implement Customer Accounts export (IPE_07) with evidence
-- [ ] Implement Collection Accounts export (IPE_31) with evidence
-- [ ] Implement Other AR related Accounts export (IPE_10, IPE_08, …) with evidence
+- [~] Implement Customer Accounts export (IPE_07) with evidence — script implemented; evidence package scaffolding present; awaiting live run
+- [~] Implement Collection Accounts export (IPE_31) with evidence — script implemented; evidence package scaffolding present; awaiting live run
+- [~] Implement Other AR related Accounts export (IPE_10, IPE_08, …) with evidence — umbrella generator implemented; IPE_08 query TBD
 - [ ] Build Consolidation.xlsx (join + variances) with evidence
 - [ ] Integrate Bridges/Timing Differences classification
-- [ ] Update DB connection docs and Dockerfile ODBC setup
-- [ ] Minimal smoke tests
+- [x] Update DB connection docs and Dockerfile ODBC setup
+- [x] Minimal smoke tests
 - [ ] Optional: Google Sheets upload of outputs
 
 ---
@@ -153,7 +153,7 @@ python scripts/run_sql_from_catalog.py --only IPE_07,CR_04 --outdir data/outputs
 
 ---
 
-## � Per-file generators (with evidence)
+## 🧰 Per-file generators (with evidence)
 
 - Customer Accounts: `scripts/generate_customer_accounts.py`
 - Collection Accounts: `scripts/generate_collection_accounts.py`
@@ -163,7 +163,7 @@ All scripts write to `data/outputs/` and produce evidence packages under `eviden
 
 ---
 
-## �🔐 Open questions / blockers
+## 🔐 Open questions / blockers
 
 - Programmatic access to `fin-sql.jumia.local` (Teleport path?)
 - Required network/ports from dev/Docker to SQL Server

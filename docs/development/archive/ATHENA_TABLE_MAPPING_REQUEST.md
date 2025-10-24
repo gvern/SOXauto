@@ -1,4 +1,6 @@
 # Athena Table Mapping Request - C-PG-1
+<!-- markdownlint-disable -->
+# Athena Table Mapping Request - C-PG-1
 
 **Date**: 21 October 2025  
 **From**: Gustave  
