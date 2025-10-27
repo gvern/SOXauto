@@ -383,6 +383,220 @@ class IPERunner:
         finally:
             # 8. Clean up resources
             self._cleanup_connection()
+
+
+    def run_demo(self, demo_dataframe: pd.DataFrame, source_name: str) -> pd.DataFrame:
+        """
+        Demo execution path: uses a provided DataFrame instead of querying the DB
+        and generates a complete evidence package.
+        """
+        try:
+            logger.info(f"[{self.ipe_id}] ==> STARTING IPE DEMO EXECUTION")
+            execution_metadata = {
+                'ipe_id': self.ipe_id,
+                'description': self.description,
+                'cutoff_date': self.cutoff_date,
+                'execution_start': datetime.now().isoformat(),
+                'sox_compliance_required': False,
+                'mode': 'DEMO',
+                'demo_source': source_name
+            }
+
+            evidence_dir = self.evidence_manager.create_evidence_package(
+                self.ipe_id, execution_metadata
+            )
+            self.evidence_generator = IPEEvidenceGenerator(evidence_dir, self.ipe_id)
+
+            pseudo_query = f"-- DEMO MODE --\n-- Data loaded from: {source_name}"
+            self.evidence_generator.save_executed_query(
+                pseudo_query,
+                parameters={'source': source_name, 'cutoff_date': self.cutoff_date}
+            )
+
+            df = demo_dataframe.copy()
+            df['_ipe_id'] = self.ipe_id
+            df['_extraction_date'] = datetime.now().isoformat()
+            df['_cutoff_date'] = self.cutoff_date
+            self.extracted_data = df
+
+            self.evidence_generator.save_data_snapshot(df)
+
+            self.validation_results = {
+                'completeness': {'status': 'SKIPPED', 'reason': 'Demo mode: DB validation not applicable'},
+                'accuracy_positive': {'status': 'SKIPPED', 'reason': 'Demo mode'},
+                'accuracy_negative': {'status': 'SKIPPED', 'reason': 'Demo mode'},
+                'overall_status': 'SUCCESS',
+                'execution_time': datetime.now().isoformat(),
+            }
+
+            self.evidence_generator.save_validation_results(self.validation_results)
+            evidence_zip = self.evidence_generator.finalize_evidence_package()
+            logger.info(f"[{self.ipe_id}] ==> DEMO EXECUTION COMPLETE - Evidence: {evidence_zip}")
+
+            return df
+
+        except Exception as e:
+            logger.error(f"[{self.ipe_id}] Error during demo run: {e}")
+            if self.evidence_generator:
+                try:
+                    self.validation_results['overall_status'] = 'ERROR'
+                    self.evidence_generator.save_validation_results(self.validation_results)
+                    self.evidence_generator.finalize_evidence_package()
+                except Exception:
+                    pass
+            raise        """
+        Demo execution path: uses a provided DataFrame instead of querying the DB
+        and generates a complete evidence package.
+        """
+        try:
+            logger.info(f"[{self.ipe_id}] ==> STARTING IPE DEMO EXECUTION")
+            execution_metadata = {
+                'ipe_id': self.ipe_id,
+                'description': self.description,
+                'cutoff_date': self.cutoff_date,
+                'execution_start': datetime.now().isoformat(),
+                'sox_compliance_required': False,
+                'mode': 'DEMO',
+                'demo_source': source_name
+            }
+
+            evidence_dir = self.evidence_manager.create_evidence_package(
+                self.ipe_id, execution_metadata
+            )
+            self.evidence_generator = IPEEvidenceGenerator(evidence_dir, self.ipe_id)
+
+            pseudo_query = f"-- DEMO MODE --\n-- Data loaded from: {source_name}"
+            self.evidence_generator.save_executed_query(
+                pseudo_query,
+                parameters={'source': source_name, 'cutoff_date': self.cutoff_date}
+            )
+
+            df = demo_dataframe.copy()
+            df['_ipe_id'] = self.ipe_id
+            df['_extraction_date'] = datetime.now().isoformat()
+            df['_cutoff_date'] = self.cutoff_date
+            self.extracted_data = df
+
+            self.evidence_generator.save_data_snapshot(df)
+
+            self.validation_results = {
+                'completeness': {'status': 'SKIPPED', 'reason': 'Demo mode: DB validation not applicable'},
+                'accuracy_positive': {'status': 'SKIPPED', 'reason': 'Demo mode'},
+                'accuracy_negative': {'status': 'SKIPPED', 'reason': 'Demo mode'},
+                'overall_status': 'SUCCESS',
+                'execution_time': datetime.now().isoformat(),
+            }
+
+            self.evidence_generator.save_validation_results(self.validation_results)
+            evidence_zip = self.evidence_generator.finalize_evidence_package()
+            logger.info(f"[{self.ipe_id}] ==> DEMO EXECUTION COMPLETE - Evidence: {evidence_zip}")
+
+            return df
+
+        except Exception as e:
+            logger.error(f"[{self.ipe_id}] Error during demo run: {e}")
+            # Attempt to finalize evidence package even on error for debugging
+            if self.evidence_generator:
+                try:
+                    self.validation_results['overall_status'] = 'ERROR'
+                    self.evidence_generator.save_validation_results(self.validation_results)
+                    self.evidence_generator.finalize_evidence_package()
+                except Exception:
+                    pass
+            raise        """
+        Demo execution path: load data from a local file instead of querying the DB,
+        and generate a near-complete evidence package (without integrity hash by default).
+
+        Args:
+            demo_file_path: Path to a CSV/Excel file containing sample data for this IPE
+            include_hash: When True, also generate the integrity hash (default False for demo)
+
+        Returns:
+            DataFrame loaded from the demo file
+        """
+        try:
+            logger.info(f"[{self.ipe_id}] ==> STARTING IPE DEMO EXECUTION")
+
+            # 1) Create SOX evidence package (mark demo mode in metadata)
+            execution_metadata = {
+                'ipe_id': self.ipe_id,
+                'description': self.description,
+                'cutoff_date': self.cutoff_date,
+                'execution_start': datetime.now().isoformat(),
+                'sox_compliance_required': False,
+                'mode': 'DEMO',
+                'demo_file_path': os.path.abspath(demo_file_path)
+            }
+
+            evidence_dir = self.evidence_manager.create_evidence_package(
+                self.ipe_id, execution_metadata
+            )
+            self.evidence_generator = IPEEvidenceGenerator(evidence_dir, self.ipe_id)
+
+            # 2) Save a pseudo-query as provenance
+            pseudo_query = f"-- DEMO LOAD FROM FILE\n-- IPE: {self.ipe_id}\nLOAD DATA FROM '{os.path.basename(demo_file_path)}'"
+            self.evidence_generator.save_executed_query(
+                pseudo_query,
+                parameters={'file_path': os.path.abspath(demo_file_path), 'cutoff_date': self.cutoff_date}
+            )
+
+            # 3) Load data from file (CSV or Excel)
+            if not os.path.exists(demo_file_path):
+                raise FileNotFoundError(f"Demo file not found: {demo_file_path}")
+
+            ext = os.path.splitext(demo_file_path)[1].lower()
+            if ext in [".csv", ".txt"]:
+                df = pd.read_csv(demo_file_path)
+            elif ext in [".xlsx", ".xlsm", ".xls"]:
+                # Try first sheet by default
+                df = pd.read_excel(demo_file_path)
+            else:
+                # Fallback: try CSV
+                df = pd.read_csv(demo_file_path)
+
+            # Add traceability metadata
+            df['_ipe_id'] = self.ipe_id
+            df['_extraction_date'] = datetime.now().isoformat()
+            df['_cutoff_date'] = self.cutoff_date
+            self.extracted_data = df
+
+            # 4) Save snapshot and summary
+            self.evidence_generator.save_data_snapshot(df)
+
+            # 5) Demo validations: mark as PASS with demo context
+            self.validation_results = {
+                'completeness': {'status': 'SKIPPED', 'reason': 'Demo mode: DB validation queries not executed'},
+                'accuracy_positive': {'status': 'SKIPPED', 'reason': 'Demo mode'},
+                'accuracy_negative': {'status': 'SKIPPED', 'reason': 'Demo mode'},
+                'overall_status': 'SUCCESS',
+                'execution_time': datetime.now().isoformat(),
+            }
+
+            # Optionally include integrity hash for demo
+            if include_hash:
+                try:
+                    integrity_hash = self.evidence_generator.generate_integrity_hash(df)
+                    self.validation_results['data_integrity_hash'] = integrity_hash
+                except Exception as e:
+                    logger.warning(f"[{self.ipe_id}] Demo hash generation failed: {e}")
+
+            self.evidence_generator.save_validation_results(self.validation_results)
+
+            # 6) Finalize evidence package to include execution log and ZIP
+            evidence_zip = self.evidence_generator.finalize_evidence_package()
+            logger.info(f"[{self.ipe_id}] ==> DEMO EXECUTION COMPLETE - Evidence: {evidence_zip}")
+
+            return df
+
+        except Exception as e:
+            self.validation_results['overall_status'] = 'ERROR'
+            if self.evidence_generator:
+                try:
+                    self.evidence_generator.save_validation_results(self.validation_results)
+                    self.evidence_generator.finalize_evidence_package()
+                except Exception:
+                    pass
+            raise
     
     def get_validation_summary(self) -> Dict[str, Any]:
         """

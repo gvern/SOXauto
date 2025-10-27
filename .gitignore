@@ -71,3 +71,4 @@ Bridge_source/
 # Process documentation (keep locally, exclude from repo)
 docs/project-history/
 README.md.backup
+src/core/evidence/__pycache__/

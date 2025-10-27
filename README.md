@@ -23,6 +23,25 @@ While waiting for the MSSQL service account credentials, development continues i
 
 Live tracking and detailed checklist: see `PROJECT_DASHBOARD.md`.
 
+## Quick Demo (offline)
+
+Run a 3-phase demo (Extraction → Reconciliation → Bridges) with sample data:
+
+```bash
+python3 scripts/run_demo.py --ipe IPE_07
+```
+
+What it does:
+
+- Phase 1: Loads a sample CSV for the chosen IPE, generates a Digital Evidence Package (6 files without hash) under `evidence/<IPE>/...`.
+- Phase 2: Computes a simple reconciliation between NAV GL actuals and the IPE total.
+- Phase 3: Applies bridge classification rules on a small IPE_31-like sample and prints a preview.
+
+Notes:
+
+- The script auto-creates minimal CSVs in `tests/fixtures/historical_data/` if they’re missing: `<IPE>.csv`, `actuals_nav_gl.csv`, `i31_transactions.csv`.
+- To use your own historical files, drop them in `tests/fixtures/historical_data/` with the same filenames.
+
 ## Enterprise-Grade SOX Automation for Financial Reconciliation
 
 [![POC In Progress](https://img.shields.io/badge/Status-POC%20In%20Progress-blue.svg)](https://github.com/gvern/SOXauto)
