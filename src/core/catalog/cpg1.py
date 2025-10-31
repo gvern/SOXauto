@@ -698,7 +698,7 @@ and (
     # == CR_03: NAV GL Entries
     # =================================================================
     # IA BASELINE VALIDATION:
-    # [✓] Source Table: [AIG_Nav_DW].[dbo].[G_L Entry] (matches baseline: [AIG_Nav_DW].[dbo].[G_L Entries])
+    # [✓] Source Table: [AIG_Nav_DW].[dbo].[G_L Entry] (same as baseline: [AIG_Nav_DW].[dbo].[G_L Entries]; "Entry" and "Entries" refer to the same table in NAV)
     # [✗] SQL Query: MISSING
     # 
     # TODO: Implement SQL query for CR_03 based on "Query 31" logic from IA baseline document.
