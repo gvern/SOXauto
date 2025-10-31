@@ -705,7 +705,7 @@ and (
         evidence_ref="CR_03",
         descriptor_excel="IPE_FILES/CR_03_test.xlsx",
         sources=[
-            _src_sql("[AIG_Nav_DW].[dbo].[G_L Entry]", system="NAV", domain="NAVBI"),
+            _src_sql("[AIG_Nav_DW].[dbo].[G_L Entries]", system="NAV", domain="NAVBI"),
         ],
     ),
     # =================================================================
