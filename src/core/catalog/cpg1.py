@@ -639,6 +639,15 @@ WHERE Company_Country not in ('TN','TZ','ZA')""",
         ],
         
     ),
+    # =================================================================
+    # == CR_04: NAV GL Balances
+    # =================================================================
+    # IA BASELINE VALIDATION COMPLETED:
+    # [✓] Source Table: [AIG_Nav_Jumia_Reconciliation].[dbo].[V_BS_ANAPLAN_IMPORT_IFRS_MAPPING_CURRENCY_SPLIT]
+    # [✓] Filters: WHERE clause filters on CLOSING_DATE (between year_start and year_end)
+    # [✓] Filters: WHERE clause filters on GROUP_COA_ACCOUNT_NO (LIKE patterns and IN clause)
+    # CONCLUSION: Query matches IA baseline requirements for CR_04
+    # =================================================================
     CatalogItem(
         item_id="CR_04",
         item_type="CR",
@@ -685,6 +694,21 @@ and (
 )""",
         
     ),
+    # =================================================================
+    # == CR_03: NAV GL Entries
+    # =================================================================
+    # IA BASELINE VALIDATION:
+    # [✓] Source Table: [AIG_Nav_DW].[dbo].[G_L Entry] (matches baseline: [AIG_Nav_DW].[dbo].[G_L Entries])
+    # [✗] SQL Query: MISSING
+    # 
+    # TODO: Implement SQL query for CR_03 based on "Query 31" logic from IA baseline document.
+    #       The IA baseline (CR_03_04 mapping) indicates this query requires joins with:
+    #       - Detailed G_L Entry
+    #       - Dim_Company
+    #       - Dim_ChartOfAccounts
+    #       - Other supporting tables as specified in Query 31
+    #       Reference: IPE_FILES/CR_03_04 mapping.xlsx (if available)
+    # =================================================================
     CatalogItem(
         item_id="CR_03",
         item_type="CR",
