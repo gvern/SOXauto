@@ -27,12 +27,17 @@ def test_catalog_has_ipe_08_with_sql_and_sources():
     # Check that {cutoff_date} parameter is present in the query
     assert "{cutoff_date}" in item.sql_query, "IPE_08 sql_query should contain {cutoff_date} parameter"
     
-    # Verify sources list contains both required tables
-    assert item.sources is not None and len(item.sources) == 2, "IPE_08 should have exactly 2 sources"
+    # Check that {id_companies_active} parameter is present in the query (new parameterized baseline)
+    assert "{id_companies_active}" in item.sql_query, "IPE_08 sql_query should contain {id_companies_active} parameter"
+    
+    # Verify sources list contains all three required tables
+    assert item.sources is not None and len(item.sources) == 3, "IPE_08 should have exactly 3 sources"
     
     source_locations = [src.location for src in item.sources]
     assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING]" in source_locations, \
         "IPE_08 should have V_STORECREDITVOUCHER_CLOSING as a source"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[StoreCreditVoucher]" in source_locations, \
+        "IPE_08 should have StoreCreditVoucher as a source"
     assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]" in source_locations, \
         "IPE_08 should have RPT_SOI as a source"
 
