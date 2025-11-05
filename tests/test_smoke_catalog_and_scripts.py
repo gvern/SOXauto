@@ -63,6 +63,43 @@ def test_catalog_has_cr_03_with_sql_and_sources():
         "CR_03 should have Dim_ChartOfAccounts as a source"
     assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[GDOC_IFRS_Tabular_Mapping]" in source_locations, \
         "CR_03 should have GDOC_IFRS_Tabular_Mapping as a source"
+def test_catalog_cr_04_aligned_with_baseline():
+    """Test CR_04 query is aligned with Query 2 from CR_03_04 mapping (IA baseline)."""
+    from src.core.catalog.cpg1 import get_item_by_id
+
+    item = get_item_by_id("CR_04")
+    assert item is not None, "CR_04 should exist in the catalog"
+    assert isinstance(item.sql_query, str) and item.sql_query.strip(), "CR_04 should have a non-empty sql_query"
+    
+    # Verify it uses specific columns, not SELECT *
+    assert "SELECT *" not in item.sql_query, "CR_04 should not use SELECT *, must specify columns"
+    
+    # Verify specific columns from baseline Query 2 are present
+    required_columns = [
+        "ID_COMPANY", "COMPANY_NAME", "COUNTRY_CODE", "COUNTRY_NAME",
+        "CLOSING_DATE", "REFRESH_DATE", "GROUP_COA_ACCOUNT_NO", "GROUP_COA_ACCOUNT_NAME",
+        "REAL_COA", "CURRENCY", "FX_RATE", "BALANCE_AT_DATE",
+        "BUSLINE_CODE", "REPORTING_COUNTRY_CODE", "REPORTING_COUNTRY_NAME",
+        "PARTNER_CODE", "IC_PARTNER_CODE", "IS_RECHARGE", "IS_RETAINED_EARNINGS",
+        "CONSO_ACCOUNT_NO", "CONSO_ACCOUNT_NAME", "IFRS_LEVEL_1_NAME",
+        "IFRS_LEVEL_2_NAME", "IFRS_LEVEL_3_NAME", "IS_INTERCO"
+    ]
+    for col in required_columns:
+        assert f"[{col}]" in item.sql_query, f"CR_04 query should contain column [{col}]"
+    
+    # Verify it uses {cutoff_date} parameter (not BETWEEN with year_start/year_end)
+    assert "{cutoff_date}" in item.sql_query, "CR_04 should use {cutoff_date} parameter"
+    assert "BETWEEN" not in item.sql_query, "CR_04 should not use BETWEEN for date filtering"
+    assert "{year_start}" not in item.sql_query, "CR_04 should not use {year_start} parameter"
+    assert "{year_end}" not in item.sql_query, "CR_04 should not use {year_end} parameter"
+    
+    # Verify it uses {gl_accounts} parameter (not LIKE patterns)
+    assert "{gl_accounts}" in item.sql_query, "CR_04 should use {gl_accounts} parameter"
+    assert "LIKE" not in item.sql_query, "CR_04 should not use LIKE patterns for account filtering"
+    
+    # Verify it uses the correct source table
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[V_BS_ANAPLAN_IMPORT_IFRS_MAPPING_CURRENCY_SPLIT]" in item.sql_query, \
+        "CR_04 should query from V_BS_ANAPLAN_IMPORT_IFRS_MAPPING_CURRENCY_SPLIT"
 
 
 @pytest.mark.parametrize(
