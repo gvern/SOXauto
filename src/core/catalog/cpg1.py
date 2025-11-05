@@ -406,11 +406,11 @@ ON
     t1.fk_Sales_Order_Item = tTwo.ID_Sales_Order_Item
 WHERE
     t1.[Creation_Date] < '{cutoff_date}'
-    AND t1.[Status] = 'inactive'
+    AND t1.[Status] = 'active'
+    AND t1.[Start_Date] <= '{cutoff_date}'
     AND t1.[End_Date] >= '{cutoff_date}'
-    AND (tTwo.[Order_Item_Status] NOT IN ('delivered', 'cancelled', 'closed') OR tTwo.[Order_Item_Status] IS NULL)
-    AND tTwo.[Order_Delivery_Date] >= '{cutoff_date}'
-    AND tTwo.[Order_Cancellation_Date] >= '{cutoff_date}'""",
+    AND t1.[Business_Use] NOT IN ('marketing', 'newsletter')
+    AND tTwo.[Order_Item_Status] IS NULL""",
     ),
     CatalogItem(
         item_id="IPE_31",
