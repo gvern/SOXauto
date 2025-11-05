@@ -360,6 +360,9 @@ OR [REFUND_DATE] > DATEADD(s, - 1, DATEADD(mm, DATEDIFF(m, 0, GETDATE()), 0))
         status="Completed",
         baseline_required=True,
         cross_reference=None,
+        description="""This query extracts voucher target values, which are a direct input for the "Timing Difference" bridge classification. 
+It retrieves inactive vouchers created before the cutoff date that remain valid at the cutoff date, 
+along with related sales order item information for reconciliation purposes.""",
         notes=(
             "File '4. All Countries June-25 - IBSAR Other AR related Accounts.xlsx / Tab 18412' "
             "-> All Countries - Jun.25 - Voucher TV Extract.xlsx. GL = 18412. "
@@ -369,8 +372,45 @@ OR [REFUND_DATE] > DATEADD(s, - 1, DATEADD(mm, DATEDIFF(m, 0, GETDATE()), 0))
         descriptor_excel="IPE_FILES/IPE_08_test.xlsx",
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING]", system="BOB", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
-        
+        sql_query="""SELECT
+    t1.[ID_Company],
+    t1.[Voucher_ID],
+    t1.[Code],
+    t1.[Amount],
+    t1.[Currency],
+    t1.[Business_Use],
+    t1.[Origin],
+    t1.[Status],
+    t1.[Creation_Date],
+    t1.[Start_Date],
+    t1.[End_Date],
+    t1.[fk_Sales_Order_Item],
+    t1.[ID_Sales_Order_Item],
+    tTwo.[Order_Creation_Date],
+    tTwo.[Order_Delivery_Date],
+    tTwo.[Order_Cancellation_Date],
+    tTwo.[Order_Item_Status],
+    tTwo.[Payment_Method],
+    t1.[fk_Customer],
+    t1.[fk_Sales_Order],
+    tTwo.[Order_Nr],
+    t1.[Comment],
+    t1.[Wallet_Name]
+FROM
+    [AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING] t1
+LEFT JOIN
+    [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI] tTwo
+ON
+    t1.fk_Sales_Order_Item = tTwo.ID_Sales_Order_Item
+WHERE
+    t1.[Creation_Date] < '{cutoff_date}'
+    AND t1.[Status] = 'active'
+    AND t1.[Start_Date] <= '{cutoff_date}'
+    AND t1.[End_Date] >= '{cutoff_date}'
+    AND t1.[Business_Use] NOT IN ('marketing', 'newsletter')
+    AND tTwo.[Order_Item_Status] IS NULL""",
     ),
     CatalogItem(
         item_id="IPE_31",

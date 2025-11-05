@@ -17,6 +17,26 @@ def test_catalog_has_ipe_07_with_sql():
     assert isinstance(item.sql_query, str) and item.sql_query.strip(), "IPE_07 should have a non-empty sql_query"
 
 
+def test_catalog_has_ipe_08_with_sql_and_sources():
+    from src.core.catalog.cpg1 import get_item_by_id
+
+    item = get_item_by_id("IPE_08")
+    assert item is not None, "IPE_08 should exist in the catalog"
+    assert isinstance(item.sql_query, str) and item.sql_query.strip(), "IPE_08 should have a non-empty sql_query"
+    
+    # Check that {cutoff_date} parameter is present in the query
+    assert "{cutoff_date}" in item.sql_query, "IPE_08 sql_query should contain {cutoff_date} parameter"
+    
+    # Verify sources list contains both required tables
+    assert item.sources is not None and len(item.sources) == 2, "IPE_08 should have exactly 2 sources"
+    
+    source_locations = [src.location for src in item.sources]
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING]" in source_locations, \
+        "IPE_08 should have V_STORECREDITVOUCHER_CLOSING as a source"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]" in source_locations, \
+        "IPE_08 should have RPT_SOI as a source"
+
+
 @pytest.mark.parametrize(
     "module_name",
     [
