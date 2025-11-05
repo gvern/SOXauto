@@ -10,11 +10,44 @@ if REPO_ROOT not in sys.path:
 
 
 def test_catalog_has_ipe_07_with_sql():
+    """Test IPE_07 query is aligned with 2025 audited baseline (temp tables, LOAN-REC-NAT)."""
     from src.core.catalog.cpg1 import get_item_by_id
 
     item = get_item_by_id("IPE_07")
     assert item is not None, "IPE_07 should exist in the catalog"
     assert isinstance(item.sql_query, str) and item.sql_query.strip(), "IPE_07 should have a non-empty sql_query"
+    
+    # 1. Verify temp table structure (2-step aggregation with ##temp and ##temp2)
+    assert "##temp" in item.sql_query, "IPE_07 should use ##temp table for pre-aggregation"
+    assert "##temp2" in item.sql_query, "IPE_07 should use ##temp2 table for pre-aggregation"
+    assert "CREATE NONCLUSTERED INDEX IDX_Temp" in item.sql_query, "IPE_07 should create index on ##temp"
+    assert "CREATE NONCLUSTERED INDEX IDX_Temp2" in item.sql_query, "IPE_07 should create index on ##temp2"
+    assert "DROP TABLE ##temp" in item.sql_query, "IPE_07 should clean up ##temp"
+    assert "DROP TABLE ##temp2" in item.sql_query, "IPE_07 should clean up ##temp2"
+    
+    # 2. Verify {cutoff_date} parameterization (no hardcoded GETDATE() logic for date filters)
+    assert "{cutoff_date}" in item.sql_query, "IPE_07 should use {cutoff_date} parameter"
+    # Note: GETDATE() is still used in the CASE statement for Debit_Credit_DueMonth logic, which is acceptable
+    assert "DATEADD(s,-1,DATEADD(mm, DATEDIFF(m,0,GETDATE()),0))" not in item.sql_query, \
+        "IPE_07 should not use hardcoded DATEADD/GETDATE logic for date filtering"
+    
+    # 3. Verify LOAN-REC-NAT is included in Customer Posting Group filter
+    assert "'LOAN-REC-NAT'" in item.sql_query, "IPE_07 should include 'LOAN-REC-NAT' in Customer Posting Group filter"
+    
+    # 4. Verify all 5 required tables are in sources
+    assert item.sources is not None and len(item.sources) == 5, "IPE_07 should have exactly 5 sources"
+    
+    source_locations = [src.location for src in item.sources]
+    assert "[AIG_Nav_DW].[dbo].[Detailed Customer Ledg_ Entry]" in source_locations, \
+        "IPE_07 should have Detailed Customer Ledg_ Entry as a source"
+    assert "[AIG_Nav_DW].[dbo].[Customer Ledger Entries]" in source_locations, \
+        "IPE_07 should have Customer Ledger Entries as a source"
+    assert "[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]" in source_locations, \
+        "IPE_07 should have Dim_Company as a source"
+    assert "[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Busline]" in source_locations, \
+        "IPE_07 should have Dim_Busline as a source"
+    assert "[AAN_Nav_Jumia_Reconciliation].[dbo].[Customers]" in source_locations, \
+        "IPE_07 should have Customers as a source"
 
 
 def test_catalog_has_ipe_08_with_sql_and_sources():
