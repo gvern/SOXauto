@@ -822,11 +822,11 @@ INNER JOIN (
     GROUP BY det.[id_company], det.[Gen_ Ledger Entry No_]
     having sum(det.[Amount]) <> 0
 ) dgl
-    on gl.ID_company = dgl.ID_company and dgl.[Gen_ Ledger Entry No_] = gl.[Entry No_]
+    on gl.id_company = dgl.id_company and dgl.[Gen_ Ledger Entry No_] = gl.[Entry No_]
 LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] comp
     on comp.Company_Code = gl.id_company
-left join [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_ChartOfAccounts] coa
-    on coa.[Company_Code] = gl.ID_company and coa.[G/L_Account_No] = gl.[Chart of Accounts No_]
+LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_ChartOfAccounts] coa
+    on coa.[Company_Code] = gl.id_company and coa.[G/L_Account_No] = gl.[Chart of Accounts No_]
 LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[GDOC_IFRS_Tabular_Mapping] ifrs
     on ifrs.Level_4_Code = coa.Group_COA_Account_no
 WHERE comp.Flg_In_Conso_Scope = 1
