@@ -126,7 +126,7 @@ select * into ##temp from (
 ) a;
 
 CREATE NONCLUSTERED INDEX IDX_Temp
-ON [dbo].[##temp] ([ID_company],[Customer No_])
+ON ##temp ([ID_company],[Customer No_])
 INCLUDE (rem_bal_LCY);
 
 select * into ##temp2 from (
@@ -140,7 +140,7 @@ select * into ##temp2 from (
 ) b;
 
 CREATE NONCLUSTERED INDEX IDX_Temp2
-ON [dbo].[##temp2] ([ID_company],[Cust_ Ledger Entry No_])
+ON ##temp2 ([ID_company],[Cust_ Ledger Entry No_])
 INCLUDE (rem_amt_LCY);
 
 SELECT cle.[id_company]
@@ -179,9 +179,9 @@ SELECT cle.[id_company]
     WHEN EOMONTH(cle.[Due Date]) > EOMONTH(GETDATE()) THEN 'Debit'
     ELSE 'Due Month' END 'Debit_Credit_DueMonth'
 FROM [AIG_Nav_DW].[dbo].[Customer Ledger Entries] cle
-INNER JOIN [dbo].[##temp] dcle
+INNER JOIN ##temp dcle
     on cle.ID_company=dcle.ID_company and cle.[Customer No_]=dcle.[Customer No_]
-INNER JOIN [dbo].[##temp2] dcle_2
+INNER JOIN ##temp2 dcle_2
     on cle.ID_company=dcle_2.ID_company and cle.[Entry No_]=dcle_2.[Cust_ Ledger Entry No_]
 LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] comp
     on comp.Company_Code=cle.id_company
