@@ -366,16 +366,16 @@ AND (
                         'Digital Content'
                         ,'Gift Card'
                     )
-                    AND [DELIVERED_DATE] IS NULL
-                    OR [DELIVERED_DATE] > '{cutoff_date}'
+                    AND ([DELIVERED_DATE] IS NULL
+                    OR [DELIVERED_DATE] > '{cutoff_date}')
                 )
                 OR (
                     [DELIVERY_TYPE] NOT IN (
                         'Digital Content'
                         ,'Gift Card'
                     )
-                    AND [PACKAGE_DELIVERY_DATE] IS NULL
-                    OR [PACKAGE_DELIVERY_DATE] > '{cutoff_date}'
+                    AND ([PACKAGE_DELIVERY_DATE] IS NULL
+                    OR [PACKAGE_DELIVERY_DATE] > '{cutoff_date}')
                 )
             )
             AND (
