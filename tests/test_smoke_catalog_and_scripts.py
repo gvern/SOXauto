@@ -140,6 +140,45 @@ def test_catalog_cr_04_aligned_with_baseline():
         "CR_04 should query from V_BS_ANAPLAN_IMPORT_IFRS_MAPPING_CURRENCY_SPLIT"
 
 
+def test_catalog_ipe_10_aligned_with_baseline():
+    """Test IPE_10 query is aligned with audited baseline (parameterized dates)."""
+    from src.core.catalog.cpg1 import get_item_by_id
+
+    item = get_item_by_id("IPE_10")
+    assert item is not None, "IPE_10 should exist in the catalog"
+    assert isinstance(item.sql_query, str) and item.sql_query.strip(), "IPE_10 should have a non-empty sql_query"
+    
+    # Verify {cutoff_date} parameter is used (not hardcoded GETDATE() logic)
+    assert "{cutoff_date}" in item.sql_query, "IPE_10 should use {cutoff_date} parameter"
+    
+    # Verify no hardcoded DATEADD/GETDATE logic for date filtering
+    assert "DATEADD(s, - 1, DATEADD(mm, DATEDIFF(m, 0, GETDATE()), 0))" not in item.sql_query, \
+        "IPE_10 should not use hardcoded DATEADD/GETDATE logic - use {cutoff_date} instead"
+    assert "DATEADD(s,-1,DATEADD(mm, DATEDIFF(m,0,GETDATE()),0))" not in item.sql_query, \
+        "IPE_10 should not use hardcoded DATEADD/GETDATE logic (no spaces variant)"
+    
+    # Verify proper BETWEEN clause structure
+    assert "BETWEEN '2018-01-01 00:00:00' AND '{cutoff_date}'" in item.sql_query, \
+        "IPE_10 should use proper BETWEEN clause with cutoff_date parameter"
+    
+    # Verify it uses the correct source table
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]" in item.sql_query, \
+        "IPE_10 should query from RPT_SOI table"
+    
+    # Verify key business logic conditions from baseline
+    assert "[IS_PREPAYMENT] = 1" in item.sql_query, "IPE_10 should filter for prepayments"
+    assert "IS_MARKETPLACE = 1" in item.sql_query, "IPE_10 should have marketplace logic"
+    assert "IS_MARKETPLACE = 0" in item.sql_query, "IPE_10 should have non-marketplace logic"
+    assert "[DELIVERY_TYPE] IN" in item.sql_query, "IPE_10 should filter by delivery type"
+    assert "'Digital Content'" in item.sql_query, "IPE_10 should include Digital Content in delivery types"
+    assert "'Gift Card'" in item.sql_query, "IPE_10 should include Gift Card in delivery types"
+    
+    # Verify source metadata
+    assert item.sources is not None and len(item.sources) == 1, "IPE_10 should have exactly 1 source"
+    assert item.sources[0].location == "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", \
+        "IPE_10 source should be RPT_SOI"
+
+
 @pytest.mark.parametrize(
     "module_name",
     [
