@@ -682,11 +682,10 @@ WHERE Company_Country not in ('TN','TZ','ZA')""",
     # =================================================================
     # == CR_04: NAV GL Balances
     # =================================================================
-    # IA BASELINE VALIDATION COMPLETED:
+    # IA BASELINE VALIDATION (2025-11-05):
     # [✓] Source Table: [AIG_Nav_Jumia_Reconciliation].[dbo].[V_BS_ANAPLAN_IMPORT_IFRS_MAPPING_CURRENCY_SPLIT]
-    # [✓] Filters: WHERE clause filters on CLOSING_DATE (between year_start and year_end)
-    # [✓] Filters: WHERE clause filters on GROUP_COA_ACCOUNT_NO (LIKE patterns and IN clause)
-    # CONCLUSION: Query matches IA baseline requirements for CR_04
+    # [✓] Logic: Aligned with "Query 2" from CR_03_04 mapping.
+    # [✓] Filters: Uses parameterized {cutoff_date} and {gl_accounts}.
     # =================================================================
     CatalogItem(
         item_id="CR_04",
@@ -724,14 +723,36 @@ Given the above, and that the period and date of extraction are validated in eve
                 domain="FinRec",
             ),
         ],
-    sql_query="""SELECT *
+    sql_query="""SELECT
+    [ID_COMPANY],
+    [COMPANY_NAME],
+    [COUNTRY_CODE],
+    [COUNTRY_NAME],
+    [CLOSING_DATE],
+    [REFRESH_DATE],
+    [GROUP_COA_ACCOUNT_NO],
+    [GROUP_COA_ACCOUNT_NAME],
+    [REAL_COA],
+    [CURRENCY],
+    [FX_RATE],
+    [BALANCE_AT_DATE],
+    [BUSLINE_CODE],
+    [REPORTING_COUNTRY_CODE],
+    [REPORTING_COUNTRY_NAME],
+    [PARTNER_CODE],
+    [IC_PARTNER_CODE],
+    [IS_RECHARGE],
+    [IS_RETAINED_EARNINGS],
+    [CONSO_ACCOUNT_NO],
+    [CONSO_ACCOUNT_NAME],
+    [IFRS_LEVEL_1_NAME],
+    [IFRS_LEVEL_2_NAME],
+    [IFRS_LEVEL_3_NAME],
+    [IS_INTERCO]
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_BS_ANAPLAN_IMPORT_IFRS_MAPPING_CURRENCY_SPLIT]
-where CLOSING_DATE between '{year_start}' and '{year_end}'
-and (
-    GROUP_COA_ACCOUNT_NO like '145%' OR
-    GROUP_COA_ACCOUNT_NO like '15%' OR
-    GROUP_COA_ACCOUNT_NO in ('18650','18397')
-)""",
+WHERE [CLOSING_DATE] = '{cutoff_date}'
+AND [GROUP_COA_ACCOUNT_NO] IN {gl_accounts}
+""",
         
     ),
     # =================================================================
