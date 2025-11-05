@@ -112,7 +112,7 @@ CPG1_CATALOG: List[CatalogItem] = [
             _src_sql("[AAN_Nav_Jumia_Reconciliation].[dbo].[Customers]", system="NAV", domain="NAVBI"),
         ],
     sql_query="""
-IF OBJECT_ID('tempdb..##temp' ) IS NOT NULL DROP TABLE ##temp;
+IF OBJECT_ID('tempdb..##temp') IS NOT NULL DROP TABLE ##temp;
 IF OBJECT_ID('tempdb..##temp2') IS NOT NULL DROP TABLE ##temp2;
 
 select * into ##temp from (
