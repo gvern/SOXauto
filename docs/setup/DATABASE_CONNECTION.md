@@ -75,7 +75,7 @@ If you receive `AccessDeniedException`, contact your AWS administrator to add th
 2. Add your connection string:
    ```bash
    # Database Connection String (fallback if Secrets Manager is not accessible)
-   DB_CONNECTION_STRING=DRIVER={ODBC Driver 17 for SQL Server};SERVER=your-server.database.windows.net;DATABASE=NAV_BI;UID=sox_user;PWD=your_password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;
+   DB_CONNECTION_STRING=DRIVER={ODBC Driver 18 for SQL Server};SERVER=your-server.database.windows.net;DATABASE=NAV_BI;UID=sox_user;PWD=your_password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;
    ```
 
 3. Load the environment file:
@@ -85,7 +85,7 @@ If you receive `AccessDeniedException`, contact your AWS administrator to add th
 
 #### Option B: Direct Export
 ```bash
-export DB_CONNECTION_STRING="DRIVER={ODBC Driver 17 for SQL Server};SERVER=your-server.database.windows.net;DATABASE=NAV_BI;UID=sox_user;PWD=your_password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+export DB_CONNECTION_STRING="DRIVER={ODBC Driver 18 for SQL Server};SERVER=your-server.database.windows.net;DATABASE=NAV_BI;UID=sox_user;PWD=your_password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 ```
 
 #### Option C: In Test Scripts
@@ -111,6 +111,55 @@ DRIVER={ODBC Driver 18 for SQL Server};SERVER=server.database.windows.net,1433;D
 DRIVER={ODBC Driver 18 for SQL Server};SERVER=server;DATABASE=NAV_BI;Trusted_Connection=yes;
 ```
 
+### Using an ODBC DSN (macOS/Linux)
+
+You can also configure a DSN in `odbc.ini` and authenticate with a service account:
+
+1. Install ODBC prerequisites (macOS):
+
+```bash
+brew install unixodbc
+# Install Microsoft ODBC Driver 18 (use official pkg):
+# https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server
+# Verify driver installation:
+odbcinst -q -d | grep -i "ODBC Driver 18"
+```
+
+1. Create or update `~/.odbc.ini`:
+
+```ini
+[MySqlServer]
+Driver = ODBC Driver 18 for SQL Server
+Server = your-server.database.windows.net
+Database = NAV_BI
+Encrypt = yes
+TrustServerCertificate = no
+```
+
+Optionally, define the driver in `odbcinst.ini` if required by your distro:
+
+```ini
+[ODBC Driver 18 for SQL Server]
+Description = Microsoft ODBC Driver 18 for SQL Server
+Driver = /usr/local/lib/libmsodbcsql.18.dylib
+```
+
+1. Export DSN and credentials as environment variables:
+
+```bash
+export MSSQL_DSN=MySqlServer
+export MSSQL_USER=sox_reader
+export MSSQL_PASSWORD=your_password
+```
+
+1. Test connectivity:
+
+```bash
+python3 scripts/check_mssql_connection.py
+```
+
+The script will build a DSN-based connection string automatically when `MSSQL_DSN` is set.
+
 ### Security Considerations
 
 ⚠️ **IMPORTANT**: Never commit `.env` files or connection strings to version control!
@@ -134,26 +183,30 @@ DRIVER={ODBC Driver 18 for SQL Server};SERVER=server;DATABASE=NAV_BI;Trusted_Con
 ## Testing Database Connection
 
 ### Test Script
+
 ```bash
 python3 tests/test_database_connection.py
 ```
 
 ### Expected Output
 
-#### With Secrets Manager:
-```
+#### With Secrets Manager
+
+```text
 ✅ Secrets Manager accessible
 ✅ Database connection successful
 ```
 
-#### With Environment Variable:
-```
+#### With Environment Variable
+
+```text
 ℹ️  Using DB_CONNECTION_STRING from environment variable
 ✅ Database connection successful
 ```
 
-#### Access Denied:
-```
+#### Access Denied
+
+```text
 ❌ Secrets Manager access denied
 ℹ️  Set DB_CONNECTION_STRING environment variable as fallback
 ```

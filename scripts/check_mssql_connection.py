@@ -24,6 +24,17 @@ def build_connection_string() -> str:
     cs = os.getenv("DB_CONNECTION_STRING")
     if cs:
         return cs
+    # Support DSN-based connections if provided
+    dsn = os.getenv("MSSQL_DSN")
+    if dsn:
+        user = os.getenv("MSSQL_USER")
+        password = os.getenv("MSSQL_PASSWORD")
+        if not (user and password):
+            raise RuntimeError(
+                "MSSQL_DSN set but MSSQL_USER/MSSQL_PASSWORD missing. Set credentials or use DB_CONNECTION_STRING."
+            )
+        # TrustServerCertificate keeps parity with server-based connection defaults
+        return f"DSN={dsn};UID={user};PWD={password};TrustServerCertificate=yes;"
     driver = os.getenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
     server = os.getenv("MSSQL_SERVER")
     database = os.getenv("MSSQL_DATABASE")
