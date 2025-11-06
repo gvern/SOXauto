@@ -9,6 +9,7 @@ import logging
 from datetime import timedelta
 from typing import Dict, Any, Optional
 from temporalio import workflow
+from src.utils.logging import setup_json_logging
 from temporalio.common import RetryPolicy
 
 # Import activity definitions (for type hints)
@@ -23,6 +24,7 @@ with workflow.unsafe.imports_passed_through():
         classify_bridges_activity,
     )
 
+setup_json_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -98,6 +100,15 @@ class Cpg1Workflow:
             # ==============================================================
             workflow.logger.info("STEP 1: Fetching IPE data")
             
+            # Common retry policy for transient DB/network errors
+            retry = workflow.RetryPolicy(
+                initial_interval=timedelta(seconds=10),
+                backoff_coefficient=2.0,
+                maximum_interval=timedelta(minutes=1),
+                maximum_attempts=5,
+                non_retryable_error_types=["IPEValidationError"],
+            )
+
             # IPE_07: Customer Accounts
             ipe_07_result = await workflow.execute_activity(
                 execute_ipe_query_activity,

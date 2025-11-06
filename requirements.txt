@@ -7,9 +7,14 @@ openpyxl>=3.1.2  # For reading Excel files
 # Database connectivity
 pyodbc>=4.0.39  # Keep for backward compatibility (legacy)
 
-# AWS dependencies
+# AWS dependencies (Secrets Manager retained; Athena tooling removed)
 boto3>=1.28.0  # AWS SDK for Python
 botocore>=1.31.0
+
+# Serverless/HTTP stack removed (Temporal Worker-based orchestration)
+# Flask
+# gunicorn
+# awslambdaric
 
 # Utilities and logging
 python-dateutil>=2.8.0

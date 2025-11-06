@@ -1,6 +1,7 @@
-# Temporal.io Deployment Guide for SOXauto PG-01
+# [DEPRECATED] AWS Deployment Guide (Pre-Temporal Architecture)
 
-This guide provides comprehensive instructions for deploying the SOXauto PG-01 automation system with Temporal.io orchestration.
+> This document is archived. The project now uses a Temporal Worker + Teleport tunnel architecture for orchestration and database access.
+> Please refer to `docs/deployment/temporal_worker_deploy.md` for current deployment instructions.
 
 ## Table of Contents
 1. [Prerequisites](#prerequisites)
@@ -27,16 +28,11 @@ This guide provides comprehensive instructions for deploying the SOXauto PG-01 a
 
 ---
 
-## Temporal Setup
+## (Historical) AWS Services Considered
 
-### Option 1: Temporal Cloud (Recommended)
-
-**Best for**: Production deployments with managed infrastructure
-
-1. Sign up for Temporal Cloud at https://temporal.io/cloud
-2. Create a namespace for SOXauto
-3. Download mTLS certificates
-4. Note your namespace endpoint (e.g., `namespace.account.tmprl.cloud:7233`)
+### 3. Amazon Athena / Redshift (No longer used)
+- **Athena**: For ad-hoc SQL queries on S3 data
+- **Redshift** (optional): For data warehousing and analytics
 
 ### Option 2: Self-Hosted Temporal Server
 
@@ -76,9 +72,9 @@ kubectl get pods -n temporal
 
 ---
 
-## Worker Deployment Options
+## Historical Deployment Options (Deprecated)
 
-### Option 1: Docker Container (Recommended)
+### Option 1: AWS Lambda (Deprecated)
 
 **Best for**: Production deployments with container orchestration
 
@@ -108,7 +104,7 @@ docker run -d \
   registry.example.com/soxauto-worker:latest
 ```
 
-### Option 2: Kubernetes Deployment
+### Option 2: Amazon ECS (Deprecated)
 
 **Best for**: Scalable, cloud-native deployments
 

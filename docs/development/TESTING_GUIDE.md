@@ -1,5 +1,10 @@
 # Testing Guide for SOXauto PG-01
 
+> Update — 2025-11-06
+>
+> The project now uses Temporal.io for orchestration and Teleport (`tsh`) for on‑prem MSSQL connectivity.
+> GCP- and Lambda-related sections below are historical. Prefer the Temporal worker and AWS Secrets Manager flows.
+
 **Pre-Production Testing Checklist**
 
 This guide provides comprehensive testing procedures to validate the SOXauto application before production deployment, with special focus on the security-hardened CTE-based validation queries.
@@ -29,9 +34,11 @@ python3 --version
 # Install dependencies
 pip install -r requirements.txt
 
-# Set required environment variables
-export GCP_PROJECT_ID="your-gcp-project-id"
-export CUTOFF_DATE="2024-05-01"  # Optional
+# Teleport login (example)
+tsh login --proxy=teleport.example.com --user "$USER"
+
+# Optional: set a default cutoff date for local runs
+export CUTOFF_DATE="2024-05-01"
 ```
 
 ### Run All Tests
@@ -43,11 +50,14 @@ python3 scripts/validate_ipe_config.py
 # 2. Syntax validation
 python3 -m py_compile src/core/*.py src/bridges/*.py src/utils/*.py
 
-# 3. Run unit tests (if available)
-pytest tests/ -v
+# 3. Run unit tests (Temporal serialization, catalog smoke, etc.)
+pytest tests/ -q
 
-# 4. Docker build test
-docker build -t soxauto-pg01-test .
+# 4. (Optional) Build worker image
+docker build -t soxauto-worker:test .
+
+# 5. (Optional) Start worker locally
+python -m src.orchestrators.cpg1_worker
 ```
 
 ---
@@ -132,53 +142,30 @@ Expected: No matches (or only in comments)
 
 ---
 
-## Integration Testing
+## Integration Testing (Temporal + Teleport)
 
-### Test Database Connection
+### Temporal Activity Retry (Design)
 
-Create `tests/test_connection.py`:
+- Activities that call MSSQL should be executed with a RetryPolicy (exponential backoff, max attempts)
+- Non-retryable errors: IPEValidationError (business failure), programming/syntax errors
+- Transient errors: pyodbc OperationalError/InterfaceError, Teleport tunnel drops
 
-```python
-import os
-from src.utils.gcp_utils import GCPSecretManager
-
-def test_secret_manager_connection():
-    """Test connection to GCP Secret Manager."""
-    project_id = os.getenv("GCP_PROJECT_ID")
-    assert project_id, "GCP_PROJECT_ID not set"
-    
-    sm = GCPSecretManager(project_id)
-    # Try to access a test secret
-    try:
-        sm.get_secret("DB_CREDENTIALS_NAV_BI")
-        print("✅ Secret Manager: Connection successful")
-    except Exception as e:
-        print(f"⚠️  Secret Manager: {e}")
-
-if __name__ == "__main__":
-    test_secret_manager_connection()
-```
-
-Run:
-```bash
-python3 tests/test_connection.py
-```
+Validate by simulating a transient error (e.g., blocking the port) and asserting workflow retries before success.
 
 ### Test Query Execution (Manual)
 
-**Important**: This test requires access to production database. Only run in controlled environment.
+Important: Requires DB access via Teleport.
 
 ```python
 import pyodbc
 from src.core.config import IPE_CONFIGS
-from src.utils.gcp_utils import GCPSecretManager
+import os
 
 # Get first IPE config
 ipe = IPE_CONFIGS[0]
 
-# Get credentials
-sm = GCPSecretManager(os.getenv("GCP_PROJECT_ID"))
-conn_str = sm.get_secret(ipe['secret_name'])
+# Get credentials (either from env or AWS Secrets Manager inside activity)
+conn_str = os.getenv("DB_CONNECTION_STRING")
 
 # Test connection
 conn = pyodbc.connect(conn_str)

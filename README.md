@@ -1,5 +1,11 @@
 # SOXauto PG-01
 
+> Architecture Update — 2025-11-06
+>
+> The system is orchestrated by Temporal.io Workflows and connects to on‑prem MSSQL via Teleport (`tsh`).
+> Previous Flask/script-based orchestration and serverless (Lambda/Fargate) plans are deprecated.
+> See `src/orchestrators/` and `docs/deployment/temporal_worker_deploy.md`.
+
 > NOTE ON CURRENT PROJECT STATE
 >
 > The system connects directly to on-premises SQL Server (`fin-sql.jumia.local`) via a secure **Teleport (`tsh`)** tunnel. All data extraction is performed using the `mssql_runner.py` module. For the current operational status and next actions, see `PROJECT_DASHBOARD.md`.
@@ -11,6 +17,7 @@ The system connects to the on-premises SQL Server database via:
 - **Database Server**: `fin-sql.jumia.local`
 - **Connection Method**: Secure Teleport (`tsh`) tunnel
 - **Runner Module**: `src/core/runners/mssql_runner.py`
+- **Orchestration**: Temporal Workflow (`src/orchestrators/cpg1_workflow.py`) + Activities (`src/orchestrators/cpg1_activities.py`)
 - **Evidence System**: Full Digital Evidence Package generation for SOX compliance
 
 For detailed implementation status and tracking, see `PROJECT_DASHBOARD.md`.
