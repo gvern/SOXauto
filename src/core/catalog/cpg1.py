@@ -66,8 +66,18 @@ def _load_sql(item_id: str) -> str:
     queries_dir = os.path.join(os.path.dirname(__file__), "queries")
     sql_file = os.path.join(queries_dir, f"{item_id}.sql")
     
-    with open(sql_file, 'r') as f:
-        return f.read()
+    try:
+        with open(sql_file, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"SQL query file not found for item '{item_id}'. "
+            f"Expected file: {sql_file}"
+        )
+    except IOError as e:
+        raise IOError(
+            f"Error reading SQL query file for item '{item_id}': {e}"
+        )
 
 
 # Catalog entries populated from user's provided list
