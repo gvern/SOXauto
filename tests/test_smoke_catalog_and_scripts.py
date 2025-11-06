@@ -247,6 +247,66 @@ def test_catalog_ipe_31_aligned_with_baseline():
         "IPE_31 should have Bank Account Posting Group"
 
 
+def test_catalog_doc_voucher_usage_with_sql_and_sources():
+    """Test DOC_VOUCHER_USAGE query for Timing Difference Bridge (Usage May 2025 Query)."""
+    from src.core.catalog.cpg1 import get_item_by_id
+
+    item = get_item_by_id("DOC_VOUCHER_USAGE")
+    assert item is not None, "DOC_VOUCHER_USAGE should exist in the catalog"
+    assert isinstance(item.sql_query, str) and item.sql_query.strip(), "DOC_VOUCHER_USAGE should have a non-empty sql_query"
+    
+    # Verify item metadata
+    assert item.item_type == "DOC", "DOC_VOUCHER_USAGE should be a DOC type"
+    assert item.control == "C-PG-1", "DOC_VOUCHER_USAGE should be for control C-PG-1"
+    assert item.status == "Completed", "DOC_VOUCHER_USAGE should have Completed status"
+    assert item.baseline_required == True, "DOC_VOUCHER_USAGE should require baseline"
+    
+    # Check that required parameters are present in the query
+    assert "{cutoff_date}" in item.sql_query, "DOC_VOUCHER_USAGE sql_query should contain {cutoff_date} parameter"
+    assert "{id_companies_active}" in item.sql_query, "DOC_VOUCHER_USAGE sql_query should contain {id_companies_active} parameter"
+    
+    # Verify the query uses RPT_SOI table
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]" in item.sql_query, \
+        "DOC_VOUCHER_USAGE should query from RPT_SOI table"
+    
+    # Verify key business logic filters
+    assert "VOUCHER_TYPE] = 'reusablecredit'" in item.sql_query, \
+        "DOC_VOUCHER_USAGE should filter for reusablecredit voucher type"
+    assert "PACKAGE_DELIVERY_DATE] <" in item.sql_query, \
+        "DOC_VOUCHER_USAGE should filter by PACKAGE_DELIVERY_DATE"
+    assert "year(soi.[DELIVERED_DATE]) > 2014" in item.sql_query, \
+        "DOC_VOUCHER_USAGE should filter DELIVERED_DATE year > 2014"
+    
+    # Verify aggregation columns
+    assert "sum(ISNULL(soi.[MTR_SHIPPING_DISCOUNT_AMOUNT],0)) shipping_discount" in item.sql_query, \
+        "DOC_VOUCHER_USAGE should aggregate MTR_SHIPPING_DISCOUNT_AMOUNT"
+    assert "sum(ISNULL(soi.[MTR_SHIPPING_VOUCHER_DISCOUNT],0)) shipping_storecredit" in item.sql_query, \
+        "DOC_VOUCHER_USAGE should aggregate MTR_SHIPPING_VOUCHER_DISCOUNT"
+    assert "MPL_storecredit" in item.sql_query, \
+        "DOC_VOUCHER_USAGE should calculate MPL_storecredit for marketplace"
+    assert "RTL_storecredit" in item.sql_query, \
+        "DOC_VOUCHER_USAGE should calculate RTL_storecredit for retail"
+    assert "TotalUsageAmount" in item.sql_query, \
+        "DOC_VOUCHER_USAGE should calculate TotalUsageAmount"
+    
+    # Verify GROUP BY clause
+    assert "GROUP BY" in item.sql_query, "DOC_VOUCHER_USAGE should have GROUP BY clause"
+    assert "soi.[ID_Company]" in item.sql_query, "DOC_VOUCHER_USAGE should group by ID_Company"
+    assert "soi.[voucher_code]" in item.sql_query, "DOC_VOUCHER_USAGE should group by voucher_code"
+    assert "soi.[voucher_type]" in item.sql_query, "DOC_VOUCHER_USAGE should group by voucher_type"
+    
+    # Verify sources list
+    assert item.sources is not None and len(item.sources) == 1, "DOC_VOUCHER_USAGE should have exactly 1 source"
+    
+    source_locations = [src.location for src in item.sources]
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]" in source_locations, \
+        "DOC_VOUCHER_USAGE should have RPT_SOI as a source"
+    
+    # Verify source metadata
+    assert item.sources[0].system == "OMS", "DOC_VOUCHER_USAGE source should be from OMS system"
+    assert item.sources[0].domain == "FinRec", "DOC_VOUCHER_USAGE source should be from FinRec domain"
+
+
 def test_catalog_cr_05_aligned_with_baseline():
     """Test CR_05 query is aligned with correct audited baseline (3-table join with CASE WHEN FX logic)."""
     from src.core.catalog.cpg1 import get_item_by_id
