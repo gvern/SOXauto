@@ -222,12 +222,13 @@ async def create_monthly_schedule():
     client = await Client.connect("temporal.example.com:7233")
     
     # Create monthly schedule (1st of each month at 8 AM UTC)
+    # Note: cutoff_date would typically be calculated dynamically in the workflow
     await client.create_schedule(
         "soxauto-monthly-extraction",
         Schedule(
             action=ScheduleActionStartWorkflow(
                 "IPEExtractionWorkflow",
-                args=["2024-01-01"],
+                args=[None],  # Workflow will calculate cutoff_date dynamically
                 id="monthly-extraction",
                 task_queue="soxauto-tasks",
             ),

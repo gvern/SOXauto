@@ -78,7 +78,8 @@ Evidence Manager generates audit trail
 
 ```python
 # Temporal Workflow definition
-from temporalio import workflow
+from datetime import timedelta
+from temporalio import workflow, activity
 from src.core.runners.mssql_runner import IPERunner
 from src.core.catalog.cpg1 import get_ipe_config
 
