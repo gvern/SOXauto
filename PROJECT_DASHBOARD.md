@@ -9,7 +9,7 @@
 
 ## Recent decisions
 
-- Use a read-only MSSQL service account for direct access to the Data Warehouse (no intermediate ETL). Athena ingestion returns as a phase 2 target.
+- Use a read-only MSSQL service account for direct access to the Data Warehouse.
 - While credentials are pending, progress in “offline mode” with a mocked MSSQL runner returning a test DataFrame and integrate the Digital Evidence Manager end to end.
 - Orchestrate via `scripts/run_full_reconciliation.py` driven by the catalog.
 
