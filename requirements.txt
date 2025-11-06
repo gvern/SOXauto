@@ -30,3 +30,6 @@ flake8>=6.0.0
 # Security and performance
 cryptography>=41.0.0
 requests>=2.31.0
+
+# Workflow orchestration
+temporalio>=1.5.0  # Temporal.io Python SDK for workflow orchestration
