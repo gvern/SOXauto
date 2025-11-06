@@ -1,0 +1,29 @@
+graph TD
+    A[<b>1. Scheduler Temporal</b><br>(Planifie le workflow)]:::blue --> B[<b>2. Workflow de Réconciliation C-PG-1</b><br>(Votre logique d'orchestration en Python)]:::blue
+    
+    B --> C(<b>Activité 1 : Extraire IPE-07</b><br>scripts/generate_customer_accounts.py):::green
+    B --> D(<b>Activité 2 : Extraire IPE-31</b><br>scripts/generate_collection_accounts.py):::green
+    B --> E(<b>Activité 3 : Extraire Autres IPEs</b><br>scripts/generate_other_ar.py):::green
+    
+    subgraph "Tâches d'Extraction (Exécutées par un 'Worker')"
+        direction LR
+        C --> F[DB SQL Server]:::purple
+        D --> F
+        E --> F
+    end
+
+    C --> G[<b>3. Consolidation</b><br>(Le Workflow attend la fin des 3 extractions)]:::blue
+    D --> G
+    E --> G
+    
+    G --> H(<b>Activité 4 : Classifier les Écarts</b><br>scripts/classify_bridges.py):::green
+    H --> I[<b>4. Vision "Agentique" (Niveau 1)</b>]:::orange
+    
+    I --> J(<b>Activité 5 : Générer les Preuves</b><br>src/core/evidence/manager.py):::green
+    J --> K(<b>Activité 6 : Déposer le Rapport Final</b><br>sur S3 / Google Drive):::green
+    K --> L[<b>5. Fin</b>]:::blue
+
+    classDef blue fill:#e6f0ff,stroke:#1f4bd8,stroke-width:2px,color:#0b2a8a
+    classDef green fill:#ecfdf5,stroke:#16a34a,stroke-width:2px,color:#065f46
+    classDef purple fill:#f3e8ff,stroke:#7c3aed,stroke-width:2px,color:#3b0764
+    classDef orange fill:#fff7ed,stroke:#ea580c,stroke-width:2px,color:#7c2d12

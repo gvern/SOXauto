@@ -1,0 +1,5 @@
+Transaction_Type,Amount,IS_PREPAYMENT
+Payment,500.0,0
+Transfer to,250.0,0
+Refund,75.0,0
+Jforce Payouts,60.0,0
