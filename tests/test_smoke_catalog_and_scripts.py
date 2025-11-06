@@ -179,6 +179,74 @@ def test_catalog_ipe_10_aligned_with_baseline():
         "IPE_10 source should be RPT_SOI"
 
 
+def test_catalog_ipe_31_aligned_with_baseline():
+    """Test IPE_31 query is aligned with audited baseline (parameterized, 11 tables, no @subsequentmonth)."""
+    from src.core.catalog.cpg1 import get_item_by_id
+
+    item = get_item_by_id("IPE_31")
+    assert item is not None, "IPE_31 should exist in the catalog"
+    assert isinstance(item.sql_query, str) and item.sql_query.strip(), "IPE_31 should have a non-empty sql_query"
+    
+    # Verify {cutoff_date} parameter is used (not hardcoded @subsequentmonth variable)
+    assert "{cutoff_date}" in item.sql_query, "IPE_31 should use {cutoff_date} parameter"
+    assert "@subsequentmonth" not in item.sql_query, "IPE_31 should not use @subsequentmonth variable"
+    
+    # Verify no DECLARE or SET statements (query should be fully parameterized)
+    assert "Declare" not in item.sql_query, "IPE_31 should not have DECLARE statements"
+    assert "SET @" not in item.sql_query, "IPE_31 should not have SET variable statements"
+    
+    # Verify DATEADD(day, 1, '{cutoff_date}') pattern is used (replaces @subsequentmonth)
+    assert "DATEADD(day, 1, '{cutoff_date}')" in item.sql_query, \
+        "IPE_31 should use DATEADD(day, 1, '{cutoff_date}') pattern for subsequent month calculation"
+    
+    # Verify it uses CTE for complex collection TV query
+    assert ";WITH CTE AS" in item.sql_query or "WITH CTE AS" in item.sql_query, \
+        "IPE_31 should use CTE (Common Table Expression)"
+    
+    # Verify all 4 UNION ALL parts exist in the complex query
+    assert item.sql_query.count("UNION ALL") >= 3, \
+        "IPE_31 should have at least 3 UNION ALL clauses (4-part query)"
+    
+    # Verify key business logic elements
+    assert "OPEN TRANSACTIONS" in item.sql_query, "IPE_31 should have OPEN TRANSACTIONS section"
+    assert "TRANSACTIONLISTS IN PROGRESS" in item.sql_query, \
+        "IPE_31 should have TRANSACTIONLISTS IN PROGRESS section"
+    assert "PAYMENTS/TRANSFERS IN PROGRESS" in item.sql_query, \
+        "IPE_31 should have PAYMENTS/TRANSFERS IN PROGRESS section"
+    
+    # Verify all 11 required tables are in sources
+    assert item.sources is not None and len(item.sources) == 11, \
+        "IPE_31 should have exactly 11 sources to match baseline"
+    
+    source_locations = [src.location for src in item.sources]
+    
+    # OMS tables (8)
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHREC_TRANSACTION]" in source_locations, \
+        "IPE_31 should have RPT_CASHREC_TRANSACTION"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PACKAGES]" in source_locations, \
+        "IPE_31 should have RPT_PACKLIST_PACKAGES"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS]" in source_locations, \
+        "IPE_31 should have RPT_PACKLIST_PAYMENTS"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHDEPOSIT]" in source_locations, \
+        "IPE_31 should have RPT_CASHDEPOSIT"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHREC_REALLOCATIONS]" in source_locations, \
+        "IPE_31 should have RPT_CASHREC_REALLOCATIONS"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_COLLECTIONADJ]" in source_locations, \
+        "IPE_31 should have RPT_COLLECTIONADJ"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_HUBS_3PL_MAPPING]" in source_locations, \
+        "IPE_31 should have RPT_HUBS_3PL_MAPPING"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_COLLECTIONPARTNERS]" in source_locations, \
+        "IPE_31 should have RPT_COLLECTIONPARTNERS"
+    
+    # NAV tables (3)
+    assert "[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]" in source_locations, \
+        "IPE_31 should have Dim_Company"
+    assert "[AIG_Nav_DW].[dbo].[Bank Accounts]" in source_locations, \
+        "IPE_31 should have Bank Accounts"
+    assert "[AIG_Nav_DW].[dbo].[Bank Account Posting Group]" in source_locations, \
+        "IPE_31 should have Bank Account Posting Group"
+
+
 @pytest.mark.parametrize(
     "module_name",
     [
