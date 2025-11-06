@@ -9,6 +9,7 @@ import logging
 from datetime import timedelta
 from typing import Dict, Any, Optional
 from temporalio import workflow
+from temporalio.common import RetryPolicy
 
 # Import activity definitions (for type hints)
 with workflow.unsafe.imports_passed_through():
@@ -23,6 +24,26 @@ with workflow.unsafe.imports_passed_through():
     )
 
 logger = logging.getLogger(__name__)
+
+
+# Standard Retry Policy for Database Activities
+# This policy provides resilience against transient network or database failures
+# (e.g., Teleport tunnel drops, DB timeouts) while avoiding retries on business logic errors
+STANDARD_DB_RETRY_POLICY = RetryPolicy(
+    maximum_attempts=5,
+    initial_interval=timedelta(seconds=10),
+    maximum_interval=timedelta(seconds=60),
+    backoff_coefficient=2.0,
+    non_retryable_error_types=[
+        # Business logic and validation errors that should not be retried
+        "IPEValidationError",
+        "ValueError",
+        "KeyError",
+        "TypeError",
+        # Data issues that indicate code/configuration bugs, not transient failures
+        "AttributeError",
+    ],
+)
 
 
 @workflow.defn(name="Cpg1Workflow")
@@ -82,10 +103,7 @@ class Cpg1Workflow:
                 execute_ipe_query_activity,
                 args=["IPE_07", cutoff_date],
                 start_to_close_timeout=timedelta(minutes=30),
-                retry_policy=workflow.RetryPolicy(
-                    maximum_attempts=3,
-                    initial_interval=timedelta(seconds=10),
-                ),
+                retry_policy=STANDARD_DB_RETRY_POLICY,
             )
             workflow_results["ipe_results"]["IPE_07"] = ipe_07_result
             workflow.logger.info(f"IPE_07 fetched: {ipe_07_result['rows_extracted']} rows")
@@ -95,10 +113,7 @@ class Cpg1Workflow:
                 execute_ipe_query_activity,
                 args=["IPE_31", cutoff_date],
                 start_to_close_timeout=timedelta(minutes=30),
-                retry_policy=workflow.RetryPolicy(
-                    maximum_attempts=3,
-                    initial_interval=timedelta(seconds=10),
-                ),
+                retry_policy=STANDARD_DB_RETRY_POLICY,
             )
             workflow_results["ipe_results"]["IPE_31"] = ipe_31_result
             workflow.logger.info(f"IPE_31 fetched: {ipe_31_result['rows_extracted']} rows")
@@ -108,10 +123,7 @@ class Cpg1Workflow:
                 execute_ipe_query_activity,
                 args=["IPE_10", cutoff_date],
                 start_to_close_timeout=timedelta(minutes=30),
-                retry_policy=workflow.RetryPolicy(
-                    maximum_attempts=3,
-                    initial_interval=timedelta(seconds=10),
-                ),
+                retry_policy=STANDARD_DB_RETRY_POLICY,
             )
             workflow_results["ipe_results"]["IPE_10"] = ipe_10_result
             workflow.logger.info(f"IPE_10 fetched: {ipe_10_result['rows_extracted']} rows")
@@ -121,10 +133,7 @@ class Cpg1Workflow:
                 execute_ipe_query_activity,
                 args=["IPE_08", cutoff_date],
                 start_to_close_timeout=timedelta(minutes=30),
-                retry_policy=workflow.RetryPolicy(
-                    maximum_attempts=3,
-                    initial_interval=timedelta(seconds=10),
-                ),
+                retry_policy=STANDARD_DB_RETRY_POLICY,
             )
             workflow_results["ipe_results"]["IPE_08"] = ipe_08_result
             workflow.logger.info(f"IPE_08 fetched: {ipe_08_result['rows_extracted']} rows")
@@ -145,10 +154,7 @@ class Cpg1Workflow:
                     },
                 ],
                 start_to_close_timeout=timedelta(minutes=30),
-                retry_policy=workflow.RetryPolicy(
-                    maximum_attempts=3,
-                    initial_interval=timedelta(seconds=10),
-                ),
+                retry_policy=STANDARD_DB_RETRY_POLICY,
             )
             workflow_results["cr_results"]["CR_04"] = cr_04_result
             workflow.logger.info(f"CR_04 fetched: {cr_04_result['rows_extracted']} rows")
@@ -165,10 +171,7 @@ class Cpg1Workflow:
                     },
                 ],
                 start_to_close_timeout=timedelta(minutes=30),
-                retry_policy=workflow.RetryPolicy(
-                    maximum_attempts=3,
-                    initial_interval=timedelta(seconds=10),
-                ),
+                retry_policy=STANDARD_DB_RETRY_POLICY,
             )
             workflow_results["cr_results"]["CR_03"] = cr_03_result
             workflow.logger.info(f"CR_03 fetched: {cr_03_result['rows_extracted']} rows")
@@ -187,10 +190,7 @@ class Cpg1Workflow:
                     },
                 ],
                 start_to_close_timeout=timedelta(minutes=30),
-                retry_policy=workflow.RetryPolicy(
-                    maximum_attempts=3,
-                    initial_interval=timedelta(seconds=10),
-                ),
+                retry_policy=STANDARD_DB_RETRY_POLICY,
             )
             workflow_results["cr_results"]["DOC_VOUCHER_USAGE"] = doc_voucher_usage_result
             workflow.logger.info(
