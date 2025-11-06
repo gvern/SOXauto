@@ -46,7 +46,7 @@ Track progress with the checkboxes below. Goal: be plug-and-play when credential
   - [ ] After mock: `03_data_snapshot.csv`, `04_data_summary.json`, `05_integrity_hash.json`
   - [ ] `06_validation_results.json` dummy (e.g., {"status": "PASS"})
   - [ ] `07_execution_log.json`
-- [ ] Orchestrator `scripts/run_full_reconciliation.py` (loop IPEs, mock mode by default)
+- [ ] Temporal Worker `src/orchestrators/cpg1_worker.py` (executes workflows/activities for all IPEs)
 
 ### Axis 2 — Tests (offline strategy)
 
@@ -78,7 +78,7 @@ Track progress with the checkboxes below. Goal: be plug-and-play when credential
 ## Next actions (Phase 1)
 
 1. Offline mode: complete Axis 1 (mocked runner + Evidence) and Axis 2 (tests)
-2. Run `scripts/run_full_reconciliation.py` in mock mode on 1–2 IPEs (e.g., IPE_07)
+2. Start Temporal Worker and trigger workflows for 1–2 IPEs (e.g., IPE_07) via Temporal UI or CLI
 3. Start Axis 3 (classifier + final export)
 4. When MSSQL credentials arrive: switch to “live” execution (replace `_execute_mock_query()` with DB call)
 
