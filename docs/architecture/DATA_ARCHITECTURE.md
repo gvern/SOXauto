@@ -206,7 +206,7 @@ CUTOFF_DATE="2025-09-30"
 ## 📚 References
 
 - **Teleport Documentation**: [https://goteleport.com/docs/](https://goteleport.com/docs/)
-- **SQL Server Documentation**: [https://docs.microsoft.com/en-us/sql/](https://docs.microsoft.com/en-us/sql/)
+- **SQL Server Documentation**: [https://learn.microsoft.com/en-us/sql/](https://learn.microsoft.com/en-us/sql/)
 - **SOX Compliance**: [https://www.sox-online.com/](https://www.sox-online.com/)
 
 ---

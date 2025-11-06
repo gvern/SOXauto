@@ -446,7 +446,7 @@ Enterprise proprietary software. All rights reserved.
 
 - **Teleport**: [Teleport Documentation](https://goteleport.com/docs/)
 - **SOX Compliance**: [SOX Online](https://www.sox-online.com/)
-- **SQL Server**: [Microsoft SQL Server Documentation](https://docs.microsoft.com/en-us/sql/)
+- **SQL Server**: [Microsoft SQL Server Documentation](https://learn.microsoft.com/en-us/sql/)
 
 ------
 

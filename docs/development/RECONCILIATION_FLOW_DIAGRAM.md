@@ -24,7 +24,7 @@
                           [ AUTOMATION TARGET ]
                                     ↓
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                      AUTOMATED PROCESS (CURRENT)                         │
+│                      AUTOMATED PROCESS (PRODUCTION)                       │
 │                                                                            │
 │  Step 1: Execute SQL queries via Teleport tunnel (mssql_runner.py)        │
 │  Step 2: Process results in pandas DataFrames                             │
