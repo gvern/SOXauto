@@ -6,7 +6,7 @@ BridgeRule triggers to produce a standardized classification with GL expectation
 """
 
 from __future__ import annotations
-from typing import List
+from typing import List, Optional
 import pandas as pd
 
 from src.bridges.catalog import BridgeRule
@@ -65,7 +65,7 @@ def classify_bridges(df: pd.DataFrame, rules: List[BridgeRule]) -> pd.DataFrame:
 
 
 def calculate_vtc_adjustment(
-    ipe_08_df: pd.DataFrame, categorized_cr_03_df: pd.DataFrame
+    ipe_08_df: Optional[pd.DataFrame], categorized_cr_03_df: Optional[pd.DataFrame]
 ) -> tuple[float, pd.DataFrame]:
     """Calculate VTC (Voucher to Cash) refund reconciliation adjustment.
 
