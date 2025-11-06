@@ -216,7 +216,7 @@ def test_catalog_ipe_31_aligned_with_baseline():
     
     # Verify all 11 required tables are in sources
     assert item.sources is not None and len(item.sources) == 11, \
-        "IPE_31 should have exactly 11 sources (was 7, now updated to match baseline)"
+        "IPE_31 should have exactly 11 sources to match baseline"
     
     source_locations = [src.location for src in item.sources]
     
