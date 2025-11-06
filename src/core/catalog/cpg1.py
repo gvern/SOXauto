@@ -936,6 +936,7 @@ AND [GROUP_COA_ACCOUNT_NO] IN {gl_accounts}
     gl.[Entry No_],
     gl.[Document No_],
     gl.[External Document No_],
+    gl.[Voucher No_],
     gl.[Posting Date],
     gl.[Document Date],
     gl.[Document Type],
