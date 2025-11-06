@@ -2,26 +2,18 @@
 
 > NOTE ON CURRENT PROJECT STATE
 >
-> Immediate priority is to replicate the manual process on MSSQL (phase 1). The Athena architecture below is the target for a later phase. For the current operational status and next actions, see `PROJECT_DASHBOARD.md`.
+> The system connects directly to on-premises SQL Server (`fin-sql.jumia.local`) via a secure **Teleport (`tsh`)** tunnel. All data extraction is performed using the `mssql_runner.py` module. For the current operational status and next actions, see `PROJECT_DASHBOARD.md`.
 
-## Offline plan while waiting for MSSQL access
+## Connection Architecture
 
-While waiting for the MSSQL service account credentials, development continues in offline mode. Goal: be ready to plug credentials and run the pipeline as-is.
+The system connects to the on-premises SQL Server database via:
 
-- Axis 1 — Application core (offline)
-  - MSSQL runner driven by the catalog (`src/core/catalog/cpg1.py`), handle `{...}` parameters, and an `_execute_mock_query()` fed by a CSV in `tests/fixtures/`.
-  - Evidence integration: `01_executed_query.sql`, `03_data_snapshot.csv`, `04_data_summary.json`, `05_integrity_hash.json`, `06_validation_results.json`, `07_execution_log.json`.
-  - Orchestration: `scripts/run_full_reconciliation.py` loops over IPEs (mock mode by default).
-- Axis 2 — Offline tests
-  - Catalog unit tests (load by ID, missing ID, non-empty query).
-  - Integration with mocked runner: evidence folder created and 7 files present (SHA‑256 check).
-- Axis 3 — Post-extraction logic
-  - `src/agents/classifier.py` implements rules from `docs/development/BRIDGES_RULES.md`.
-  - Final visualization file generator (CSV/Excel).
-- Axis 4 — Cleanup & docs
-  - Docstrings on `cpg1.py`, `mssql_runner.py`, Evidence Manager; update Dashboard and `docs/development/TODO_MANUAL_PROCESS.md`.
+- **Database Server**: `fin-sql.jumia.local`
+- **Connection Method**: Secure Teleport (`tsh`) tunnel
+- **Runner Module**: `src/core/runners/mssql_runner.py`
+- **Evidence System**: Full Digital Evidence Package generation for SOX compliance
 
-Live tracking and detailed checklist: see `PROJECT_DASHBOARD.md`.
+For detailed implementation status and tracking, see `PROJECT_DASHBOARD.md`.
 
 ## Quick Demo (offline)
 
@@ -79,19 +71,19 @@ SOXauto PG-01 is an enterprise-grade automation system that transforms manual SO
 
 ```mermaid
 graph TD
-    subgraph "Phase 1: Data Structuring"
+    subgraph "Data Extraction & Validation"
         A[Scheduler] -- Triggers Monthly --> B[Orchestrator]
         B -- For each IPE --> C[IPE Runner]
         C -- Reads --> D{IPE Catalog}
-        C -- Gets credentials --> E[AWS Secrets/Okta]
-        C -- Extracts from --> F[AWS Athena / SQL Server]
+        C -- Establishes tunnel --> E[Teleport tsh]
+        E -- Secure connection --> F[SQL Server fin-sql.jumia.local]
+        C -- Extracts from --> F
         C -- Performs --> G[Validation Engine]
         G -- Generates --> H[Digital Evidence Package]
-        G -- Writes to --> I[Amazon Athena]
     end
 
-    subgraph "Phase 2 & 3: Analysis & Reporting"
-        I -- All IPEs processed --> K[Reconciliation Agent]
+    subgraph "Analysis & Reporting"
+        H -- All IPEs processed --> K[Reconciliation Agent]
         K -- Calculates bridges --> L[Bridge Analysis]
         L -- Generates --> M[PowerBI Dashboard]
         M -- Consumed by --> N[Auditors]
@@ -113,8 +105,8 @@ graph TD
 | **Orchestrator** | Main workflow engine | Python + Flask |
 | **IPE Runner** | Individual IPE processor | Python + Pandas |
 | **Evidence Manager** | SOX compliance engine | Cryptographic hashing |
-| **AWS Utils** | Cloud service integration | AWS SDK (boto3) |
-| **Validation Engine** | Data quality assurance | Athena SQL + Statistical tests |
+| **Database Connection** | Secure tunnel to SQL Server | Teleport (tsh) |
+| **Validation Engine** | Data quality assurance | SQL + Statistical tests |
 
 ------
 
@@ -130,28 +122,28 @@ The entire operation can be visualized in five distinct stages:
 
 Here’s a step-by-step breakdown:
 
-#### 1. Authentication (Your Entry Point)
+#### 1. Connection Setup (Secure Tunnel)
 
-- **What happens**: You run your `update_aws_credentials.sh` script to obtain temporary, secure credentials from AWS via Okta.
-- **Key Scripts**: `scripts/update_aws_credentials.sh`, `src/utils/okta_aws_auth.py`
-- **Result**: A valid AWS session is created, allowing your scripts to interact with AWS services like Athena and S3.
+- **What happens**: The system establishes a secure connection to the on-premises SQL Server via Teleport (`tsh`).
+- **Key Scripts**: `src/core/runners/mssql_runner.py`
+- **Result**: A secure, authenticated connection to `fin-sql.jumia.local` is established.
 
 #### 2. Orchestration (The "Workflow")
 
 - **What happens**: The `execute_ipe_workflow` function in `workflow.py` kicks off the main process. It loops through all the IPEs defined in your catalog and runs them one by one.
-- **Key Scripts**: `src/orchestrators/workflow.py`, `src/api/app.py` (which calls the workflow).
+- **Key Scripts**: `src/orchestrators/workflow.py`
 - **Result**: Each IPE is passed to the appropriate runner for execution.
 
 #### 3. Execution (The "Runner")
 
-- **What happens**: The `IPERunnerAthena` class takes an IPE definition from the catalog. It formats the Athena SQL query, replacing placeholders like `{cutoff_date}` with the correct values. It then uses the `awswrangler` library to execute this query against the Athena data lake.
-- **Key Scripts**: `src/core/runners/athena_runner.py`, `src/core/catalog/cpg1.py`
+- **What happens**: The `IPERunner` class takes an IPE definition from the catalog. It formats the SQL query, replacing placeholders like `{cutoff_date}` with the correct values. It then executes this query against the SQL Server database via the Teleport tunnel.
+- **Key Scripts**: `src/core/runners/mssql_runner.py`, `src/core/catalog/cpg1.py`
 - **Result**: A pandas DataFrame containing the raw data extract for that IPE.
 
 #### 4. Validation (The "SOX Check")
 
-- **What happens**: After the data is extracted, the `athena_runner` performs in-memory validation tests on the DataFrame based on the rules defined in the catalog (`critical_columns`, `accuracy_positive`, etc.).
-- **Key Scripts**: `src/core/runners/athena_runner.py` (the `_validate_data` method).
+- **What happens**: After the data is extracted, the `mssql_runner` performs validation tests on the DataFrame based on the rules defined in the catalog (`critical_columns`, `accuracy_positive`, etc.).
+- **Key Scripts**: `src/core/runners/mssql_runner.py` (the `_validate_data` method).
 - **Result**: A JSON object containing the PASS/FAIL status for each validation rule (Completeness, Accuracy).
 
 #### 5. Evidence Generation (The "Audit Trail")
@@ -168,8 +160,8 @@ Here’s a step-by-step breakdown:
 
 - Python 3.11+
 - Docker
-- AWS CLI configured
-- SQL Server ODBC Driver (for legacy database access)
+- Teleport (`tsh`) client configured with access to `fin-sql.jumia.local`
+- SQL Server ODBC Driver
 
 ### Local Development
 
@@ -182,8 +174,11 @@ cd SOXauto
 pip install -r requirements.txt
 
 # Set environment variables
-export AWS_REGION="eu-west-1"
 export CUTOFF_DATE="2024-05-01"
+
+# Establish Teleport tunnel
+tsh login --proxy=teleport.jumia.com --user=your-username
+tsh db connect fin-sql
 
 # Run IPE extraction (example)
 python -m src.core.main
@@ -217,8 +212,7 @@ PG-01/
 │   │   │   └── cpg1.py            # Unified C-PG-1 definitions
 │   │   ├── runners/              # Execution engines
 │   │   │   ├── __init__.py
-│   │   │   ├── athena_runner.py  # AWS Athena queries
-│   │   │   └── mssql_runner.py   # SQL Server (legacy)
+│   │   │   └── mssql_runner.py   # SQL Server via Teleport
 │   │   ├── evidence/             # SOX compliance
 │   │   │   ├── __init__.py
 │   │   │   └── manager.py        # Digital evidence (SHA-256)
@@ -251,17 +245,16 @@ PG-01/
 │       └── OKTA_QUICK_REFERENCE.md
 │
 ├── scripts/                      # Automation scripts
-│   ├── update_aws_credentials.sh # AWS credential refresh
+│   ├── check_mssql_connection.py # Database connection verification
 │   └── validate_ipe_config.py    # Config validation
 │
 ├── tests/                        # Test suite
-│   ├── test_athena_access.py
 │   ├── test_database_connection.py
-│   └── test_ipe_extraction_athena.py
+│   └── test_single_ipe_extraction.py
 │
 ├── IPE_FILES/                    # IPE baseline files
+├── evidence/                     # SOX evidence packages
 ├── data/                         # Runtime data (gitignored)
-│   ├── credentials/                 # AWS/Okta credentials
 │   └── outputs/                     # Analysis outputs
 │
 ├── Dockerfile                   # Multi-stage production container
@@ -275,10 +268,9 @@ PG-01/
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
 | **Orchestration** | Python 3.11 + Flask | Web server for workflow coordination |
-| **Data Access** | awswrangler + pyodbc | AWS Athena and SQL Server |
-| **Cloud Platform** | AWS (Athena, S3, Secrets Manager, IAM) | Enterprise data lake |
+| **Data Access** | pyodbc + Teleport | SQL Server via secure tunnel |
+| **Database Connection** | Teleport (`tsh`) | Secure tunnel to on-premises SQL Server |
 | **Evidence System** | hashlib (SHA-256) | Cryptographic integrity verification |
-| **Authentication** | Okta SSO + AWS STS | Enterprise identity management |
 | **Containerization** | Docker (multi-stage build) | Production deployment |
 
 ------
@@ -315,30 +307,22 @@ This is **legally admissible** evidence for SOX audits.
 
 ------
 
-## Authentication & Security
+## Security
 
-### Okta SSO Integration
+### Connection Security
 
-SOXauto integrates with Okta for enterprise-grade authentication:
+SOXauto uses Teleport for secure database access:
 
-```bash
-# Quick credential refresh
-bash scripts/update_aws_credentials.sh
-# The script handles:
-# 1. Okta SSO authentication
-# 2. AWS STS token generation
-# 3. AWS credentials file update
-```
+- **Teleport Tunnel**: All database connections are established through a secure `tsh` tunnel
+- **No Direct Access**: Database credentials are never stored locally
+- **Audit Logging**: All connections are logged through Teleport's audit system
 
 ### Security Best Practices
 
-- **No hardcoded credentials** - All secrets via AWS Secrets Manager or Okta
+- **No hardcoded credentials** - All connections via Teleport
 - **Parameterized queries** - SQL injection prevention
-- **Least privilege IAM** - Minimal permissions
-- **Cryptographic hashing** - Evidence integrity
+- **Cryptographic hashing** - Evidence integrity (SHA-256)
 - **Docker non-root user** - Container security
-
-See `docs/development/SECURITY_FIXES.md` for security audit details.
 
 ------
 
@@ -348,14 +332,14 @@ SOXauto manages 10+ C-PG-1 IPEs and Control Reports:
 
 | IPE ID | Title | Data Source | Status |
 |--------|-------|-------------|--------|
-| **IPE_07** | Customer balances - Monthly balances at date | NAV BI | Complete |
-| **IPE_08** | Store credit vouchers TV | BOB | Complete |
-| **IPE_09** | BOB Sales Orders | BOB | Complete |
-| **IPE_10** | Customer prepayments TV | OMS | Pending Athena mapping |
-| **IPE_11** | Seller Center Liability reconciliation | Seller Center/NAV | Complete |
-| **IPE_12** | TV - Packages delivered not reconciled | OMS | Pending Athena mapping |
-| **IPE_31** | PG detailed TV extraction | OMS | Pending Athena mapping |
-| **IPE_34** | Marketplace refund liability | OMS | Pending Athena mapping |
+| **IPE_07** | Customer balances - Monthly balances at date | SQL Server | Complete |
+| **IPE_08** | Store credit vouchers TV | SQL Server | Complete |
+| **IPE_09** | BOB Sales Orders | SQL Server | Complete |
+| **IPE_10** | Customer prepayments TV | SQL Server | In Progress |
+| **IPE_11** | Seller Center Liability reconciliation | SQL Server | Complete |
+| **IPE_12** | TV - Packages delivered not reconciled | SQL Server | In Progress |
+| **IPE_31** | PG detailed TV extraction | SQL Server | In Progress |
+| **IPE_34** | Marketplace refund liability | SQL Server | In Progress |
 | **CR_01** | Reconciliation: SC - NAV | Multiple | Complete |
 | **DOC_001** | IPE Catalog Master | N/A | Complete |
 
@@ -372,9 +356,8 @@ All IPE definitions live in `src/core/catalog/cpg1.py` - the single source of tr
 pytest tests/
 
 # Specific tests
-python3 tests/test_athena_access.py
-python3 tests/test_ipe_extraction_athena.py
 python3 tests/test_database_connection.py
+python3 tests/test_single_ipe_extraction.py
 
 # Validate IPE configuration
 python3 scripts/validate_ipe_config.py
@@ -382,12 +365,11 @@ python3 scripts/validate_ipe_config.py
 
 ### Test Coverage
 
-- AWS Athena connectivity
-- SQL Server connectivity (legacy)
+- SQL Server connectivity via Teleport
 - IPE extraction workflow
 - Evidence generation
 - Validation engine
-- Okta authentication
+- Bridge classification
 
 ------
 
@@ -397,13 +379,12 @@ Comprehensive documentation available in `docs/`:
 
 ### Setup Guides
 
-- **[OKTA_AWS_SETUP.md](docs/setup/OKTA_AWS_SETUP.md)** - Complete Okta SSO configuration
-- **[DATABASE_CONNECTION.md](docs/setup/DATABASE_CONNECTION.md)** - Database connectivity guide
-- **[OKTA_QUICK_REFERENCE.md](docs/setup/OKTA_QUICK_REFERENCE.md)** - Quick credential refresh
+- **[DATABASE_CONNECTION.md](docs/setup/DATABASE_CONNECTION.md)** - Database connectivity guide via Teleport
+- **[TIMING_DIFFERENCE_SETUP.md](docs/setup/TIMING_DIFFERENCE_SETUP.md)** - Timing difference configuration
 
 ### Architecture
 
-- **[DATA_ARCHITECTURE.md](docs/architecture/DATA_ARCHITECTURE.md)** - Data lake architecture
+- **[DATA_ARCHITECTURE.md](docs/architecture/DATA_ARCHITECTURE.md)** - System architecture
 
 ### Development
 
@@ -414,7 +395,7 @@ Comprehensive documentation available in `docs/`:
 
 ### Deployment
 
-- **[aws_deploy.md](docs/deployment/aws_deploy.md)** - AWS ECS/Lambda deployment
+- **[RECONCILIATION_FLOW.md](docs/development/RECONCILIATION_FLOW.md)** - Reconciliation workflow
 
 ------
 
@@ -424,10 +405,9 @@ Comprehensive documentation available in `docs/`:
 
 - [x] Core IPE extraction engine
 - [x] Digital evidence system
-- [x] AWS Athena integration
-- [x] Okta SSO authentication
+- [x] SQL Server connectivity via Teleport
 - [x] Unified IPE catalog
-- [ ] Complete Athena mappings for all IPEs
+- [ ] Complete all IPE implementations
 
 ### Phase 2: Intelligence (Q1 2026)
 
@@ -464,10 +444,9 @@ Enterprise proprietary software. All rights reserved.
 
 ## Resources
 
-- **AWS Athena**: [Documentation](https://docs.aws.amazon.com/athena/)
-- **Okta SSO**: [Enterprise SSO Guide](https://www.okta.com/)
+- **Teleport**: [Teleport Documentation](https://goteleport.com/docs/)
 - **SOX Compliance**: [SOX Online](https://www.sox-online.com/)
-- **awswrangler**: [AWS Data Wrangler](https://aws-sdk-pandas.readthedocs.io/)
+- **SQL Server**: [Microsoft SQL Server Documentation](https://docs.microsoft.com/en-us/sql/)
 
 ------
 

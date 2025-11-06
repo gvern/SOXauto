@@ -23,5 +23,5 @@ Suggested filenames
 
 Notes
 
-- The catalog is metadata-only; runners still use existing SQL/Athena configs.
+- The catalog is metadata-only; runners use `mssql_runner.py` to connect via Teleport.
 - We can later wire runners to pick up documentation paths from the catalog for evidence packaging.
