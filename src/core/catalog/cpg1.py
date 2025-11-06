@@ -529,7 +529,7 @@ On a monthly basis the group head of shared accounting formalizes the outcome of
 ;WITH CTE AS (SELECT DISTINCT CONCAT(p.[ID_Company], p.[OMS_Packlist_No]) conc
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PACKAGES] p
 LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS] ppa
-ON p.id_company = ppa.id_companyAND p.OMS_PACKLIST_No = ppa.OMS_PACKLIST_No
+ON p.id_company = ppa.id_company AND p.OMS_PACKLIST_No = ppa.OMS_PACKLIST_No
 AND ppa.OMS_PAYMENT_RECONCILED_AMOUNT IS NOT NULL
 WHERE p.OMS_Packlist_status IN ('waitingApproval')
 OR (p.OMS_Packlist_Status = 'waitingConfirmation' AND ppa.OMS_PAYMENT_RECONCILED_AMOUNT IS NULL)
