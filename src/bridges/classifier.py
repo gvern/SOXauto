@@ -4,8 +4,9 @@ Rule-based classifier for PG-1 reconciliation bridges.
 Takes input DataFrames (e.g., IPE_31 open items, IPE_10 prepayments) and applies
 BridgeRule triggers to produce a standardized classification with GL expectations.
 """
+
 from __future__ import annotations
-from typing import List
+from typing import List, Optional
 import pandas as pd
 
 from src.bridges.catalog import BridgeRule
@@ -55,12 +56,76 @@ def classify_bridges(df: pd.DataFrame, rules: List[BridgeRule]) -> pd.DataFrame:
                 out.at[idx, "bridge_title"] = rule.title
                 out.at[idx, "dr_gl_accounts"] = ",".join(rule.dr_gl_accounts)
                 out.at[idx, "cr_gl_accounts"] = ",".join(rule.cr_gl_accounts)
-                out.at[idx, "required_enrichments"] = ",".join(rule.required_enrichments)
+                out.at[idx, "required_enrichments"] = ",".join(
+                    rule.required_enrichments
+                )
                 break
 
     return out
 
 
+def calculate_vtc_adjustment(
+    ipe_08_df: Optional[pd.DataFrame], categorized_cr_03_df: Optional[pd.DataFrame]
+) -> tuple[float, pd.DataFrame]:
+    """Calculate VTC (Voucher to Cash) refund reconciliation adjustment.
+
+    This function identifies "canceled refund vouchers" from BOB (IPE_08) that do not
+    have a corresponding cancellation entry in NAV (CR_03).
+
+    Args:
+        ipe_08_df: DataFrame containing voucher liabilities from BOB with columns:
+            - id: Voucher ID
+            - business_use_formatted: Business use type
+            - is_valid: Validity status
+            - is_active: Active status (0 for canceled)
+            - Remaining Amount: Amount for the voucher
+        categorized_cr_03_df: DataFrame containing categorized NAV GL entries with columns:
+            - [Voucher No_]: Voucher number from NAV
+            - bridge_category: Category of the entry (e.g., 'Cancellation', 'VTC Manual')
+
+    Returns:
+        tuple: (adjustment_amount, proof_df) where:
+            - adjustment_amount: Sum of unmatched voucher amounts
+            - proof_df: DataFrame of unmatched vouchers (the adjustment items)
+    """
+    # Handle empty inputs
+    if ipe_08_df is None or ipe_08_df.empty:
+        return 0.0, pd.DataFrame()
+
+    # Filter source vouchers (BOB): canceled refund vouchers
+    source_vouchers_df = ipe_08_df[
+        (ipe_08_df["business_use_formatted"] == "refund")
+        & (ipe_08_df["is_valid"] == "valid")
+        & (ipe_08_df["is_active"] == 0)
+    ].copy()
+
+    if categorized_cr_03_df is None or categorized_cr_03_df.empty:
+        # All source vouchers are unmatched
+        adjustment_amount = source_vouchers_df["Remaining Amount"].sum()
+        return adjustment_amount, source_vouchers_df
+
+    # Filter target entries (NAV): cancellation categories
+    # Include entries where bridge_category starts with 'Cancellation' or equals 'VTC Manual'
+    # Convert to string once for efficiency
+    bridge_categories = categorized_cr_03_df["bridge_category"].astype(str)
+    target_entries_df = categorized_cr_03_df[
+        bridge_categories.str.startswith("Cancellation")
+        | (bridge_categories == "VTC Manual")
+    ].copy()
+
+    # Perform left anti-join: find vouchers in source that are NOT in target
+    # Left anti-join means: keep rows from left where the join key does NOT match any row in right
+    unmatched_df = source_vouchers_df[
+        ~source_vouchers_df["id"].isin(target_entries_df["[Voucher No_]"])
+    ].copy()
+
+    # Calculate adjustment amount
+    adjustment_amount = unmatched_df["Remaining Amount"].sum()
+
+    return adjustment_amount, unmatched_df
+
+
+__all__ = ["classify_bridges", "calculate_vtc_adjustment"]
 def _categorize_nav_vouchers(cr_03_df: pd.DataFrame) -> pd.DataFrame:
     """
     Categorize NAV General Ledger entries (CR_03) for GL account 18412 according to VTC Part 1 rules.
