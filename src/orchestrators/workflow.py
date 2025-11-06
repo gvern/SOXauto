@@ -62,7 +62,7 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
     try:
         # 1. Initialize AWS services and evidence manager
         logger.info("Initializing AWS services...")
-        secrets_manager, s3_client, athena_client = initialize_aws_services(AWS_REGION)
+        secrets_manager, s3_client = initialize_aws_services(AWS_REGION)
         
         # Create SOX evidence manager
         evidence_manager = DigitalEvidenceManager("evidence_sox_pg01")

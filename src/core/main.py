@@ -65,8 +65,6 @@ from src.core.evidence import DigitalEvidenceManager
 
 # Configuration from environment
 AWS_REGION = os.getenv("AWS_REGION", "eu-west-1")
-ATHENA_DATABASE = os.getenv("ATHENA_DATABASE", "consume_pg_dwh")
-ATHENA_OUTPUT_LOCATION = os.getenv("ATHENA_OUTPUT_LOCATION", "s3://athena-query-results-s3-ew1-production-jdata/")
 S3_RESULTS_BUCKET = os.getenv("S3_RESULTS_BUCKET", "sox-pg01-results")
 S3_RESULTS_PREFIX = os.getenv("S3_RESULTS_PREFIX", "extractions/")
 
@@ -117,7 +115,7 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
     try:
         # 1. Initialize AWS services and evidence manager
         logger.info("Initializing AWS services...")
-        secrets_manager, s3_client, athena_client = initialize_aws_services(AWS_REGION)
+        secrets_manager, s3_client = initialize_aws_services(AWS_REGION)
         
         # Create SOX evidence manager
         evidence_manager = DigitalEvidenceManager("evidence_sox_pg01")
@@ -314,7 +312,6 @@ def get_configuration():
     """Returns current configuration (without secrets)."""
     config_info = {
         'aws_region': AWS_REGION,
-        'athena_database': ATHENA_DATABASE,
         'configured_ipes': [
             {
                 'id': ipe['id'],

@@ -13,7 +13,6 @@ from src.orchestrators.workflow import execute_ipe_workflow
 
 # Configuration from environment
 AWS_REGION = os.getenv("AWS_REGION", "eu-west-1")
-ATHENA_DATABASE = os.getenv("ATHENA_DATABASE", "consume_pg_dwh")
 
 # Logging configuration
 logging.basicConfig(
@@ -67,7 +66,6 @@ def get_configuration():
     """Returns current configuration (without secrets)."""
     config_info = {
         'aws_region': AWS_REGION,
-        'athena_database': ATHENA_DATABASE,
         'configured_ipes': [
             {
                 'id': ipe['id'],
