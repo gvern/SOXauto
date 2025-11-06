@@ -91,15 +91,6 @@ def calculate_vtc_adjustment(
     # Handle empty inputs
     if ipe_08_df is None or ipe_08_df.empty:
         return 0.0, pd.DataFrame()
-    if categorized_cr_03_df is None or categorized_cr_03_df.empty:
-        # All source vouchers are unmatched
-        source_vouchers_df = ipe_08_df[
-            (ipe_08_df["business_use_formatted"] == "refund")
-            & (ipe_08_df["is_valid"] == "valid")
-            & (ipe_08_df["is_active"] == 0)
-        ].copy()
-        adjustment_amount = source_vouchers_df["Remaining Amount"].sum()
-        return adjustment_amount, source_vouchers_df
 
     # Filter source vouchers (BOB): canceled refund vouchers
     source_vouchers_df = ipe_08_df[
@@ -108,13 +99,18 @@ def calculate_vtc_adjustment(
         & (ipe_08_df["is_active"] == 0)
     ].copy()
 
+    if categorized_cr_03_df is None or categorized_cr_03_df.empty:
+        # All source vouchers are unmatched
+        adjustment_amount = source_vouchers_df["Remaining Amount"].sum()
+        return adjustment_amount, source_vouchers_df
+
     # Filter target entries (NAV): cancellation categories
     # Include entries where bridge_category starts with 'Cancellation' or equals 'VTC Manual'
+    # Convert to string once for efficiency
+    bridge_categories = categorized_cr_03_df["bridge_category"].astype(str)
     target_entries_df = categorized_cr_03_df[
-        categorized_cr_03_df["bridge_category"]
-        .astype(str)
-        .str.startswith("Cancellation")
-        | (categorized_cr_03_df["bridge_category"] == "VTC Manual")
+        bridge_categories.str.startswith("Cancellation")
+        | (bridge_categories == "VTC Manual")
     ].copy()
 
     # Perform left anti-join: find vouchers in source that are NOT in target
