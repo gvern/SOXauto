@@ -20,7 +20,8 @@ from src.bridges.classifier import (
 )
 from src.core.evidence.manager import DigitalEvidenceManager
 
-logger = logging.getLogger(__name__)
+# Module logger for helper functions
+_logger = logging.getLogger(__name__)
 
 
 # Data Serialization Helpers
@@ -71,7 +72,7 @@ def dict_to_dataframe(data_dict: Dict[str, Any]) -> pd.DataFrame:
                 try:
                     df[col] = df[col].astype(dtype)
                 except (ValueError, TypeError):
-                    logger.warning(f"Could not restore dtype {dtype} for column {col}")
+                    _logger.warning(f"Could not restore dtype {dtype} for column {col}")
     
     return df
 
@@ -94,8 +95,10 @@ async def execute_ipe_query_activity(
         - validation_results: Validation summary
         - evidence_path: Path to evidence package
     """
-    activity_logger = activity.logger
-    activity_logger.info(f"Executing IPE query for {ipe_id} with cutoff_date={cutoff_date}")
+    # Use activity.logger with extra context for Temporal integration
+    log = activity.logger
+    log_context = {"ipe_id": ipe_id, "cutoff_date": cutoff_date}
+    log.info("Starting IPE query execution", extra=log_context)
     
     try:
         # Import here to avoid circular dependencies
@@ -149,11 +152,11 @@ async def execute_ipe_query_activity(
             "rows_extracted": len(df),
         }
         
-        activity_logger.info(f"Successfully executed {ipe_id}: {len(df)} rows")
+        log.info("Query returned rows", extra={**log_context, "rows_extracted": len(df)})
         return result
         
     except Exception as e:
-        activity_logger.error(f"Error executing IPE {ipe_id}: {e}")
+        log.error(f"Error executing IPE query: {e}", extra=log_context, exc_info=True)
         raise
 
 
@@ -172,8 +175,10 @@ async def execute_cr_query_activity(
     Returns:
         Dictionary containing serialized DataFrame
     """
-    activity_logger = activity.logger
-    activity_logger.info(f"Executing CR query for {cr_id} with parameters={parameters}")
+    # Use activity.logger with extra context for Temporal integration
+    log = activity.logger
+    log_context = {"cr_id": cr_id, "parameters": parameters}
+    log.info("Starting CR query execution", extra=log_context)
     
     try:
         from src.core.catalog.cpg1 import get_item_by_id
@@ -201,7 +206,7 @@ async def execute_cr_query_activity(
         with pyodbc.connect(connection_string) as conn:
             df = pd.read_sql(rendered_query, conn)
         
-        activity_logger.info(f"Successfully executed {cr_id}: {len(df)} rows")
+        log.info("Query returned rows", extra={**log_context, "rows_extracted": len(df)})
         
         return {
             "data": dataframe_to_dict(df),
@@ -210,7 +215,7 @@ async def execute_cr_query_activity(
         }
         
     except Exception as e:
-        activity_logger.error(f"Error executing CR {cr_id}: {e}")
+        log.error(f"Error executing CR query: {e}", extra=log_context, exc_info=True)
         raise
 
 
@@ -229,8 +234,10 @@ async def calculate_timing_difference_bridge_activity(
     Returns:
         Dictionary with bridge_amount and proof data
     """
-    activity_logger = activity.logger
-    activity_logger.info("Calculating timing difference bridge")
+    # Use activity.logger with extra context for Temporal integration
+    log = activity.logger
+    log_context = {"bridge_type": "timing_difference"}
+    log.info("Starting timing difference bridge calculation", extra=log_context)
     
     try:
         # Deserialize inputs
@@ -242,7 +249,10 @@ async def calculate_timing_difference_bridge_activity(
             jdash_df, doc_voucher_usage_df
         )
         
-        activity_logger.info(f"Timing difference bridge calculated: {bridge_amount}")
+        log.info(
+            "Timing difference bridge calculated",
+            extra={**log_context, "bridge_amount": float(bridge_amount), "variance_count": len(proof_df)}
+        )
         
         return {
             "bridge_amount": float(bridge_amount),
@@ -251,7 +261,7 @@ async def calculate_timing_difference_bridge_activity(
         }
         
     except Exception as e:
-        activity_logger.error(f"Error calculating timing difference bridge: {e}")
+        log.error(f"Error calculating timing difference bridge: {e}", extra=log_context, exc_info=True)
         raise
 
 
@@ -270,8 +280,10 @@ async def calculate_vtc_adjustment_activity(
     Returns:
         Dictionary with adjustment_amount and proof data
     """
-    activity_logger = activity.logger
-    activity_logger.info("Calculating VTC adjustment")
+    # Use activity.logger with extra context for Temporal integration
+    log = activity.logger
+    log_context = {"adjustment_type": "vtc"}
+    log.info("Starting VTC adjustment calculation", extra=log_context)
     
     try:
         # Deserialize inputs
@@ -287,7 +299,10 @@ async def calculate_vtc_adjustment_activity(
             ipe_08_df, categorized_cr_03_df
         )
         
-        activity_logger.info(f"VTC adjustment calculated: {adjustment_amount}")
+        log.info(
+            "VTC adjustment calculated",
+            extra={**log_context, "adjustment_amount": float(adjustment_amount), "unmatched_count": len(proof_df)}
+        )
         
         return {
             "adjustment_amount": float(adjustment_amount),
@@ -296,7 +311,7 @@ async def calculate_vtc_adjustment_activity(
         }
         
     except Exception as e:
-        activity_logger.error(f"Error calculating VTC adjustment: {e}")
+        log.error(f"Error calculating VTC adjustment: {e}", extra=log_context, exc_info=True)
         raise
 
 
@@ -313,8 +328,10 @@ async def calculate_customer_posting_group_bridge_activity(
     Returns:
         Dictionary with bridge_amount and proof data
     """
-    activity_logger = activity.logger
-    activity_logger.info("Calculating customer posting group bridge")
+    # Use activity.logger with extra context for Temporal integration
+    log = activity.logger
+    log_context = {"bridge_type": "customer_posting_group", "ipe_id": "IPE_07"}
+    log.info("Starting customer posting group bridge calculation", extra=log_context)
     
     try:
         # Deserialize input
@@ -323,9 +340,9 @@ async def calculate_customer_posting_group_bridge_activity(
         # Call core business logic
         bridge_amount, proof_df = calculate_customer_posting_group_bridge(ipe_07_df)
         
-        activity_logger.info(
-            f"Customer posting group bridge calculated: {bridge_amount}, "
-            f"found {len(proof_df)} customers with multiple posting groups"
+        log.info(
+            "Customer posting group bridge calculated",
+            extra={**log_context, "bridge_amount": float(bridge_amount), "problem_customers_count": len(proof_df)}
         )
         
         return {
@@ -335,7 +352,7 @@ async def calculate_customer_posting_group_bridge_activity(
         }
         
     except Exception as e:
-        activity_logger.error(f"Error calculating customer posting group bridge: {e}")
+        log.error(f"Error calculating customer posting group bridge: {e}", extra=log_context, exc_info=True)
         raise
 
 
@@ -356,8 +373,10 @@ async def save_evidence_activity(
     Returns:
         Dictionary with evidence_path and confirmation
     """
-    activity_logger = activity.logger
-    activity_logger.info(f"Saving evidence: {evidence_type}")
+    # Use activity.logger with extra context for Temporal integration
+    log = activity.logger
+    log_context = {"evidence_type": evidence_type, "metadata": metadata}
+    log.info("Starting evidence save", extra=log_context)
     
     try:
         # Initialize evidence manager
@@ -382,7 +401,7 @@ async def save_evidence_activity(
         with open(evidence_file, "w") as f:
             json.dump(evidence_data, f, indent=2, default=str)
         
-        activity_logger.info(f"Evidence saved to {evidence_dir}")
+        log.info("Evidence saved successfully", extra={**log_context, "evidence_path": evidence_dir, "evidence_id": evidence_id})
         
         return {
             "evidence_path": evidence_dir,
@@ -391,7 +410,7 @@ async def save_evidence_activity(
         }
         
     except Exception as e:
-        activity_logger.error(f"Error saving evidence: {e}")
+        log.error(f"Error saving evidence: {e}", extra=log_context, exc_info=True)
         raise
 
 
@@ -410,8 +429,10 @@ async def classify_bridges_activity(
     Returns:
         Dictionary with classified data
     """
-    activity_logger = activity.logger
-    activity_logger.info("Classifying bridges")
+    # Use activity.logger with extra context for Temporal integration
+    log = activity.logger
+    log_context = {"operation": "classify_bridges"}
+    log.info("Starting bridge classification", extra=log_context)
     
     try:
         from src.bridges.classifier import classify_bridges
@@ -429,7 +450,10 @@ async def classify_bridges_activity(
         # Count classifications
         classification_counts = classified_df["bridge_key"].value_counts(dropna=False).to_dict()
         
-        activity_logger.info(f"Classified {len(classified_df)} rows into {len(classification_counts)} bridge categories")
+        log.info(
+            "Bridge classification completed",
+            extra={**log_context, "total_rows": len(classified_df), "bridge_categories": len(classification_counts)}
+        )
         
         return {
             "data": dataframe_to_dict(classified_df),
@@ -438,5 +462,5 @@ async def classify_bridges_activity(
         }
         
     except Exception as e:
-        activity_logger.error(f"Error classifying bridges: {e}")
+        log.error(f"Error classifying bridges: {e}", extra=log_context, exc_info=True)
         raise

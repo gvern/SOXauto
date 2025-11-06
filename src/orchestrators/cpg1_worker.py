@@ -39,11 +39,10 @@ from src.orchestrators.cpg1_activities import (
     classify_bridges_activity,
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
+# Configure structured JSON logging
+from src.core.logging_config import setup_logging
+
+setup_logging(level=logging.INFO, format_as_json=True)
 logger = logging.getLogger(__name__)
 
 
