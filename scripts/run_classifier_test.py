@@ -169,7 +169,7 @@ def print_summary(task2_result, task4_result, task1_result):
     print("├─────────────────────────────────────────────────────────────┤")
     print(f"│ Adjustment Amount:      ${task2_result[0]:>16,.2f}            │")
     print(
-        f"│ Unmatched Vouchers:     {task2_result[1].__len__():>6} items                    │"
+        f"│ Unmatched Vouchers:     {len(task2_result[1]):>6} items                    │"
     )
     print("└─────────────────────────────────────────────────────────────┘")
 
@@ -178,7 +178,7 @@ def print_summary(task2_result, task4_result, task1_result):
     print("├─────────────────────────────────────────────────────────────┤")
     print(f"│ Bridge Amount:          ${task4_result[0]:>16,.2f}            │")
     print(
-        f"│ Problem Customers:      {task4_result[1].__len__():>6} items                    │"
+        f"│ Problem Customers:      {len(task4_result[1]):>6} items                    │"
     )
     print("└─────────────────────────────────────────────────────────────┘")
 
@@ -187,7 +187,7 @@ def print_summary(task2_result, task4_result, task1_result):
     print("├─────────────────────────────────────────────────────────────┤")
     print(f"│ Bridge Amount:          ${task1_result[0]:>16,.2f}            │")
     print(
-        f"│ Vouchers w/ Variance:   {task1_result[1].__len__():>6} items                    │"
+        f"│ Vouchers w/ Variance:   {len(task1_result[1]):>6} items                    │"
     )
     print("└─────────────────────────────────────────────────────────────┘")
 
