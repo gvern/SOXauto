@@ -259,16 +259,9 @@ def test_catalog_cr_05_aligned_with_baseline():
     assert "{year}" in item.sql_query, "CR_05 should use {year} parameter"
     assert "{month}" in item.sql_query, "CR_05 should use {month} parameter"
     
-    # Verify correct baseline field names (yeaR, cod_month) - case-insensitive check
-    assert "yeaR" in item.sql_query or "year" in item.sql_query.lower(), \
-        "CR_05 should use yeaR field for year filtering"
+    # Verify correct baseline field names (yeaR, cod_month)
+    assert "yeaR" in item.sql_query, "CR_05 should use yeaR field for year filtering"
     assert "cod_month" in item.sql_query, "CR_05 should use cod_month field for month filtering"
-    
-    # Verify no incorrect field names from old query
-    assert "[year]" not in item.sql_query or "where year" in item.sql_query.lower(), \
-        "CR_05 should not use [year] field (should be yeaR)"
-    assert "[month]" not in item.sql_query or item.sql_query.count("[month]") == 0 or "select" in item.sql_query.lower(), \
-        "CR_05 should not use [month] field (should be cod_month)"
     
     # Verify LEFT JOIN on Dim_Company exists
     assert "left join" in item.sql_query.lower(), \

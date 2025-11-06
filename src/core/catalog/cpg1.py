@@ -227,7 +227,7 @@ DROP TABLE ##temp2;
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]", system="NAV", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]", system="NAV", domain="FinRec"),
         ],
-        sql_query="""SELECT Distinct
+        sql_query="""SELECT DISTINCT
     b.Company_Code,
     [base_currency],
     [final_currency],
@@ -235,17 +235,17 @@ DROP TABLE ##temp2;
     month,
     [rate_type]
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES] a
-left join [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] b
-    on a.final_currency = b.Company_Currency
-wHeRe yeaR = {year}
+LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] b
+    ON a.final_currency = b.Company_Currency
+WHERE yeaR = {year}
 AND cod_month = {month}
-AnD base_currency = 'USD'
-aND rate_type = 'Closing'
-and b.Company_Code in (
+AND base_currency = 'USD'
+AND rate_type = 'Closing'
+AND b.Company_Code IN (
     'EC_IC','EC_KE','EC_MA','EC_NG','HF_SN','JD_DZ',
     'JD_GH','JD_UG','JD_ZA','JM_EG','JM_TN','JT_EG'
 )
-order by month asc
+ORDER BY month ASC
 """,
     ),
     CatalogItem(
