@@ -125,9 +125,6 @@ def calculate_customer_posting_group_bridge(
     return bridge_amount, problem_customers
 
 
-__all__ = ["classify_bridges", "calculate_customer_posting_group_bridge"]
-
-
 def calculate_vtc_adjustment(
     ipe_08_df: Optional[pd.DataFrame], categorized_cr_03_df: Optional[pd.DataFrame]
 ) -> tuple[float, pd.DataFrame]:
@@ -187,9 +184,6 @@ def calculate_vtc_adjustment(
     adjustment_amount = unmatched_df["Remaining Amount"].sum()
 
     return adjustment_amount, unmatched_df
-
-
-__all__ = ["classify_bridges", "calculate_vtc_adjustment"]
 
 
 def _categorize_nav_vouchers(cr_03_df: pd.DataFrame) -> pd.DataFrame:
@@ -407,6 +401,8 @@ def calculate_timing_difference_bridge(
 
 __all__ = [
     "classify_bridges",
+    "calculate_customer_posting_group_bridge",
+    "calculate_vtc_adjustment",
     "_categorize_nav_vouchers",
     "calculate_timing_difference_bridge",
 ]
