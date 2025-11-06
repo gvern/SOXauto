@@ -87,6 +87,9 @@ def test_catalog_has_cr_03_with_sql_and_sources():
     assert "{year_end}" in item.sql_query, "CR_03 sql_query should contain {year_end} parameter"
     assert "{gl_accounts}" in item.sql_query, "CR_03 sql_query should contain {gl_accounts} parameter"
     
+    # Verify [Voucher No_] column is present in the SELECT list (official join key for VTC reconciliation)
+    assert "gl.[Voucher No_]" in item.sql_query, "CR_03 sql_query should include gl.[Voucher No_] column for VTC reconciliation"
+    
     # Verify sources list contains all 5 required tables
     assert item.sources is not None and len(item.sources) == 5, "CR_03 should have exactly 5 sources"
     
