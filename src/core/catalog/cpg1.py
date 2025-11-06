@@ -504,6 +504,66 @@ and scv.created_at > '2016-12-31'
 and scv.created_at < '{cutoff_date}'
 """,
     ),
+    # =================================================================
+    # == DOC_VOUCHER_USAGE: Data for Timing Difference Bridge
+    # =================================================================
+    # Baseline: "Usage May 2025 Query" from IPE_08 documentation
+    # Purpose: Provides the "Usage" side for the Task 1 Timing Diff bridge.
+    # =================================================================
+    CatalogItem(
+        item_id="DOC_VOUCHER_USAGE",
+        item_type="DOC",
+        control="C-PG-1",
+        title="Voucher Usage TV Extract (for Timing Bridge)",
+        status="Completed",
+        baseline_required=True,
+        change_status="New DOC",
+        last_updated="2025-11-06",
+        output_type="Query",
+        tool="PowerPivot",
+        third_party=False,
+        cross_reference=None,
+        notes=(
+            "Baseline: 'Usage May 2025 Query' from IPE_08 documentation. "
+            "This extract provides the Usage side for Task 1 (Timing Difference Bridge). "
+            "It queries RPT_SOI for voucher usage data that reconciles with the Jdash extract."
+        ),
+        evidence_ref="DOC_VOUCHER_USAGE",
+        descriptor_excel=None,
+        description="""This query extracts voucher usage data from RPT_SOI for the Timing Difference Bridge reconciliation.
+It provides the "Usage TV Extract" side that reconciles with the Jdash extract in Task 1.
+The query aggregates shipping discounts, shipping store credits, and marketplace/retail store credits by company, voucher code, and voucher type.""",
+        sources=[
+            _src_sql(
+                "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]",
+                system="OMS",
+                domain="FinRec",
+            ),
+        ],
+        sql_query="""SELECT
+    soi.[ID_Company],
+    soi.[voucher_code],
+    soi.[voucher_type],
+    sum(ISNULL(soi.[MTR_SHIPPING_DISCOUNT_AMOUNT],0)) shipping_discount,
+    sum(ISNULL(soi.[MTR_SHIPPING_VOUCHER_DISCOUNT],0)) shipping_storecredit,
+    sum(case when soi.[is_marketplace] = 1 then ISNULL(soi.[MTR_COUPON_MONEY_VALUE],0) else 0 end) MPL_storecredit,
+    sum(case when soi.[is_marketplace] = 0 then ISNULL(soi.[MTR_COUPON_MONEY_VALUE],0) else 0 end) RTL_storecredit,
+    sum(
+        ISNULL(soi.[MTR_SHIPPING_VOUCHER_DISCOUNT],0) +
+        (case when soi.[is_marketplace] = 1 then ISNULL(soi.[MTR_COUPON_MONEY_VALUE],0) else 0 end) +
+        (case when soi.[is_marketplace] = 0 then ISNULL(soi.[MTR_COUPON_MONEY_VALUE],0) else 0 end)
+    ) as TotalUsageAmount
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI] soi
+WHERE soi.[VOUCHER_TYPE] = 'reusablecredit'
+AND soi.[PACKAGE_DELIVERY_DATE] < '{cutoff_date}'
+AND year(soi.[DELIVERED_DATE]) > 2014
+AND soi.ID_Company in {id_companies_active}
+GROUP BY
+    soi.[ID_Company],
+    soi.[voucher_code],
+    soi.[voucher_type]
+"""
+    ),
     CatalogItem(
         item_id="IPE_31",
         item_type="IPE",
