@@ -1,0 +1,11 @@
+id,business_use_formatted,is_valid,is_active,Remaining Amount
+V001,refund,valid,0,100.0
+V002,refund,valid,0,200.0
+V003,refund,valid,0,150.0
+V004,refund,valid,1,50.0
+V005,refund,invalid,0,75.0
+V006,store_credit,valid,0,125.0
+V007,refund,valid,0,300.0
+V008,refund,valid,0,250.0
+V009,refund,valid,0,180.0
+V010,refund,valid,0,220.0
