@@ -71,9 +71,9 @@ SOXauto PG-01 is an enterprise-grade automation system that transforms manual SO
 
 ```mermaid
 graph TD
-    subgraph "Data Extraction & Validation"
-        A[Scheduler] -- Triggers Monthly --> B[Orchestrator]
-        B -- For each IPE --> C[IPE Runner]
+    subgraph "Temporal.io Orchestration"
+        A[Temporal Scheduler] -- Triggers Monthly --> B[Temporal Workflow]
+        B -- For each IPE --> C[Temporal Activity: IPE Extraction]
         C -- Reads --> D{IPE Catalog}
         C -- Establishes tunnel --> E[Teleport tsh]
         E -- Secure connection --> F[SQL Server fin-sql.jumia.local]
@@ -102,7 +102,9 @@ graph TD
 
 | Component | Role | Technology |
 |-----------|------|------------|
-| **Orchestrator** | Main workflow engine | Python + Flask |
+| **Temporal Workflow** | Main workflow orchestration | Temporal.io Workflows |
+| **Temporal Activities** | IPE extraction and processing | Temporal.io Activities |
+| **Temporal Worker** | Executes workflows and activities | Python (`src/orchestrators/cpg1_worker.py`) |
 | **IPE Runner** | Individual IPE processor | Python + Pandas |
 | **Evidence Manager** | SOX compliance engine | Cryptographic hashing |
 | **Database Connection** | Secure tunnel to SQL Server | Teleport (tsh) |
@@ -128,11 +130,11 @@ Here’s a step-by-step breakdown:
 - **Key Scripts**: `src/core/runners/mssql_runner.py`
 - **Result**: A secure, authenticated connection to `fin-sql.jumia.local` is established.
 
-#### 2. Orchestration (The "Workflow")
+#### 2. Orchestration (The "Temporal Workflow")
 
-- **What happens**: The `execute_ipe_workflow` function in `workflow.py` kicks off the main process. It loops through all the IPEs defined in your catalog and runs them one by one.
-- **Key Scripts**: `src/orchestrators/workflow.py`
-- **Result**: Each IPE is passed to the appropriate runner for execution.
+- **What happens**: A Temporal Workflow orchestrates the entire process. It loops through all the IPEs defined in your catalog and executes them one by one as Temporal Activities.
+- **Key Components**: Temporal Worker (`src/orchestrators/cpg1_worker.py`), Temporal Workflows, Temporal Activities
+- **Result**: Each IPE is executed as a Temporal Activity for reliable, distributed processing.
 
 #### 3. Execution (The "Runner")
 
@@ -162,6 +164,7 @@ Here’s a step-by-step breakdown:
 - Docker
 - Teleport (`tsh`) client configured with access to `fin-sql.jumia.local`
 - SQL Server ODBC Driver
+- Temporal Server (self-hosted or Temporal Cloud)
 
 ### Local Development
 
@@ -175,13 +178,14 @@ pip install -r requirements.txt
 
 # Set environment variables
 export CUTOFF_DATE="2024-05-01"
+export TEMPORAL_ADDRESS="localhost:7233"  # or your Temporal server address
 
 # Establish Teleport tunnel
 tsh login --proxy=teleport.jumia.com --user=your-username
 tsh db connect fin-sql
 
-# Run IPE extraction (example)
-python -m src.core.main
+# Start the Temporal Worker
+python -m src.orchestrators.cpg1_worker
 
 # Run timing difference bridge analysis
 python -m src.bridges.timing_difference
@@ -193,8 +197,11 @@ python -m src.bridges.timing_difference
 # Build the image
 docker build -t soxauto-pg01 .
 
-# Run the container
-docker run -e AWS_REGION="eu-west-1" soxauto-pg01
+# Run the Temporal Worker container
+docker run \
+  -e TEMPORAL_ADDRESS="temporal.example.com:7233" \
+  -e CUTOFF_DATE="2024-05-01" \
+  soxauto-pg01
 ```
 
 ------
@@ -219,7 +226,10 @@ PG-01/
 │   │   ├── recon/                # Reconciliation logic
 │   │   │   ├── __init__.py
 │   │   │   └── cpg1.py           # CPG1 business rules
-│   │   └── main.py               # Flask orchestrator entry point
+│   ├── orchestrators/             # Temporal orchestration
+│   │   ├── __init__.py
+│   │   ├── cpg1_worker.py         # Temporal Worker for C-PG-1
+│   │   └── workflow.py            # Temporal Workflow definitions
 │   ├── bridges/                  # Bridge analysis scripts
 │   │   ├── __init__.py
 │   │   └── timing_difference.py  # Timing difference automation
@@ -267,7 +277,8 @@ PG-01/
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| **Orchestration** | Python 3.11 + Flask | Web server for workflow coordination |
+| **Orchestration** | Temporal.io | Durable workflow orchestration |
+| **Worker** | Python 3.11 | Temporal Worker executing workflows/activities |
 | **Data Access** | pyodbc + Teleport | SQL Server via secure tunnel |
 | **Database Connection** | Teleport (`tsh`) | Secure tunnel to on-premises SQL Server |
 | **Evidence System** | hashlib (SHA-256) | Cryptographic integrity verification |

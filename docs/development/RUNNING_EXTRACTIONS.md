@@ -1,6 +1,6 @@
 # Guide d'Exécution et de Paramétrage des Extractions SQL
 
-Ce guide explique comment exécuter les scripts de génération de fichiers et comment paramétrer les requêtes SQL avec des dates dynamiques.
+Ce guide explique comment exécuter les extractions IPE via Temporal et comment paramétrer les requêtes SQL avec des dates dynamiques.
 
 ---
 
@@ -8,7 +8,7 @@ Ce guide explique comment exécuter les scripts de génération de fichiers et c
 
 Toutes les requêtes SQL sont stockées dans le catalogue (`src/core/catalog/cpg1.py`) et contiennent des **placeholders** comme `{cutoff_date}`.
 
-Avant d'être exécutées, ces requêtes sont "rendues" (rendered) : les placeholders sont remplacés par les valeurs des **variables d'environnement** correspondantes via `src/utils/sql_template.py`.
+L'orchestration est gérée par **Temporal.io**, qui exécute les workflows et activities de manière durable et fiable. Avant l'exécution des requêtes, les placeholders sont remplacés par les valeurs des **variables d'environnement** correspondantes via `src/utils/sql_template.py`.
 
 ---
 
@@ -45,23 +45,46 @@ export FX_DATE='2025-09-30 00:00:00.000'
 
 Astuce: Placez ces variables dans un fichier `.env` et sourcez-le.
 
-### b) Lancer l'Orchestrateur
+### b) Lancer le Temporal Worker
+
+Le worker Temporal exécute les workflows d'extraction IPE de manière durable et fiable.
 
 ```bash
-python3 scripts/run_full_reconciliation.py
+# Démarrer le Temporal Worker
+python -m src.orchestrators.cpg1_worker
 ```
 
-Le pipeline exécute les générateurs (IPE_07, IPE_31, Other AR), puis la **classification des écarts** (bridges) et produit `data/outputs/bridges_classified.csv`.
+Le worker se connecte à Temporal et attend que des workflows soient déclenchés. Les workflows peuvent être déclenchés manuellement ou via des schedules Temporal configurés pour exécuter automatiquement les extractions mensuelles.
 
-### c) Exécuter un Seul Fichier (Débogage)
+### c) Déclencher un Workflow Manuellement (Débogage)
 
 ```bash
-# Exemple: IPE_07 (Customer Accounts)
-python3 scripts/generate_customer_accounts.py
+# Exemple: Déclencher un workflow d'extraction via Temporal CLI
+tctl workflow start \
+  --taskqueue soxauto-tasks \
+  --workflow_type IPEExtractionWorkflow \
+  --input '"2025-10-01"'
 
-# Exécuter un sous-ensemble via le runner générique
-python3 scripts/run_sql_from_catalog.py --only IPE_07,CR_04
+# Ou via un script Python
+python -c "
+from temporalio.client import Client
+import asyncio
+
+async def trigger_workflow():
+    client = await Client.connect('localhost:7233')
+    result = await client.execute_workflow(
+        'IPEExtractionWorkflow',
+        args=['2025-10-01'],
+        id='extraction-sept-2025',
+        task_queue='soxauto-tasks'
+    )
+    print(f'Workflow result: {result}')
+
+asyncio.run(trigger_workflow())
+"
 ```
+
+**Note**: Les anciens scripts (`scripts/run_full_reconciliation.py`, `scripts/generate_*.py`) sont obsolètes et remplacés par l'orchestration Temporal.
 
 ---
 
@@ -71,16 +94,20 @@ La fonction `render_sql` lève une erreur si des placeholders restent non résol
 
 Pour diagnostiquer une exécution:
 
-1. Ouvrez le package de preuves généré: `evidence/<IPE_ID>/<timestamp>/`
-2. Consultez `01_executed_query.sql` pour voir la requête exécutée et `02_query_parameters.json` pour les paramètres.
+1. Consultez le **Temporal Web UI** (`http://localhost:8080` ou Temporal Cloud) pour voir l'état du workflow
+2. Ouvrez le package de preuves généré: `evidence/<IPE_ID>/<timestamp>/`
+3. Consultez `01_executed_query.sql` pour voir la requête exécutée et `02_query_parameters.json` pour les paramètres
+4. Vérifiez les logs du Temporal Worker pour les erreurs d'exécution
 
 ---
 
 ## 5. Notes Opérationnelles
 
-- La connexion SQL Server utilise `DB_CONNECTION_STRING` (recommandé) ou `MSSQL_*` (serveur, base, user, password). Voir `docs/setup/DATABASE_CONNECTION.md`.
-- Les scripts écrivent les CSV dans `data/outputs/` et génèrent un package de preuves complet (8 fichiers) par IPE.
-- La classification des "Bridges & Adjustments" est décrite dans `docs/development/BRIDGES_RULES.md`.
+- L'orchestration est gérée par **Temporal.io** pour une exécution durable et fiable
+- La connexion SQL Server utilise un tunnel **Teleport (`tsh`)** sécurisé vers `fin-sql.jumia.local`
+- Les packages de preuves complets (8 fichiers) sont générés automatiquement par IPE dans `evidence/<IPE_ID>/`
+- La classification des "Bridges & Adjustments" est décrite dans `docs/development/BRIDGES_RULES.md`
+- Le Temporal Web UI permet de surveiller l'état de tous les workflows en temps réel
 
 ---
 
@@ -88,6 +115,6 @@ Pour diagnostiquer une exécution:
 
 - Catalogue SQL: `src/core/catalog/cpg1.py`
 - Rendu SQL: `src/utils/sql_template.py`
-- Générateurs: `scripts/generate_customer_accounts.py`, `scripts/generate_collection_accounts.py`, `scripts/generate_other_ar.py`
-- Orchestrateur: `scripts/run_full_reconciliation.py`
-- Runner générique: `scripts/run_sql_from_catalog.py`
+- Temporal Worker: `src/orchestrators/cpg1_worker.py`
+- Workflows Temporal: `src/orchestrators/workflow.py`
+- IPE Runner: `src/core/runners/mssql_runner.py`
