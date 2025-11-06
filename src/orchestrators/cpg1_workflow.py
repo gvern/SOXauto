@@ -174,13 +174,16 @@ class Cpg1Workflow:
             workflow.logger.info(f"CR_03 fetched: {cr_03_result['rows_extracted']} rows")
             
             # DOC_VOUCHER_USAGE: Voucher Usage for Timing Bridge
+            # Note: id_companies_active parameter needs to be configured based on active companies
+            # For now, using empty tuple which may filter out all records.
+            # TODO: Load active companies from configuration or environment
             doc_voucher_usage_result = await workflow.execute_activity(
                 execute_cr_query_activity,
                 args=[
                     "DOC_VOUCHER_USAGE",
                     {
                         "cutoff_date": cutoff_date,
-                        "id_companies_active": tuple([]),  # TODO: Get from config
+                        "id_companies_active": tuple([]),  # Empty tuple - needs configuration
                     },
                 ],
                 start_to_close_timeout=timedelta(minutes=30),
@@ -211,12 +214,14 @@ class Cpg1Workflow:
             )
             
             # Bridge 2: Timing Difference Bridge
-            # Note: Jdash data would need to be loaded separately in a real implementation
-            # For now, we'll use a placeholder
+            # Note: This bridge requires Jdash data which is not yet implemented as an activity.
+            # Jdash data is typically exported manually or via a separate process.
+            # Using placeholder empty data for now - this will result in no timing differences found.
+            # TODO: Implement Jdash data loading activity or document manual export process
             timing_bridge_result = await workflow.execute_activity(
                 calculate_timing_difference_bridge_activity,
                 args=[
-                    {"data": [], "columns": []},  # Placeholder for Jdash data
+                    {"data": [], "columns": [], "dtypes": {}},  # Placeholder for Jdash data
                     doc_voucher_usage_result["data"],
                 ],
                 start_to_close_timeout=timedelta(minutes=10),

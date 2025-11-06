@@ -35,7 +35,7 @@ def dataframe_to_dict(df: pd.DataFrame) -> Dict[str, Any]:
         Dictionary with data and metadata
     """
     if df is None or df.empty:
-        return {"data": [], "columns": [], "index": []}
+        return {"data": [], "columns": [], "index": [], "dtypes": {}}
     
     return {
         "data": df.to_dict(orient="records"),
@@ -108,16 +108,18 @@ async def execute_ipe_query_activity(
             raise ValueError(f"IPE {ipe_id} not found in catalog")
         
         # Convert CatalogItem to dict format expected by IPERunner
+        # Note: IPERunner validation queries are not defined in the catalog yet.
+        # For now, we disable validation checks by setting them to None.
+        # When validation queries are added to the catalog, they should be passed here.
         ipe_config_dict = {
             "id": ipe_config.item_id,
             "description": ipe_config.title,
             "main_query": ipe_config.sql_query,
             "secret_name": "nav-db-connection",  # Default secret name
             "validation": {
-                # Placeholder - adjust based on actual validation requirements
-                "completeness_query": None,
-                "accuracy_positive_query": None,
-                "accuracy_negative_query": None,
+                "completeness_query": None,  # TODO: Add to catalog when validation queries are defined
+                "accuracy_positive_query": None,  # TODO: Add to catalog when validation queries are defined
+                "accuracy_negative_query": None,  # TODO: Add to catalog when validation queries are defined
             }
         }
         

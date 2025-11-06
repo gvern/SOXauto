@@ -2,6 +2,18 @@
 
 This directory contains the Temporal.io workflow implementation for the C-PG-1 reconciliation process. The new architecture replaces the old "run-and-done" script model with a robust, scalable workflow orchestration system.
 
+## Known Limitations and TODOs
+
+The current implementation has a few known limitations that should be addressed in future iterations:
+
+1. **Jdash Data Loading**: The timing difference bridge requires Jdash data which is not yet implemented as an activity. Currently, empty placeholder data is used. This should be implemented or documented as a manual export process.
+
+2. **Active Companies Configuration**: The DOC_VOUCHER_USAGE query requires `id_companies_active` parameter which is currently an empty tuple. This needs to be configured based on active companies.
+
+3. **IPE Validation Queries**: The IPERunner validation queries (completeness, accuracy positive/negative) are not yet defined in the catalog. These should be added for complete SOX validation.
+
+These limitations do not prevent the workflow from running, but they may affect the completeness of certain bridge calculations. See inline TODO comments in the code for details.
+
 ## Architecture Overview
 
 ### Components
