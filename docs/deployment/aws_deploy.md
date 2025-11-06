@@ -1,277 +1,189 @@
-# AWS Deployment Guide for SOXauto PG-01
+# Temporal.io Deployment Guide for SOXauto PG-01
 
-This guide provides comprehensive instructions for deploying the SOXauto PG-01 automation system to Amazon Web Services (AWS).
+This guide provides comprehensive instructions for deploying the SOXauto PG-01 automation system with Temporal.io orchestration.
 
 ## Table of Contents
 1. [Prerequisites](#prerequisites)
-2. [AWS Services Required](#aws-services-required)
-3. [Setup AWS Infrastructure](#setup-aws-infrastructure)
-4. [Deployment Options](#deployment-options)
-5. [Configuration](#configuration)
-6. [Testing Deployment](#testing-deployment)
-7. [Monitoring and Logging](#monitoring-and-logging)
+2. [Temporal Setup](#temporal-setup)
+3. [Worker Deployment Options](#worker-deployment-options)
+4. [Configuration](#configuration)
+5. [Testing Deployment](#testing-deployment)
+6. [Monitoring and Logging](#monitoring-and-logging)
 
 ---
 
 ## Prerequisites
 
 ### Required Tools
-- **AWS CLI** v2 or later
-- **Docker** (for container builds)
 - **Python** 3.11+
-- **AWS Account** with appropriate permissions
+- **Docker** (for container builds)
+- **Temporal Server** (self-hosted or Temporal Cloud)
+- **Teleport (`tsh`)** client configured with access to `fin-sql.jumia.local`
 
-### AWS IAM Permissions
-Ensure your AWS user/role has permissions for:
-- AWS Secrets Manager (read)
-- Amazon S3 (read/write)
-- Amazon Athena or Redshift (query execution)
-- Amazon ECS or Lambda (deployment)
-- CloudWatch Logs (logging)
-- ECR (container registry)
+### Temporal Access
+- Temporal Server address (e.g., `temporal.example.com:7233` or Temporal Cloud endpoint)
+- Temporal namespace access
+- TLS certificates (if using Temporal Cloud or mTLS)
 
 ---
 
-## AWS Services Required
+## Temporal Setup
 
-### 1. AWS Secrets Manager
-Stores sensitive credentials:
-- `DB_CREDENTIALS_NAV_BI` - SQL Server connection string
-- `ODBC_DRIVER_PATH` - Path to ODBC driver (optional)
+### Option 1: Temporal Cloud (Recommended)
 
-### 2. Amazon S3
-Storage for:
-- **Results bucket**: `jumia-sox-results` - Parquet files with extracted data
-- **Evidence bucket**: `jumia-sox-evidence` - SOX compliance evidence packages
-- **Athena staging**: Query result staging location
+**Best for**: Production deployments with managed infrastructure
 
-### 3. Amazon Athena / Redshift
-- **Athena**: For ad-hoc SQL queries on S3 data
-- **Redshift** (optional): For data warehousing and analytics
+1. Sign up for Temporal Cloud at https://temporal.io/cloud
+2. Create a namespace for SOXauto
+3. Download mTLS certificates
+4. Note your namespace endpoint (e.g., `namespace.account.tmprl.cloud:7233`)
 
-### 4. Compute Options
-Choose one:
-- **AWS Lambda**: Serverless, event-driven execution
-- **Amazon ECS**: Container orchestration for long-running tasks
-- **EC2** (optional): For direct control
+### Option 2: Self-Hosted Temporal Server
 
----
+**Best for**: On-premises or custom infrastructure requirements
 
-## Setup AWS Infrastructure
-
-### Step 1: Create S3 Buckets
+#### Using Docker Compose
 
 ```bash
-# Results bucket
-aws s3 mb s3://jumia-sox-results --region eu-west-1
+# Clone Temporal's docker-compose repository
+git clone https://github.com/temporalio/docker-compose.git
+cd docker-compose
 
-# Evidence bucket
-aws s3 mb s3://jumia-sox-evidence --region eu-west-1
+# Start Temporal Server
+docker-compose up -d
 
-# Athena staging bucket
-aws s3 mb s3://jumia-sox-athena-staging --region eu-west-1
-
-# Enable versioning on evidence bucket for compliance
-aws s3api put-bucket-versioning \
-  --bucket jumia-sox-evidence \
-  --versioning-configuration Status=Enabled
+# Temporal will be available at localhost:7233
+# Temporal Web UI at http://localhost:8080
 ```
 
-### Step 2: Store Secrets in AWS Secrets Manager
+#### Using Kubernetes (Helm)
 
 ```bash
-# Store database connection string
-aws secretsmanager create-secret \
-  --name DB_CREDENTIALS_NAV_BI \
-  --description "SQL Server connection string for NAV BI" \
-  --secret-string "DRIVER={ODBC Driver 17 for SQL Server};SERVER=your-server;DATABASE=your-db;UID=your-user;PWD=your-password" \
-  --region eu-west-1
+# Add Temporal Helm repository
+helm repo add temporalio https://go.temporal.io/helm-charts
+helm repo update
 
-# Verify secret
-aws secretsmanager get-secret-value \
-  --secret-id DB_CREDENTIALS_NAV_BI \
-  --region eu-west-1
-```
+# Install Temporal
+helm install temporal temporalio/temporal \
+  --namespace temporal \
+  --create-namespace \
+  --set server.replicaCount=1 \
+  --set cassandra.config.cluster_size=1
 
-### Step 3: Create Athena Database
-
-```bash
-# Create Athena database
-aws athena start-query-execution \
-  --query-string "CREATE DATABASE IF NOT EXISTS jumia_sox_db" \
-  --result-configuration "OutputLocation=s3://jumia-sox-athena-staging/" \
-  --region eu-west-1
-```
-
-### Step 4: Build and Push Docker Image
-
-```bash
-# Authenticate with ECR
-aws ecr get-login-password --region eu-west-1 | \
-  docker login --username AWS --password-stdin <account-id>.dkr.ecr.eu-west-1.amazonaws.com
-
-# Create ECR repository
-aws ecr create-repository \
-  --repository-name soxauto-pg01 \
-  --region eu-west-1
-
-# Build Docker image
-docker build -t soxauto-pg01:latest .
-
-# Tag image
-docker tag soxauto-pg01:latest \
-  <account-id>.dkr.ecr.eu-west-1.amazonaws.com/soxauto-pg01:latest
-
-# Push to ECR
-docker push <account-id>.dkr.ecr.eu-west-1.amazonaws.com/soxauto-pg01:latest
+# Verify installation
+kubectl get pods -n temporal
 ```
 
 ---
 
-## Deployment Options
+## Worker Deployment Options
 
-### Option 1: AWS Lambda (Recommended for Scheduled Tasks)
+### Option 1: Docker Container (Recommended)
 
-**Best for**: Scheduled monthly IPE executions with predictable duration < 15 minutes
+**Best for**: Production deployments with container orchestration
 
-#### Create Lambda Function
+#### Build Docker Image
 
 ```bash
-# Create IAM role for Lambda
-aws iam create-role \
-  --role-name SOXAutoLambdaRole \
-  --assume-role-policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Principal": {"Service": "lambda.amazonaws.com"},
-      "Action": "sts:AssumeRole"
-    }]
-  }'
+# Build the Temporal Worker image
+docker build -t soxauto-worker:latest .
 
-# Attach policies
-aws iam attach-role-policy \
-  --role-name SOXAutoLambdaRole \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+# Tag for your registry
+docker tag soxauto-worker:latest registry.example.com/soxauto-worker:latest
 
-aws iam attach-role-policy \
-  --role-name SOXAutoLambdaRole \
-  --policy-arn arn:aws:iam::aws:policy/SecretsManagerReadWrite
-
-aws iam attach-role-policy \
-  --role-name SOXAutoLambdaRole \
-  --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess
-
-# Create Lambda function from container
-aws lambda create-function \
-  --function-name SOXAuto-PG01 \
-  --package-type Image \
-  --code ImageUri=<account-id>.dkr.ecr.eu-west-1.amazonaws.com/soxauto-pg01:latest \
-  --role arn:aws:iam::<account-id>:role/SOXAutoLambdaRole \
-  --timeout 900 \
-  --memory-size 2048 \
-  --environment Variables="{AWS_REGION=eu-west-1,CUTOFF_DATE=2024-01-01}" \
-  --region eu-west-1
+# Push to registry
+docker push registry.example.com/soxauto-worker:latest
 ```
 
-#### Schedule Lambda Execution
+#### Run Worker Container
 
 ```bash
-# Create EventBridge rule for monthly execution
-aws events put-rule \
-  --name SOXAuto-Monthly-Execution \
-  --schedule-expression "cron(0 8 1 * ? *)" \
-  --description "Execute SOX PG-01 automation on 1st of each month at 8 AM" \
-  --region eu-west-1
-
-# Add Lambda as target
-aws events put-targets \
-  --rule SOXAuto-Monthly-Execution \
-  --targets "Id"="1","Arn"="arn:aws:lambda:eu-west-1:<account-id>:function:SOXAuto-PG01" \
-  --region eu-west-1
-
-# Grant EventBridge permission to invoke Lambda
-aws lambda add-permission \
-  --function-name SOXAuto-PG01 \
-  --statement-id EventBridgeInvoke \
-  --action lambda:InvokeFunction \
-  --principal events.amazonaws.com \
-  --source-arn arn:aws:events:eu-west-1:<account-id>:rule/SOXAuto-Monthly-Execution
+# Run the Temporal Worker
+docker run -d \
+  --name soxauto-worker \
+  -e TEMPORAL_ADDRESS="temporal.example.com:7233" \
+  -e TEMPORAL_NAMESPACE="default" \
+  -e CUTOFF_DATE="2024-05-01" \
+  -v /path/to/tsh/certs:/root/.tsh \
+  registry.example.com/soxauto-worker:latest
 ```
 
-### Option 2: Amazon ECS (For Long-Running Tasks)
+### Option 2: Kubernetes Deployment
 
-**Best for**: IPE executions that may take > 15 minutes or require more resources
+**Best for**: Scalable, cloud-native deployments
 
-#### Create ECS Cluster
+#### Create Kubernetes Deployment
 
-```bash
-# Create ECS cluster
-aws ecs create-cluster \
-  --cluster-name soxauto-cluster \
-  --region eu-west-1
-
-# Create task definition
-cat > task-definition.json << 'EOF'
-{
-  "family": "soxauto-pg01-task",
-  "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
-  "cpu": "1024",
-  "memory": "2048",
-  "executionRoleArn": "arn:aws:iam::<account-id>:role/ecsTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::<account-id>:role/SOXAutoTaskRole",
-  "containerDefinitions": [{
-    "name": "soxauto-container",
-    "image": "<account-id>.dkr.ecr.eu-west-1.amazonaws.com/soxauto-pg01:latest",
-    "essential": true,
-    "environment": [
-      {"name": "AWS_REGION", "value": "eu-west-1"}
-    ],
-    "logConfiguration": {
-      "logDriver": "awslogs",
-      "options": {
-        "awslogs-group": "/ecs/soxauto-pg01",
-        "awslogs-region": "eu-west-1",
-        "awslogs-stream-prefix": "ecs"
-      }
-    }
-  }]
-}
-EOF
-
-# Register task definition
-aws ecs register-task-definition \
-  --cli-input-json file://task-definition.json \
-  --region eu-west-1
-
-# Create CloudWatch log group
-aws logs create-log-group \
-  --log-group-name /ecs/soxauto-pg01 \
-  --region eu-west-1
+```yaml
+# soxauto-worker-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soxauto-worker
+  namespace: soxauto
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: soxauto-worker
+  template:
+    metadata:
+      labels:
+        app: soxauto-worker
+    spec:
+      containers:
+      - name: worker
+        image: registry.example.com/soxauto-worker:latest
+        env:
+        - name: TEMPORAL_ADDRESS
+          value: "temporal.temporal.svc.cluster.local:7233"
+        - name: TEMPORAL_NAMESPACE
+          value: "default"
+        - name: CUTOFF_DATE
+          valueFrom:
+            configMapKeyRef:
+              name: soxauto-config
+              key: cutoff_date
+        volumeMounts:
+        - name: teleport-certs
+          mountPath: /root/.tsh
+          readOnly: true
+      volumes:
+      - name: teleport-certs
+        secret:
+          secretName: teleport-certs
 ```
 
-#### Run ECS Task
+Apply the deployment:
 
 ```bash
-# Run task manually
-aws ecs run-task \
-  --cluster soxauto-cluster \
-  --task-definition soxauto-pg01-task \
-  --launch-type FARGATE \
-  --network-configuration "awsvpcConfiguration={subnets=[subnet-xxx],securityGroups=[sg-xxx],assignPublicIp=ENABLED}" \
-  --region eu-west-1
+# Create namespace
+kubectl create namespace soxauto
 
-# Or create scheduled ECS task with EventBridge
-aws events put-rule \
-  --name SOXAuto-ECS-Monthly \
-  --schedule-expression "cron(0 8 1 * ? *)" \
-  --region eu-west-1
+# Apply deployment
+kubectl apply -f soxauto-worker-deployment.yaml
 
-aws events put-targets \
-  --rule SOXAuto-ECS-Monthly \
-  --targets file://ecs-target.json \
-  --region eu-west-1
+# Verify deployment
+kubectl get pods -n soxauto
+kubectl logs -n soxauto -l app=soxauto-worker
+```
+
+### Option 3: Local Development
+
+**Best for**: Development and testing
+
+```bash
+# Set environment variables
+export TEMPORAL_ADDRESS="localhost:7233"
+export TEMPORAL_NAMESPACE="default"
+export CUTOFF_DATE="2024-05-01"
+
+# Establish Teleport tunnel
+tsh login --proxy=teleport.jumia.com --user=your-username
+tsh db connect fin-sql
+
+# Start the Temporal Worker
+python -m src.orchestrators.cpg1_worker
 ```
 
 ---
@@ -280,151 +192,196 @@ aws events put-targets \
 
 ### Environment Variables
 
-Set these in Lambda or ECS task definition:
+Set these environment variables for the Temporal Worker:
 
 ```bash
-# AWS Configuration
-AWS_REGION=eu-west-1
-AWS_DEFAULT_REGION=eu-west-1
+# Temporal Configuration
+TEMPORAL_ADDRESS=temporal.example.com:7233  # or localhost:7233 for local dev
+TEMPORAL_NAMESPACE=default                   # or your custom namespace
+TEMPORAL_TASK_QUEUE=soxauto-tasks           # Task queue name
 
 # Application Configuration
-CUTOFF_DATE=2024-01-01  # Optional: defaults to last day of previous month
+CUTOFF_DATE=2024-05-01                      # Optional: defaults to last day of previous month
 LOG_LEVEL=INFO
 
-# S3 Configuration
-S3_RESULTS_BUCKET=jumia-sox-results
-S3_EVIDENCE_BUCKET=jumia-sox-evidence
-
-# Athena Configuration
-ATHENA_DATABASE=jumia_sox_db
-ATHENA_OUTPUT_LOCATION=s3://jumia-sox-athena-staging/
+# Database Configuration (via Teleport)
+# Note: Credentials are managed by Teleport - no passwords stored
+DB_CONNECTION_STRING="DRIVER={ODBC Driver 17 for SQL Server};SERVER=fin-sql.jumia.local;Trusted_Connection=yes"
 ```
 
-### Update config.py
+### Temporal Schedule Configuration
 
-Ensure `src/core/config.py` uses AWS environment variables:
+Configure Temporal Schedules for automatic monthly execution:
 
 ```python
-# AWS Configuration
-AWS_REGION = os.getenv("AWS_REGION", "eu-west-1")
-S3_RESULTS_BUCKET = os.getenv("S3_RESULTS_BUCKET", "jumia-sox-results")
-S3_EVIDENCE_BUCKET = os.getenv("S3_EVIDENCE_BUCKET", "jumia-sox-evidence")
-ATHENA_DATABASE = os.getenv("ATHENA_DATABASE", "jumia_sox_db")
-ATHENA_OUTPUT_LOCATION = os.getenv("ATHENA_OUTPUT_LOCATION", "s3://jumia-sox-athena-staging/")
+# Example: Creating a Temporal Schedule via tctl or code
+from temporalio.client import Client, Schedule, ScheduleActionStartWorkflow, ScheduleSpec, ScheduleIntervalSpec
+from datetime import timedelta
+
+async def create_monthly_schedule():
+    client = await Client.connect("temporal.example.com:7233")
+    
+    # Create monthly schedule (1st of each month at 8 AM UTC)
+    await client.create_schedule(
+        "soxauto-monthly-extraction",
+        Schedule(
+            action=ScheduleActionStartWorkflow(
+                "IPEExtractionWorkflow",
+                args=["2024-01-01"],
+                id="monthly-extraction",
+                task_queue="soxauto-tasks",
+            ),
+            spec=ScheduleSpec(
+                cron_expressions=["0 8 1 * *"],  # 1st of month at 8 AM
+            ),
+        ),
+    )
 ```
 
 ---
 
 ## Testing Deployment
 
-### 1. Test Lambda Function Locally
+### 1. Test Worker Locally
 
 ```bash
-# Install AWS SAM CLI
-pip install aws-sam-cli
+# Set environment variables
+export TEMPORAL_ADDRESS="localhost:7233"
+export TEMPORAL_NAMESPACE="default"
+export CUTOFF_DATE="2024-05-01"
 
-# Invoke Lambda function locally
-sam local invoke SOXAuto-PG01 \
-  --event test-event.json \
-  --docker-network host
+# Establish Teleport tunnel
+tsh login --proxy=teleport.jumia.com --user=your-username
+tsh db connect fin-sql
+
+# Start the Temporal Worker
+python -m src.orchestrators.cpg1_worker
+
+# In another terminal, trigger a workflow
+python -c "
+from temporalio.client import Client
+import asyncio
+
+async def trigger_workflow():
+    client = await Client.connect('localhost:7233')
+    result = await client.execute_workflow(
+        'IPEExtractionWorkflow',
+        args=['2024-05-01'],
+        id='test-workflow-1',
+        task_queue='soxauto-tasks'
+    )
+    print(f'Workflow result: {result}')
+
+asyncio.run(trigger_workflow())
+"
 ```
 
-### 2. Test Lambda Function on AWS
+### 2. Verify Worker Health
 
 ```bash
-# Invoke Lambda function
-aws lambda invoke \
-  --function-name SOXAuto-PG01 \
-  --payload '{"cutoff_date": "2024-01-01"}' \
-  --region eu-west-1 \
-  response.json
+# Check worker logs
+docker logs soxauto-worker
 
-# View response
-cat response.json
+# Or for Kubernetes
+kubectl logs -n soxauto -l app=soxauto-worker --tail=100
 
-# Check CloudWatch logs
-aws logs tail /aws/lambda/SOXAuto-PG01 --follow
+# Check Temporal Web UI
+# Navigate to http://temporal-web-ui:8080 to see workflows
 ```
 
-### 3. Verify S3 Results
+### 3. Monitor Workflow Execution
 
-```bash
-# List results
-aws s3 ls s3://jumia-sox-results/ --recursive
+Access the Temporal Web UI to monitor:
+- Active workflows
+- Workflow history
+- Task queue status
+- Worker status
 
-# Download a result file
-aws s3 cp s3://jumia-sox-results/ipe_07/20241001_120000.parquet ./test_result.parquet
-
-# List evidence packages
-aws s3 ls s3://jumia-sox-evidence/ --recursive
+```
+http://temporal-web-ui:8080
+# Or for Temporal Cloud: https://cloud.temporal.io
 ```
 
 ---
 
 ## Monitoring and Logging
 
-### CloudWatch Logs
+### Temporal Web UI
 
-```bash
-# View Lambda logs
-aws logs tail /aws/lambda/SOXAuto-PG01 --follow --format short
+Access the Temporal Web UI for comprehensive monitoring:
 
-# View ECS logs
-aws logs tail /ecs/soxauto-pg01 --follow --format short
+```
+# Self-hosted Temporal
+http://localhost:8080
 
-# Filter errors
-aws logs filter-log-events \
-  --log-group-name /aws/lambda/SOXAuto-PG01 \
-  --filter-pattern "ERROR"
+# Temporal Cloud
+https://cloud.temporal.io
 ```
 
-### CloudWatch Metrics
+The Web UI provides:
+- Real-time workflow execution status
+- Workflow history and event logs
+- Task queue metrics
+- Worker status and health
+- Execution timelines
 
-Set up custom metrics:
+### Application Logs
 
-```python
-import boto3
-
-cloudwatch = boto3.client('cloudwatch')
-cloudwatch.put_metric_data(
-    Namespace='SOXAuto/PG01',
-    MetricData=[{
-        'MetricName': 'IPEExecutionSuccess',
-        'Value': 1,
-        'Unit': 'Count'
-    }]
-)
-```
-
-### CloudWatch Alarms
+View Worker logs:
 
 ```bash
-# Create alarm for execution failures
-aws cloudwatch put-metric-alarm \
-  --alarm-name SOXAuto-Execution-Failures \
-  --alarm-description "Alert on SOX automation failures" \
-  --metric-name Errors \
-  --namespace AWS/Lambda \
-  --statistic Sum \
-  --period 300 \
-  --threshold 1 \
-  --comparison-operator GreaterThanThreshold \
-  --evaluation-periods 1 \
-  --dimensions Name=FunctionName,Value=SOXAuto-PG01 \
-  --alarm-actions arn:aws:sns:eu-west-1:<account-id>:sox-alerts
+# Docker logs
+docker logs soxauto-worker --follow
+
+# Kubernetes logs
+kubectl logs -n soxauto -l app=soxauto-worker --follow
+
+# Filter for errors
+kubectl logs -n soxauto -l app=soxauto-worker | grep ERROR
 ```
 
-### SNS Notifications
+### Temporal Metrics
 
-```bash
-# Create SNS topic for alerts
-aws sns create-topic --name sox-alerts --region eu-west-1
+Temporal exposes Prometheus metrics for monitoring:
 
-# Subscribe email to topic
-aws sns subscribe \
-  --topic-arn arn:aws:sns:eu-west-1:<account-id>:sox-alerts \
-  --protocol email \
-  --notification-endpoint your-email@example.com
+```yaml
+# Example Prometheus scrape config
+scrape_configs:
+  - job_name: 'temporal-worker'
+    static_configs:
+      - targets: ['soxauto-worker:9090']
+    metrics_path: '/metrics'
+```
+
+Key metrics to monitor:
+- `temporal_worker_task_slots_available` - Available worker capacity
+- `temporal_activity_execution_failed` - Failed activities
+- `temporal_workflow_completed` - Completed workflows
+- `temporal_activity_execution_latency` - Activity latency
+
+### Alerting
+
+Set up alerts based on Temporal metrics:
+
+```yaml
+# Example Prometheus alert rules
+groups:
+  - name: soxauto_alerts
+    rules:
+      - alert: WorkflowExecutionFailed
+        expr: increase(temporal_workflow_failed[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "SOXauto workflow execution failed"
+          description: "Workflow {{ $labels.workflow_type }} failed"
+      
+      - alert: HighActivityFailureRate
+        expr: rate(temporal_activity_execution_failed[10m]) > 0.1
+        labels:
+          severity: warning
+        annotations:
+          summary: "High activity failure rate detected"
 ```
 
 ---
@@ -433,85 +390,103 @@ aws sns subscribe \
 
 ### Common Issues
 
-**1. Lambda Timeout**
-- Increase timeout in Lambda configuration (max 15 minutes)
-- Consider switching to ECS for longer-running tasks
+**1. Worker Cannot Connect to Temporal**
+- Verify `TEMPORAL_ADDRESS` environment variable
+- Check network connectivity to Temporal Server
+- Verify mTLS certificates (if using Temporal Cloud)
+- Check Temporal namespace exists
 
-**2. Memory Issues**
-- Increase Lambda memory allocation
-- Optimize DataFrame processing in code
+**2. Teleport Connection Issues**
+- Ensure `tsh login` is executed and session is active
+- Verify Teleport tunnel is established: `tsh db ls`
+- Check database permissions in Teleport
 
-**3. Secret Manager Access Denied**
-- Verify IAM role has `secretsmanager:GetSecretValue` permission
-- Check secret ARN and region
+**3. Activity Timeout**
+- Increase `start_to_close_timeout` in activity options
+- Check database query performance
+- Verify network latency to SQL Server
 
-**4. S3 Permission Errors**
-- Ensure IAM role has S3 read/write permissions
-- Verify bucket policy allows access
+**4. Worker Not Processing Tasks**
+- Verify task queue name matches workflow configuration
+- Check worker logs for errors
+- Ensure worker has sufficient resources (CPU/memory)
 
-### Debug Lambda Function
+### Debug Worker
 
 ```bash
-# Enable detailed logging
-aws lambda update-function-configuration \
-  --function-name SOXAuto-PG01 \
-  --environment Variables="{AWS_REGION=eu-west-1,LOG_LEVEL=DEBUG}"
+# Enable debug logging
+export LOG_LEVEL=DEBUG
+python -m src.orchestrators.cpg1_worker
 
-# View recent errors
-aws lambda get-function \
-  --function-name SOXAuto-PG01 \
-  --query 'Configuration.LastUpdateStatus'
+# Check Temporal connection
+tctl --namespace default workflow list
+
+# Describe a specific workflow
+tctl --namespace default workflow describe --workflow_id <workflow-id>
+
+# Query workflow state
+tctl --namespace default workflow query \
+  --workflow_id <workflow-id> \
+  --query_type __stack_trace
 ```
 
 ---
 
-## Cost Optimization
+## Cost Considerations
 
-### Estimated Monthly Costs (EU-WEST-1)
+### Temporal Cloud Pricing
 
-**Lambda Option** (assuming 30-minute monthly execution):
-- Lambda compute: ~$0.50
-- S3 storage (100GB): ~$2.30
-- Secrets Manager: ~$0.40
-- Athena queries: ~$5.00 (depends on data scanned)
-- **Total**: ~$8-10/month
+**Temporal Cloud** (estimated monthly costs):
+- Actions: $0.25 per 1M actions (free tier: 200M actions/month)
+- Storage: $0.00042 per GB-hour
+- Data transfer: Standard cloud provider rates
 
-**ECS Fargate Option**:
-- Fargate compute (1 vCPU, 2GB, 30 min): ~$0.50
-- S3 storage: ~$2.30
-- Secrets Manager: ~$0.40
-- **Total**: ~$3-5/month + query costs
+**Estimated for SOXauto** (monthly extraction of 10 IPEs):
+- Actions: ~1M actions = $0.25 (within free tier)
+- Storage: ~10 GB-month = ~$4.20
+- **Total**: ~$5-10/month (mostly free tier)
 
-### Cost Reduction Tips
-1. Use S3 Intelligent-Tiering for old evidence files
-2. Compress parquet files with snappy/gzip
-3. Use Athena workgroup query result reuse
-4. Set S3 lifecycle policies to archive old data to Glacier
+### Self-Hosted Temporal
+
+**Infrastructure costs** (Kubernetes on cloud):
+- Temporal Server: 2-4 vCPUs, 8GB RAM = ~$50-100/month
+- Database (PostgreSQL/Cassandra): ~$30-50/month
+- Workers: 1-2 vCPUs per worker, 2GB RAM = ~$20-40/month per worker
+- **Total**: ~$100-190/month
+
+### Cost Optimization Tips
+
+1. Use Temporal Cloud free tier for development/testing
+2. Scale workers based on workload (horizontal scaling)
+3. Use workflow continue-as-new for long-running workflows
+4. Implement efficient activity retry policies
+5. Archive old workflow histories periodically
+
 
 ---
 
 ## Security Best Practices
 
-1. **Least Privilege IAM**: Grant only required permissions
-2. **Encryption**: Enable S3 bucket encryption with KMS
-3. **VPC**: Run Lambda/ECS in private VPC subnets
-4. **Secrets Rotation**: Enable automatic rotation for database credentials
-5. **Audit Logs**: Enable CloudTrail for API call auditing
-6. **Evidence Integrity**: Use S3 Object Lock for evidence immutability
+1. **mTLS Authentication**: Use mutual TLS for Temporal Cloud connections
+2. **Teleport Security**: Leverage Teleport for secure database access (no stored credentials)
+3. **Workflow Isolation**: Run workers in isolated containers/pods
+4. **Secrets Management**: Use environment variables or secret managers for sensitive config
+5. **Audit Logging**: Temporal provides complete workflow execution history
+6. **Evidence Integrity**: Digital Evidence Packages use SHA-256 hashing
 
 ---
 
 ## Next Steps
 
-1. ✅ Complete AWS infrastructure setup
-2. ✅ Deploy application to Lambda or ECS
-3. ✅ Configure monthly schedule
-4. ✅ Set up monitoring and alerts
-5. ✅ Run test execution
-6. ✅ Verify evidence packages
+1. ✅ Set up Temporal Server (Cloud or self-hosted)
+2. ✅ Deploy Temporal Workers (Docker, Kubernetes, or local)
+3. ✅ Configure Temporal Schedules for monthly execution
+4. ✅ Set up monitoring via Temporal Web UI
+5. ✅ Run test workflow execution
+6. ✅ Verify evidence packages are generated
 7. ✅ Document operational procedures
 
 For questions or issues, refer to:
-- [AWS Documentation](https://docs.aws.amazon.com/)
+- [Temporal Documentation](https://docs.temporal.io/)
 - [Project README](../../README.md)
-- [AWS Migration Guide](../development/aws_migration.md)
+- [Temporal Web UI](https://docs.temporal.io/web-ui)

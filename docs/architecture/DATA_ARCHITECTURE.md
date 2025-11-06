@@ -1,18 +1,20 @@
-# SOXauto Data Architecture - Teleport Connection
+# SOXauto Data Architecture - Temporal.io Orchestration
 
 **Date**: 06 November 2025  
-**Architecture**: Direct connection to on-premises SQL Server via Teleport secure tunnel
+**Architecture**: Temporal.io workflow orchestration with direct connection to on-premises SQL Server via Teleport secure tunnel
 
 ---
 
-## 🎯 Overview: Secure Database Access
+## 🎯 Overview: Temporal-Orchestrated Data Access
 
-SOXauto connects directly to the on-premises SQL Server database using:
+SOXauto uses Temporal.io for durable workflow orchestration and connects directly to the on-premises SQL Server database using:
 
-1. **Connection Method**: Teleport (`tsh`) secure tunnel
-2. **Database Server**: `fin-sql.jumia.local` (SQL Server)
-3. **Runner Module**: `src/core/runners/mssql_runner.py`
-4. **Authentication**: Teleport-managed credentials
+1. **Orchestration**: Temporal.io Workflows and Activities
+2. **Worker**: Temporal Worker (`src/orchestrators/cpg1_worker.py`)
+3. **Connection Method**: Teleport (`tsh`) secure tunnel
+4. **Database Server**: `fin-sql.jumia.local` (SQL Server)
+5. **Runner Module**: `src/core/runners/mssql_runner.py`
+6. **Authentication**: Teleport-managed credentials
 
 ---
 
@@ -20,6 +22,8 @@ SOXauto connects directly to the on-premises SQL Server database using:
 
 | Aspect | Implementation |
 |--------|----------------|
+| **Orchestration** | Temporal.io Workflows and Activities |
+| **Worker** | Temporal Worker (`src/orchestrators/cpg1_worker.py`) |
 | **Connection Tool** | Teleport (`tsh`) |
 | **Server** | `fin-sql.jumia.local` |
 | **Authentication** | Teleport-managed (no local credentials) |
@@ -37,7 +41,13 @@ SOXauto connects directly to the on-premises SQL Server database using:
 ### How SOXauto Accesses Data
 
 ```
-SOXauto Application
+Temporal Scheduler
+    ↓
+[Temporal Workflow: Execute IPE Extraction]
+    ↓
+[Temporal Worker: cpg1_worker.py]
+    ↓
+[Temporal Activity: IPE Extraction for each IPE]
     ↓
 [Authenticate via Teleport]
     ↓
@@ -57,31 +67,52 @@ Evidence Manager generates audit trail
 
 ### Connection Details
 
+**Orchestration**: Temporal.io  
+**Worker**: `src/orchestrators/cpg1_worker.py`  
 **Server**: `fin-sql.jumia.local`  
 **Authentication**: Teleport-managed  
 **Access Tool**: Python with pyodbc via Teleport tunnel  
 **Access Via**: Teleport secure tunnel  
 
-### Example Query via mssql_runner.py
+### Example Workflow and Activity
 
 ```python
+# Temporal Workflow definition
+from temporalio import workflow
 from src.core.runners.mssql_runner import IPERunner
 from src.core.catalog.cpg1 import get_ipe_config
 
-# Load IPE configuration
-config = get_ipe_config('IPE_07')
+@workflow.defn
+class IPEExtractionWorkflow:
+    @workflow.run
+    async def run(self, cutoff_date: str) -> dict:
+        # Execute IPE extraction as Temporal Activity
+        result = await workflow.execute_activity(
+            extract_ipe_activity,
+            args=["IPE_07", cutoff_date],
+            start_to_close_timeout=timedelta(minutes=10)
+        )
+        return result
 
-# Execute via Teleport tunnel
-runner = IPERunner(config, cutoff_date='2025-09-30')
-df = runner.run()  # Returns pandas DataFrame with validation
+@activity.defn
+async def extract_ipe_activity(ipe_id: str, cutoff_date: str) -> dict:
+    # Load IPE configuration
+    config = get_ipe_config(ipe_id)
+    
+    # Execute via Teleport tunnel
+    runner = IPERunner(config, cutoff_date=cutoff_date)
+    df = runner.run()  # Returns pandas DataFrame with validation
+    
+    return {"rows": len(df), "status": "success"}
 ```
 
 ### Why This Architecture
 
 - 🔒 **Security**: Teleport manages all credentials and access
-- 🤖 **Automation**: Supports scheduled, unattended execution  
-- 📊 **Compliance**: Full audit trail via Teleport logging
+- 🔄 **Reliability**: Temporal provides durable, fault-tolerant workflows
+- ⚡ **Scalability**: Temporal Workers can scale horizontally
 - 🎯 **Direct Access**: No intermediate data lakes or ETL
+- 📊 **Observability**: Temporal UI provides real-time workflow visibility
 - ✅ **SOX Compliant**: Digital Evidence Package for every extraction
 
 ---
@@ -137,14 +168,19 @@ Every IPE extraction generates a complete Digital Evidence Package:
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
+| **Temporal Worker** | `src/orchestrators/cpg1_worker.py` | Executes workflows and activities |
+| **Temporal Workflows** | `src/orchestrators/workflow.py` | Orchestrates IPE extraction process |
 | **IPE Runner** | `src/core/runners/mssql_runner.py` | Executes IPE queries |
 | **Evidence Manager** | `src/core/evidence/manager.py` | Generates SOX evidence |
 | **IPE Catalog** | `src/core/catalog/cpg1.py` | IPE definitions |
-| **Orchestrator** | `src/orchestrators/workflow.py` | Workflow coordination |
 
 ### Environment Variables
 
 ```bash
+# Temporal configuration
+TEMPORAL_ADDRESS="localhost:7233"  # Temporal server address
+TEMPORAL_NAMESPACE="default"       # Temporal namespace
+
 # Database connection (via Teleport)
 # Note: Actual credentials are managed by Teleport - no passwords stored locally
 DB_CONNECTION_STRING="DRIVER={ODBC Driver 17 for SQL Server};SERVER=fin-sql.jumia.local;Trusted_Connection=yes"
@@ -182,23 +218,29 @@ CUTOFF_DATE="2025-09-30"
 ## 🔄 Data Flow
 
 ```
-1. Orchestrator triggers IPE execution
+1. Temporal Scheduler triggers Workflow execution (monthly)
          ↓
-2. IPERunner loads configuration from catalog
+2. Temporal Workflow starts on Worker (cpg1_worker.py)
          ↓
-3. Establish Teleport tunnel connection
+3. Workflow loads IPE configurations from catalog
          ↓
-4. Execute SQL query on fin-sql.jumia.local
+4. For each IPE, Workflow executes Activity
          ↓
-5. Load results into Pandas DataFrame
+5. Activity establishes Teleport tunnel connection
          ↓
-6. Run SOX validation queries
+6. Activity executes SQL query on fin-sql.jumia.local
          ↓
-7. Generate Digital Evidence Package
+7. Activity loads results into Pandas DataFrame
          ↓
-8. Save evidence to local directory
+8. Activity runs SOX validation queries
          ↓
-9. Return validated data to orchestrator
+9. Activity generates Digital Evidence Package
+         ↓
+10. Activity saves evidence to local directory
+         ↓
+11. Activity returns validated data to Workflow
+         ↓
+12. Workflow completes when all IPEs are processed
 ```
 
 ---
