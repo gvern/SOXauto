@@ -247,6 +247,59 @@ def test_catalog_ipe_31_aligned_with_baseline():
         "IPE_31 should have Bank Account Posting Group"
 
 
+def test_catalog_cr_05_aligned_with_baseline():
+    """Test CR_05 query is aligned with audited FX rates baseline (with Dim_Company join and proper parameterization)."""
+    from src.core.catalog.cpg1 import get_item_by_id
+
+    item = get_item_by_id("CR_05")
+    assert item is not None, "CR_05 should exist in the catalog"
+    assert isinstance(item.sql_query, str) and item.sql_query.strip(), "CR_05 should have a non-empty sql_query"
+    
+    # Verify {year} and {month} parameters are used (not hardcoded values or wrong field names)
+    assert "{year}" in item.sql_query, "CR_05 should use {year} parameter"
+    assert "{month}" in item.sql_query, "CR_05 should use {month} parameter"
+    
+    # Verify correct baseline field names (yeaR, cod_month) - case-insensitive check
+    assert "yeaR" in item.sql_query or "year" in item.sql_query.lower(), \
+        "CR_05 should use yeaR field for year filtering"
+    assert "cod_month" in item.sql_query, "CR_05 should use cod_month field for month filtering"
+    
+    # Verify no incorrect field names from old query
+    assert "[year]" not in item.sql_query or "where year" in item.sql_query.lower(), \
+        "CR_05 should not use [year] field (should be yeaR)"
+    assert "[month]" not in item.sql_query or item.sql_query.count("[month]") == 0 or "select" in item.sql_query.lower(), \
+        "CR_05 should not use [month] field (should be cod_month)"
+    
+    # Verify LEFT JOIN on Dim_Company exists
+    assert "left join" in item.sql_query.lower(), \
+        "CR_05 should have LEFT JOIN clause"
+    assert "[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]" in item.sql_query, \
+        "CR_05 should join with Dim_Company table"
+    assert "Company_Code" in item.sql_query, "CR_05 should use Company_Code in join or filter"
+    
+    # Verify WHERE clause with specific filters
+    assert "base_currency = 'USD'" in item.sql_query or "base_currency='USD'" in item.sql_query, \
+        "CR_05 should filter for USD base currency"
+    assert "rate_type = 'Closing'" in item.sql_query or "rate_type='Closing'" in item.sql_query, \
+        "CR_05 should filter for Closing rate type"
+    
+    # Verify the 12 specific Company_Codes are in scope
+    company_codes = ['EC_IC', 'EC_KE', 'EC_MA', 'EC_NG', 'HF_SN', 'JD_DZ', 
+                     'JD_GH', 'JD_UG', 'JD_ZA', 'JM_EG', 'JM_TN', 'JT_EG']
+    for code in company_codes:
+        assert code in item.sql_query, f"CR_05 should include Company_Code '{code}' in filter"
+    
+    # Verify sources list contains both RPT_FX_RATES and Dim_Company
+    assert item.sources is not None and len(item.sources) == 2, \
+        "CR_05 should have exactly 2 sources (RPT_FX_RATES and Dim_Company)"
+    
+    source_locations = [src.location for src in item.sources]
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]" in source_locations, \
+        "CR_05 should have RPT_FX_RATES as a source"
+    assert "[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]" in source_locations, \
+        "CR_05 should have Dim_Company as a source"
+
+
 @pytest.mark.parametrize(
     "module_name",
     [
