@@ -101,7 +101,7 @@ Before starting the worker, establish a secure tunnel to the on-premises databas
 1. **Authenticate with Teleport:**
    ```bash
    # Login to Teleport (replace with your actual proxy and username)
-   tsh login --proxy=teleport.jumia.com --user=$USER
+   tsh login --proxy=teleport.jumia.com --user=your-username
    ```
 
 2. **Verify database access:**
