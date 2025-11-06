@@ -10,12 +10,6 @@ pyodbc>=4.0.39  # Keep for backward compatibility (legacy)
 # AWS dependencies
 boto3>=1.28.0  # AWS SDK for Python
 botocore>=1.31.0
-awswrangler>=3.0.0  # AWS Data Wrangler for Athena queries
-
-# Web framework for Lambda/ECS
-Flask>=2.3.0
-gunicorn>=21.2.0
-awslambdaric>=2.0.0  # AWS Lambda Runtime Interface Client
 
 # Utilities and logging
 python-dateutil>=2.8.0
