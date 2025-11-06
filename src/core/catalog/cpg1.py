@@ -514,161 +514,156 @@ On a monthly basis the group head of shared accounting formalizes the outcome of
         descriptor_excel="IPE_FILES/IPE_31.xlsx",
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHREC_TRANSACTION]", system="OMS", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHREC_REALLOCATIONS]", system="OMS", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PACKAGES]", system="OMS", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS]", system="OMS", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHDEPOSIT]", system="OMS", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PACKAGES]", system="OMS", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHREC_REALLOCATIONS]", system="OMS", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_COLLECTIONADJ]", system="OMS", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_HUBS_3PL_MAPPING]", system="OMS", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_BS_ANAPLAN_IMPORT_IFRS_MAPPING]", system="NAV", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_COLLECTIONPARTNERS]", system="OMS", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]", system="NAV", domain="FinRec"),
+            _src_sql("[AIG_Nav_DW].[dbo].[Bank Accounts]", system="NAV", domain="NAVBI"),
+            _src_sql("[AIG_Nav_DW].[dbo].[Bank Account Posting Group]", system="NAV", domain="NAVBI"),
         ],
-    sql_query="""Declare @subsequentmonth datetime
-SET @subsequentmonth = DATEADD(DAY, 1, EOMONTH(GETDATE(), -1)) --#Subsequent Month Date of analysis
-;
-WITH CTE AS (
-    SELECT DISTINCT CONCAT(p.[ID_Company], p.[OMS_Packlist_No]) conc
-    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PACKAGES] p
-    LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS] ppa
-        ON p.id_company = ppa.id_company
-        AND p.OMS_PACKLIST_No = ppa.OMS_PACKLIST_No
-        AND ppa.OMS_PAYMENT_RECONCILED_AMOUNT IS NOT NULL
-    WHERE p.OMS_Packlist_status IN ('waitingApproval')
-       OR (p.OMS_Packlist_Status = 'waitingConfirmation' AND ppa.OMS_PAYMENT_RECONCILED_AMOUNT IS NULL)
+    sql_query="""
+;WITH CTE AS (SELECT DISTINCT CONCAT(p.[ID_Company], p.[OMS_Packlist_No]) conc
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PACKAGES] p
+LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS] ppa
+ON p.id_company = ppa.id_companyAND p.OMS_PACKLIST_No = ppa.OMS_PACKLIST_No
+AND ppa.OMS_PAYMENT_RECONCILED_AMOUNT IS NOT NULL
+WHERE p.OMS_Packlist_status IN ('waitingApproval')
+OR (p.OMS_Packlist_Status = 'waitingConfirmation' AND ppa.OMS_PAYMENT_RECONCILED_AMOUNT IS NULL)
 )
-SELECT
-    a.*,
-    sn.SERVICE_PROVIDER,
-    cp.Type,
-    cp.ERP_Name,
-    comp.[Company_Country],
-    DATEADD(day, -1, @subsequentmonth) AS Closing_date,
-    bankacc.[G_L Bank Account No_]
+SELECT a.*,sn.SERVICE_PROVIDER,cp.Type,cp.ERP_Name,comp.[Company_Country],DATEADD(day, -1, DATEADD(day, 1, '{cutoff_date}')) AS Closing_date,
+bankacc.[G_L Bank Account No_]
 FROM (
-    -- OPEN TRANSACTIONS --
+-- OPEN TRANSACTIONS --
+SELECT
+    t1.[ID_Company],
+    CASE
+        WHEN t1.[Transaction_Type] = 'Transfer to' OR t1.[Transaction_Type] = 'Third Party Collection'
+        THEN ISNULL(p1.OMS_Payment_Date, t1.created_date)
+        WHEN t1.[Transaction_Type] = 'Payment - Rev'
+        THEN ISNULL(p1.payment_reversal_date, t1.created_date)
+        ELSE t1.Created_Date
+    END AS Event_date,
+    t1.[Collection_Partner] AS CP,
+    t1.[Transaction_Type],
+    t1.Related_Entity,
+    t1.[Amount]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHREC_TRANSACTION] t1
+LEFT JOIN CTE ON CONCAT(t1.[ID_Company], t1.Transaction_List_Nr) = CTE.conc
+LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHDEPOSIT] p1
+    ON t1.Related_Entity = p1.OMS_Payment_No
+    AND t1.ID_Company = p1.ID_Company
+    AND ((t1.Transaction_Type = 'Transfer to' AND p1.OMS_Type = 'Transfer') OR
+    (t1.Transaction_Type = 'Third Party Collection' AND p1.OMS_Type = 'Payment') OR
+    (t1.Transaction_Type = 'Payment - Rev' AND p1.OMS_Type = 'Payment')
+    )
+WHERE t1.[Transaction_Type] NOT IN ('Payment','Collection Adjustment (over)','Collection Adjustment (under)','Payment Charges',
+'Reallocation From','Transfer From','Payment Charges Rev'
+)
+AND (CASE
+        WHEN t1.[Transaction_Type] = 'Transfer to' OR t1.[Transaction_Type] = 'Third Party Collection'
+        THEN ISNULL(p1.OMS_Payment_Date, t1.created_date)
+        WHEN t1.[Transaction_Type] = 'Payment - Rev'
+        THEN ISNULL(p1.payment_reversal_date, t1.created_date)
+        ELSE t1.Created_Date
+    END) < DATEADD(day, 1, '{cutoff_date}')
+AND (t1.Transaction_List_Nr IS NULL
+    OR t1.Transaction_List_Date >= DATEADD(day, 1, '{cutoff_date}')
+    OR CTE.conc IS NOT NULL
+)
+AND t1.[Amount] <> 0
+
+UNION ALL
+
+SELECT
+    [ID_Company],
+    [Original_Transaction_date] AS Event_date,
+    [Collection_Partner_From] AS CP,
+    [Transaction_type],
+    Related_Entity,
+    [Amount]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHREC_REALLOCATIONS] realoc
+WHERE [Original_Transaction_date] < DATEADD(day, 1, '{cutoff_date}')
+AND [Reallocated_Transaction_Date] >= DATEADD(day, 1, '{cutoff_date}')
+
+UNION ALL
+
+-- TRANSACTIONLISTS IN PROGRESS --
+SELECT
+    tl.ID_company,
+    tl.OMS_Packlist_Created_Date AS Event_date,
+    tl.[OMS_Collection_Partner_Name] AS CP,
+    'Translist in progress' AS Transaction_Type,
+    tl.[OMS_Packlist_No] AS Related_entity,
+    (tl.OMS_Amount_Received - ISNULL(t2.applied_amount, 0)) AS Amount
+FROM (
     SELECT
-        t1.[ID_Company],
-        CASE
-            WHEN t1.[Transaction_Type] = 'Transfer to' OR t1.[Transaction_Type] = 'Third Party Collection'
-                THEN ISNULL(p1.OMS_Payment_Date, t1.created_date)
-            WHEN t1.[Transaction_Type] = 'Payment - Rev'
-                THEN ISNULL(p1.payment_reversal_date, t1.created_date)
-            ELSE t1.Created_Date
-        END AS Event_date,
-        t1.[Collection_Partner] AS CP,
-        t1.[Transaction_Type],
-        t1.Related_Entity,
-        t1.[Amount]
-    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHREC_TRANSACTION] t1
-    LEFT JOIN CTE ON CONCAT(t1.[ID_Company], t1.Transaction_List_Nr) = CTE.conc
-    LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHDEPOSIT] p1
-        ON t1.Related_Entity = p1.OMS_Payment_No
-        AND t1.ID_Company = p1.ID_Company
-        AND (
-            (t1.Transaction_Type = 'Transfer to' AND p1.OMS_Type = 'Transfer') OR
-            (t1.Transaction_Type = 'Third Party Collection' AND  p1.OMS_Type = 'Payment') OR
-            (t1.Transaction_Type = 'Payment - Rev' AND  p1.OMS_Type = 'Payment')
-        )
-    WHERE t1.[Transaction_Type] NOT IN (
-            'Payment','Collection Adjustment (over)','Collection Adjustment (under)','Payment Charges',
-            'Reallocation From','Transfer From','Payment Charges Rev'
-        )
-      AND (
-        CASE
-            WHEN t1.[Transaction_Type] = 'Transfer to' OR t1.[Transaction_Type] = 'Third Party Collection'
-                THEN ISNULL(p1.OMS_Payment_Date, t1.created_date)
-            WHEN t1.[Transaction_Type] = 'Payment - Rev'
-                THEN ISNULL(p1.payment_reversal_date, t1.created_date)
-            ELSE t1.Created_Date
-        END
-      ) < @subsequentmonth
-      AND (
-        t1.Transaction_List_Nr IS NULL
-        OR t1.Transaction_List_Date >= @subsequentmonth
-        OR CTE.conc IS NOT NULL
-      )
-      AND t1.[Amount] <> 0
-    UNION ALL
+        ID_Company, OMS_Collection_Partner_Name, OMS_Packlist_No,
+        OMS_Amount_Received, OMS_Packlist_Created_Date
+    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS]
+    WHERE OMS_Packlist_Created_Date < DATEADD(day, 1, '{cutoff_date}')
+    AND OMS_Packlist_Status IN ('inProgress', 'closed', 'waitingConfirmation')
+    AND OMS_PAYMENT_RECONCILED_AMOUNT IS NOT NULL
+    GROUP BY ID_Company, OMS_Collection_Partner_Name, OMS_Packlist_No, OMS_Amount_Received, OMS_Packlist_Created_Date
+) tl
+LEFT JOIN (
     SELECT
-        [ID_Company],
-        [Original_Transaction_date] AS Event_date,
-        [Collection_Partner_From] AS CP,
-        [Transaction_type],
-        Related_Entity,
-        [Amount]
-    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHREC_REALLOCATIONS] realoc
-    WHERE [Original_Transaction_date] < @subsequentmonth
-      AND [Reallocated_Transaction_Date] >= @subsequentmonth
-    UNION ALL
-    -- TRANSACTIONLISTS IN PROGRESS --
-    SELECT
-        tl.ID_company,
-        tl.OMS_Packlist_Created_Date AS Event_date,
-        tl.[OMS_Collection_Partner_Name] AS CP,
-        'Translist in progress' AS Transaction_Type,
-        tl.[OMS_Packlist_No] AS Related_entity,
-        (tl.OMS_Amount_Received - ISNULL(t2.applied_amount, 0)) AS Amount
-    FROM (
-        SELECT
-            ID_Company, OMS_Collection_Partner_Name, OMS_Packlist_No,
-            OMS_Amount_Received, OMS_Packlist_Created_Date
-        FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS]
-        WHERE OMS_Packlist_Created_Date < @subsequentmonth
-          AND OMS_Packlist_Status IN ('inProgress', 'closed', 'waitingConfirmation')
-          AND OMS_PAYMENT_RECONCILED_AMOUNT IS NOT NULL
-        GROUP BY ID_Company, OMS_Collection_Partner_Name, OMS_Packlist_No, OMS_Amount_Received, OMS_Packlist_Created_Date
-    ) tl
-    LEFT JOIN (
-        SELECT
-            [ID_Company], [OMS_Packlist_No],
-            SUM(ISNULL([OMS_Payment_Reconciled_Amount], 0) + ISNULL([OMS_Payment_Charges_Reconciled_Amount], 0)) AS applied_amount
-        FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS]
-        WHERE [OMS_Payment_Date] < @subsequentmonth
-        GROUP BY [ID_Company], [OMS_Packlist_No]
-    ) t2 ON t2.ID_Company = tl.ID_Company AND t2.OMS_Packlist_No = tl.OMS_Packlist_No
-    LEFT JOIN (
-        SELECT id_company, OMS_entity_No, OMS_Force_Closed
-        FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_COLLECTIONADJ]
-        WHERE OMS_Entity_Type = 'packlist'
-          AND OMS_Force_Closed = 1
-          AND (OMS_Close_Date < @subsequentmonth OR OMS_Close_Date IS NULL)
-    ) fc ON fc.ID_Company = tl.ID_Company AND fc.OMS_Entity_No = tl.OMS_Packlist_No
-    WHERE (fc.OMS_Force_Closed = 0 OR fc.OMS_Force_Closed IS NULL)
-      AND (tl.OMS_Amount_Received - ISNULL(t2.applied_amount, 0)) > 0
-    UNION ALL
-    -- PAYMENTS/TRANSFERS IN PROGRESS --
+        [ID_Company], [OMS_Packlist_No],
+        SUM(ISNULL([OMS_Payment_Reconciled_Amount], 0) + ISNULL([OMS_Payment_Charges_Reconciled_Amount], 0)) AS applied_amount
+    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS]
+    WHERE [OMS_Payment_Date] < DATEADD(day, 1, '{cutoff_date}')
+    GROUP BY [ID_Company], [OMS_Packlist_No]
+) t2 ON t2.ID_Company = tl.ID_Company AND t2.OMS_Packlist_No = tl.OMS_Packlist_No
+LEFT JOIN (
+    SELECT id_company, OMS_entity_No, OMS_Force_Closed
+    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_COLLECTIONADJ]
+    WHERE OMS_Entity_Type = 'packlist'
+    AND OMS_Force_Closed = 1
+    AND (OMS_Close_Date < DATEADD(day, 1, '{cutoff_date}') OR OMS_Close_Date IS NULL)
+) fc ON fc.ID_Company = tl.ID_Company AND fc.OMS_Entity_No = tl.OMS_Packlist_No
+WHERE (fc.OMS_Force_Closed = 0 OR fc.OMS_Force_Closed IS NULL)
+AND (tl.OMS_Amount_Received - ISNULL(t2.applied_amount, 0)) > 0
+
+UNION ALL
+
+-- PAYMENTS/TRANSFERS IN PROGRESS --
+SELECT DISTINCT
+    p.[ID_Company] AS [ID_Company],
+    p.[OMS_Payment_Date] AS Event_date,
+    p.OMS_Collection_Partner AS CP,
+    p.OMS_Type AS Transaction_Type,
+    p.OMS_Payment_No AS Related_entity,
+    -(ISNULL(p.OMS_Payment_Amount, 0) + ISNULL(p.OMS_Charges_Amount, 0) - ISNULL(p2.applied_amount, 0)) AS Amount
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHDEPOSIT] p
+LEFT JOIN (
     SELECT DISTINCT
-        p.[ID_Company] AS [ID_Company],
-        p.[OMS_Payment_Date] AS Event_date,
-        p.OMS_Collection_Partner AS CP,
-        p.OMS_Type AS Transaction_Type,
-        p.OMS_Payment_No AS Related_entity,
-        -(ISNULL(p.OMS_Payment_Amount, 0) + ISNULL(p.OMS_Charges_Amount, 0) - ISNULL(p2.applied_amount, 0)) AS Amount
-    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHDEPOSIT] p
-    LEFT JOIN (
-        SELECT DISTINCT
-            p1.[ID_Company] AS [ID_Company],
-            p1.[OMS_Payment_No],
-            SUM(ISNULL(p1.[OMS_Payment_Reconciled_Amount], 0) + ISNULL(p1.[OMS_Payment_Charges_Reconciled_Amount], 0)) AS applied_amount
-        FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS] p1
-        WHERE p1.[OMS_Packlist_Created_Date] < @subsequentmonth
-          AND p1.[OMS_Payment_Date] < @subsequentmonth
-          AND p1.[OMS_Payment_Status] IN ('inProgress', 'closed', 'waitingConfirmation')
-          AND OMS_PAYMENT_RECONCILED_AMOUNT IS NOT NULL
-        GROUP BY p1.[ID_Company], p1.[OMS_Payment_No]
-    ) p2 ON p2.ID_Company = p.[ID_Company]
-         AND p.OMS_Payment_No = p2.OMS_Payment_No
-    LEFT JOIN (
-        SELECT DISTINCT
-            [ID_Company] AS [ID_Company],
-            OMS_entity_No, OMS_Force_Closed
-        FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_COLLECTIONADJ]
-        WHERE OMS_Entity_Type <> 'packlist'
-          AND ((OMS_Force_Closed = 1 AND (OMS_Close_Date < @subsequentmonth OR OMS_Close_Date IS NULL)) OR OMS_Close_Date < @subsequentmonth)
-    ) fc ON fc.ID_Company =  p.[ID_Company]
-         AND fc.OMS_Entity_No = p.OMS_Payment_No
-    WHERE p.OMS_Payment_Date < @subsequentmonth
-      AND (ISNULL(p.OMS_Payment_Amount, 0) + ISNULL(p.OMS_Charges_Amount, 0) - ISNULL(p2.applied_amount, 0)) > 0
-      AND fc.OMS_Force_Closed IS NULL
-      AND p.OMS_Payment_Status IN ('inProgress', 'closed', 'waitingConfirmation')
+        p1.[ID_Company] AS [ID_Company],
+        p1.[OMS_Payment_No],
+        SUM(ISNULL(p1.[OMS_Payment_Reconciled_Amount], 0) + ISNULL(p1.[OMS_Payment_Charges_Reconciled_Amount], 0)) AS applied_amount
+    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS] p1
+    WHERE p1.[OMS_Packlist_Created_Date] < DATEADD(day, 1, '{cutoff_date}')
+    AND p1.[OMS_Payment_Date] < DATEADD(day, 1, '{cutoff_date}')
+    AND p1.[OMS_Payment_Status] IN ('inProgress', 'closed', 'waitingConfirmation')
+    AND OMS_PAYMENT_RECONCILED_AMOUNT IS NOT NULL
+    GROUP BY p1.[ID_Company], p1.[OMS_Payment_No]
+) p2 ON p2.ID_Company = p.[ID_Company]
+AND p.OMS_Payment_No = p2.OMS_Payment_No
+LEFT JOIN (
+    SELECT DISTINCT
+        [ID_Company] AS [ID_Company],
+        OMS_entity_No, OMS_Force_Closed
+    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_COLLECTIONADJ]
+    WHERE OMS_Entity_Type <> 'packlist'
+    AND ((OMS_Force_Closed = 1 AND (OMS_Close_Date < DATEADD(day, 1, '{cutoff_date}') OR OMS_Close_Date IS NULL)) OR OMS_Close_Date < DATEADD(day, 1, '{cutoff_date}'))
+) fc ON fc.ID_Company = p.[ID_Company]
+AND fc.OMS_Entity_No = p.OMS_Payment_No
+WHERE p.OMS_Payment_Date < DATEADD(day, 1, '{cutoff_date}')
+AND (ISNULL(p.OMS_Payment_Amount, 0) + ISNULL(p.OMS_Charges_Amount, 0) - ISNULL(p2.applied_amount, 0)) > 0
+AND fc.OMS_Force_Closed IS NULL
+AND p.OMS_Payment_Status IN ('inProgress', 'closed', 'waitingConfirmation')
 ) a
 LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_HUBS_3PL_MAPPING] sn
     ON sn.ID_COMPANY = a.[ID_Company] AND sn.[NODE] = a.cp
@@ -678,23 +673,20 @@ LEFT JOIN (
     SELECT * FROM [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]
     WHERE [Flg_In_Conso_Scope] = 1
 ) comp ON a.[ID_Company] = comp.[Company_Code]
--- BANK ACCOUNT JOIN
 LEFT JOIN (
     SELECT DISTINCT
-        CONCAT(
-            bk.ID_company,
-            bk.[Service Provider No_]
-        ) AS CP_Key,
+        CONCAT(bk.ID_company,bk.[Service Provider No_]) AS CP_Key,
         bank_acc_post.[G_L Bank Account No_]
     FROM [AIG_Nav_DW].[dbo].[Bank Accounts] bk
     LEFT JOIN [AIG_Nav_DW].[dbo].[Bank Account Posting Group] bank_acc_post
         ON bank_acc_post.[ID_Company] = bk.[ID_Company]
         AND bank_acc_post.[Code] = bk.[Bank Account Posting Group]
     WHERE (bk.[Service Provider No_] IS NOT NULL AND bk.[Service Provider No_] <> '')
-      AND bank_acc_post.[G_L Bank Account No_] <> '10058'
+    AND bank_acc_post.[G_L Bank Account No_] <> '10058'
 ) bankacc
-ON bankacc.CP_Key = CONCAT(a.[ID_Company], cp.ERP_Name)
-WHERE Company_Country not in ('TN','TZ','ZA')""",
+    ON bankacc.CP_Key = CONCAT(a.[ID_Company], cp.ERP_Name)
+WHERE Company_Country not in ('TN','TZ','ZA')
+""",
         
     ),
     CatalogItem(
