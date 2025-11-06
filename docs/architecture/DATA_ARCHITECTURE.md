@@ -146,11 +146,14 @@ Every IPE extraction generates a complete Digital Evidence Package:
 
 ```bash
 # Database connection (via Teleport)
-DB_CONNECTION_STRING="DRIVER={ODBC Driver 17 for SQL Server};SERVER=fin-sql.jumia.local;..."
+# Note: Actual credentials are managed by Teleport - no passwords stored locally
+DB_CONNECTION_STRING="DRIVER={ODBC Driver 17 for SQL Server};SERVER=fin-sql.jumia.local;Trusted_Connection=yes"
 
 # Execution parameters
 CUTOFF_DATE="2025-09-30"
 ```
+
+**Security Note**: Authentication is handled entirely by Teleport. No database passwords or credentials are stored in environment variables or configuration files.
 
 ---
 
