@@ -1,49 +1,47 @@
-# SOXauto Data Architecture - The Two Paths
+# SOXauto Data Architecture - Teleport Connection
 
-**Date**: 17 October 2025  
-**Critical Understanding**: You're connecting to TWO different environments for TWO different purposes
-
----
-
-## 🎯 Overview: Manual vs. Automated
-
-SOXauto operates in a **dual-access architecture** common in large enterprises:
-
-1. **Manual Path**: Human developers → Teleport Jump Server → SQL Server (for exploration)
-2. **Automated Path**: Python Script → AWS Athena → S3 Data Lake (for production)
+**Date**: 06 November 2025  
+**Architecture**: Direct connection to on-premises SQL Server via Teleport secure tunnel
 
 ---
 
-## 📊 Architecture Comparison
+## 🎯 Overview: Secure Database Access
 
-| Aspect | Manual Connection (Exploration) | **Automated Script (Production)** |
-|--------|--------------------------------|-----------------------------------|
-| **Tool** | SQL Server Management Studio (SSMS) | **Python Script (`awswrangler`)** |
-| **Server** | `fin-sql.jumia.local` | **AWS Athena API** |
-| **Authentication** | Windows Authentication via Teleport | **Okta → AWS IAM Role** |
-| **Data Location** | Live SQL Server Database | **Files on Amazon S3** |
-| **Access Method** | Jump Server (`BA-RDS-JUMP...`) | **AWS SDK (boto3)** |
-| **Purpose** | Manual investigation, ad-hoc queries | **Automated IPE extraction** |
-| **Connection String** | `DRIVER={...};SERVER=fin-sql.jumia.local;...` | **No connection string (S3 + Athena)** |
-| **Database Protocol** | SQL Server (TDS) | **HTTP/HTTPS (REST API)** |
-| **Result Format** | SSMS result grid | **Pandas DataFrame** |
+SOXauto connects directly to the on-premises SQL Server database using:
+
+1. **Connection Method**: Teleport (`tsh`) secure tunnel
+2. **Database Server**: `fin-sql.jumia.local` (SQL Server)
+3. **Runner Module**: `src/core/runners/mssql_runner.py`
+4. **Authentication**: Teleport-managed credentials
 
 ---
 
-## 🔍 Path 1: Manual Connection (Jump Server)
+## 📊 Architecture Details
 
-### How You Access Data Manually
+| Aspect | Implementation |
+|--------|----------------|
+| **Connection Tool** | Teleport (`tsh`) |
+| **Server** | `fin-sql.jumia.local` |
+| **Authentication** | Teleport-managed (no local credentials) |
+| **Data Location** | Live SQL Server Database |
+| **Access Method** | Secure tunnel via Teleport |
+| **Purpose** | Automated IPE extraction with SOX compliance |
+| **Database Protocol** | SQL Server (TDS) over Teleport tunnel |
+| **Result Format** | Pandas DataFrame |
+| **Evidence Generation** | Full Digital Evidence Package (SHA-256 hashes) |
+
+---
+
+## 🔍 Connection Flow
+
+### How SOXauto Accesses Data
 
 ```
-Developer (You)
+SOXauto Application
     ↓
-[Authenticate via Okta]
+[Authenticate via Teleport]
     ↓
-Teleport Jump Server (BA-RDS-JUMP...)
-    ↓
-[Windows Authentication: JUMIA\username]
-    ↓
-SQL Server Management Studio (SSMS)
+Teleport Secure Tunnel (tsh)
     ↓
 fin-sql.jumia.local (SQL Server)
     ↓
@@ -51,298 +49,166 @@ Databases:
   - NAV_BI (AIG_Nav_DW)
   - FINREC
   - BOB
+    ↓
+mssql_runner.py extracts data
+    ↓
+Evidence Manager generates audit trail
 ```
 
 ### Connection Details
 
 **Server**: `fin-sql.jumia.local`  
-**Authentication**: Windows Authentication (`JUMIA\username`)  
-**Access Tool**: SQL Server Management Studio (SSMS)  
-**Access Via**: Teleport Jump Server  
+**Authentication**: Teleport-managed  
+**Access Tool**: Python with pyodbc via Teleport tunnel  
+**Access Via**: Teleport secure tunnel  
 
-### Example Manual Query
+### Example Query via mssql_runner.py
 
-```sql
--- Run this in SSMS on the jump server
-SELECT TOP 100 *
-FROM [AIG_Nav_DW].[dbo].[G_L Entries]
-WHERE [Posting Date] < '2025-09-30'
+```python
+from src.core.runners.mssql_runner import IPERunner
+from src.core.catalog.cpg1 import get_ipe_config
+
+# Load IPE configuration
+config = get_ipe_config('IPE_07')
+
+# Execute via Teleport tunnel
+runner = IPERunner(config, cutoff_date='2025-09-30')
+df = runner.run()  # Returns pandas DataFrame with validation
 ```
 
-### Why This Path Exists
+### Why This Architecture
 
-- 🔍 **Exploration**: Ad-hoc queries and investigation
-- 🐛 **Debugging**: Validate data quality
-- 📊 **Analysis**: Quick lookups and manual reports
-- 🎓 **Learning**: Understand schema and data
-
-### ⚠️ Why Your Script CANNOT Use This Path
-
-- ❌ Cannot programmatically login to Windows jump server
-- ❌ No automation support for Teleport authentication
-- ❌ Not designed for scheduled, unattended execution
-- ❌ Security restrictions prevent direct SQL Server access from AWS
+- 🔒 **Security**: Teleport manages all credentials and access
+- 🤖 **Automation**: Supports scheduled, unattended execution  
+- 📊 **Compliance**: Full audit trail via Teleport logging
+- 🎯 **Direct Access**: No intermediate data lakes or ETL
+- ✅ **SOX Compliant**: Digital Evidence Package for every extraction
 
 ---
 
-## 🚀 Path 2: Automated Connection (AWS Athena)
+## 🗄️ Database Structure
 
-### How Your Script Accesses Data
+### Available Databases on fin-sql.jumia.local
 
-```
-Python Script (SOXauto)
-    ↓
-[Okta Authentication]
-    ↓
-AWS IAM Role (temporary credentials)
-    ↓
-AWS Athena API
-    ↓
-Query Execution on S3 Data
-    ↓
-Amazon S3 Buckets:
-  - s3://athena-query-results-s3-ew1-production-jdata/
-  - s3://artifact-central-fin-dwh-s3-ew1-production-jdata/
-  - s3://artifact-central-finrec-s3-ew1-production-jdata/
-    ↓
-Results → Pandas DataFrame
-```
+| Database | Description | Primary Use |
+|----------|-------------|-------------|
+| NAV_BI (AIG_Nav_DW) | Main data warehouse | General ledger, customer balances |
+| FINREC | Financial reconciliation | Reconciliation data |
+| BOB | Back Office Banking | BOB-specific operations |
 
-### Connection Details
+### Example Tables
 
-**Query Engine**: AWS Athena  
-**Data Storage**: Amazon S3 (Parquet, CSV, or other formats)  
-**Authentication**: Okta → AWS IAM Role  
-**Access Tool**: Python (`awswrangler`, `boto3`)  
-**Profile**: `007809111365_Data-Prod-DataAnalyst-NonFinance`  
-
-### Example Automated Query
-
-```python
-import awswrangler as wr
-
-# Query Athena (not SQL Server!)
-df = wr.athena.read_sql_query(
-    sql="SELECT * FROM nav_bi.g_l_entries WHERE posting_date < DATE('2025-09-30')",
-    database="nav_bi",
-    s3_output="s3://athena-query-results-s3-ew1-production-jdata/"
-)
-```
-
-### Why This Path Exists
-
-- 🤖 **Automation**: Scheduled, unattended execution
-- 🔒 **Security**: IAM roles, no hardcoded credentials
-- 📈 **Scalability**: Process millions of rows efficiently
-- 🌐 **Cloud-Native**: Integrates with AWS services
-- 💰 **Cost-Effective**: Pay per query (no idle servers)
+| Database | Table | Description |
+|----------|-------|-------------|
+| NAV_BI (AIG_Nav_DW) | `[dbo].[G_L Entries]` | General ledger entries |
+| NAV_BI (AIG_Nav_DW) | `[dbo].[Customer Ledger Entry]` | Customer transactions |
+| FINREC | `[dbo].[RPT_SOI]` | Statement of Income reporting |
+| BOB | `[dbo].[orders]` | BOB orders |
 
 ---
 
-## 🗄️ Database Mapping
+## 🔐 Security & Compliance
 
-### SQL Server → Athena Translation
+### Teleport Security Features
 
-| SQL Server Database | SQL Server Table | **Athena Database** | **Athena Table** |
-|---------------------|------------------|---------------------|------------------|
-| NAV_BI (AIG_Nav_DW) | `[dbo].[G_L Entries]` | `nav_bi` | `g_l_entries` (?) |
-| FINREC | `[dbo].[RPT_SOI]` | `finrec` | `rpt_soi` (?) |
-| BOB | `[dbo].[orders]` | `bob` | `orders` (?) |
+- **No Local Credentials**: All authentication managed by Teleport
+- **Audit Logging**: Complete connection and query audit trail
+- **Session Recording**: All database sessions can be recorded
+- **Access Control**: Fine-grained permissions via Teleport roles
+- **Certificate-Based Auth**: Short-lived certificates instead of passwords
 
-**⚠️ IMPORTANT**: Table and database names in Athena may differ from SQL Server. **You must confirm these with Carlos/Joao**.
+### SOX Compliance
 
-### Known S3 Buckets (From Your Access)
+Every IPE extraction generates a complete Digital Evidence Package:
 
-```
-✅ artifact-central-fin-dwh-s3-ew1-production-jdata
-✅ artifact-central-finrec-s3-ew1-production-jdata
-✅ athena-query-results-s3-ew1-production-jdata
-```
-
-These buckets likely contain:
-- `fin-dwh`: Financial data warehouse (NAV_BI equivalent)
-- `finrec`: Financial reconciliation data (FINREC equivalent)
-- `athena-query-results`: Athena query output staging area
+1. **01_executed_query.sql** - Exact SQL query executed
+2. **02_query_parameters.json** - Parameters used
+3. **03_data_snapshot.csv** - Data snapshot (first 100 rows)
+4. **04_data_summary.json** - Statistical summary
+5. **05_integrity_hash.json** - SHA-256 hash of complete dataset
+6. **06_validation_results.json** - SOX validation results
+7. **07_execution_log.json** - Complete execution log
 
 ---
 
-## 🔄 Data Flow: SQL Server → S3 → Athena
+## 🛠️ Implementation
 
-```
-[SQL Server: fin-sql.jumia.local]
-         ↓
-    ETL Pipeline (AWS Glue? or other)
-         ↓
-[Amazon S3: s3://artifact-central-fin-dwh-s3-ew1-production-jdata/]
-         ↓
-    AWS Glue Crawler (schema discovery)
-         ↓
-[AWS Glue Data Catalog]
-         ↓
-[AWS Athena: Query Interface]
-         ↓
-[Your Python Script: awswrangler.athena.read_sql_query()]
-```
+### Core Components
 
-### Key Points
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| **IPE Runner** | `src/core/runners/mssql_runner.py` | Executes IPE queries |
+| **Evidence Manager** | `src/core/evidence/manager.py` | Generates SOX evidence |
+| **IPE Catalog** | `src/core/catalog/cpg1.py` | IPE definitions |
+| **Orchestrator** | `src/orchestrators/workflow.py` | Workflow coordination |
 
-1. **Data is Replicated**: SQL Server data is copied/streamed to S3
-2. **S3 is the Source of Truth** for your script
-3. **Athena is a Virtual Database**: No actual database server, just an API that queries S3 files
-4. **Glue Catalog**: Metadata about tables, schemas, partitions
-
----
-
-## 🛠️ Required Changes to SOXauto
-
-### ❌ What to REMOVE
-
-```python
-# ❌ REMOVE: pyodbc connection to SQL Server
-import pyodbc
-connection = pyodbc.connect("DRIVER={...};SERVER=fin-sql.jumia.local;...")
-```
-
-```python
-# ❌ REMOVE: DB_CONNECTION_STRING environment variable (for SQL Server)
-os.environ['DB_CONNECTION_STRING'] = "..."
-```
-
-```python
-# ❌ REMOVE: AWSSecretsManager for DB credentials
-secret_manager = AWSSecretsManager()
-connection_string = secret_manager.get_secret('jumia/sox/db-credentials-nav-bi')
-```
-
-### ✅ What to ADD
-
-```python
-# ✅ ADD: awswrangler for Athena queries
-import awswrangler as wr
-
-# ✅ ADD: Athena query execution
-df = wr.athena.read_sql_query(
-    sql=query,
-    database="nav_bi",  # Athena database name (confirm this!)
-    s3_output="s3://athena-query-results-s3-ew1-production-jdata/"
-)
-```
-
-```python
-# ✅ ADD: Environment variables for Athena
-os.environ['ATHENA_DATABASE'] = 'nav_bi'
-os.environ['ATHENA_S3_OUTPUT'] = 's3://athena-query-results-s3-ew1-production-jdata/'
-```
-
----
-
-## 📝 Updated IPE Configuration
-
-### Old Configuration (SQL Server)
-
-```json
-{
-  "ipe_id": "IPE_07",
-  "secret_name": "jumia/sox/db-credentials-nav-bi",
-  "query": "SELECT * FROM [AIG_Nav_DW].[dbo].[G_L Entries] WHERE ..."
-}
-```
-
-### New Configuration (Athena)
-
-```json
-{
-  "ipe_id": "IPE_07",
-  "athena_database": "nav_bi",
-  "athena_s3_output": "s3://athena-query-results-s3-ew1-production-jdata/",
-  "query": "SELECT * FROM g_l_entries WHERE posting_date < DATE('2025-09-30')"
-}
-```
-
----
-
-## 🎯 Immediate Next Steps
-
-### 1. Confirm Athena Resources
-
-**Ask Carlos/Joao**:
-```
-"What are the exact names of the Athena databases and tables that correspond to:
-- NAV_BI (AIG_Nav_DW) → Athena database: ?
-- FINREC → Athena database: ?
-- BOB → Athena database: ?
-
-Specifically, what are the Athena table names for:
-- [G_L Entries] → ?
-- [RPT_SOI] → ?
-- [Orders] → ?
-"
-```
-
-### 2. Confirm Authentication Process
-
-**Ask Carlos/Joao**:
-```
-"What is the exact process for our Python script to programmatically authenticate 
-via Okta to get AWS credentials?
-
-- Do we use aws-okta CLI?
-- Do we use boto3 with SSO profiles?
-- Is there an existing service account or role we should use?
-"
-```
-
-### 3. Test Athena Access
+### Environment Variables
 
 ```bash
-# Test if you can list Athena databases
-aws athena list-databases --catalog-name AwsDataCatalog --profile 007809111365_Data-Prod-DataAnalyst-NonFinance
+# Database connection (via Teleport)
+# Note: Actual credentials are managed by Teleport - no passwords stored locally
+DB_CONNECTION_STRING="DRIVER={ODBC Driver 17 for SQL Server};SERVER=fin-sql.jumia.local;Trusted_Connection=yes"
 
-# Test if you can query Athena
-aws athena start-query-execution \
-  --query-string "SHOW DATABASES" \
-  --result-configuration "OutputLocation=s3://athena-query-results-s3-ew1-production-jdata/" \
-  --profile 007809111365_Data-Prod-DataAnalyst-NonFinance
+# Execution parameters
+CUTOFF_DATE="2025-09-30"
+```
+
+**Security Note**: Authentication is handled entirely by Teleport. No database passwords or credentials are stored in environment variables or configuration files.
+
+---
+
+## 📝 IPE Configuration Example
+
+```python
+{
+    "id": "IPE_07",
+    "description": "Customer balances - Monthly balances at date",
+    "secret_name": "jumia/sox/db-credentials-nav-bi",
+    "main_query": """
+        SELECT [Customer No_], [Customer Name], [Posting Date], [Amount]
+        FROM [AIG_Nav_DW].[dbo].[Customer Ledger Entry]
+        WHERE [Posting Date] <= ?
+    """,
+    "validation": {
+        "completeness_query": "...",
+        "accuracy_positive_query": "...",
+        "accuracy_negative_query": "..."
+    }
+}
 ```
 
 ---
 
-## 🔒 Security Model
+## 🔄 Data Flow
 
-### Manual Path (Jump Server)
-
-- **Authentication**: Windows Active Directory (JUMIA\username)
-- **Authorization**: SQL Server permissions
-- **Access Control**: Teleport session recording
-- **Audit**: SQL Server audit logs
-
-### Automated Path (Athena)
-
-- **Authentication**: Okta → AWS STS temporary credentials
-- **Authorization**: AWS IAM policies
-- **Access Control**: S3 bucket policies + Athena permissions
-- **Audit**: AWS CloudTrail logs
-
----
-
-## 📚 Related Documentation
-
-- [OKTA_AWS_SETUP.md](../setup/OKTA_AWS_SETUP.md) - AWS authentication
-- [DATABASE_CONNECTION.md](../setup/DATABASE_CONNECTION.md) - Connection methods (now deprecated for SQL Server)
-- [CONNECTION_STATUS.md](../setup/CONNECTION_STATUS.md) - Current AWS access status
+```
+1. Orchestrator triggers IPE execution
+         ↓
+2. IPERunner loads configuration from catalog
+         ↓
+3. Establish Teleport tunnel connection
+         ↓
+4. Execute SQL query on fin-sql.jumia.local
+         ↓
+5. Load results into Pandas DataFrame
+         ↓
+6. Run SOX validation queries
+         ↓
+7. Generate Digital Evidence Package
+         ↓
+8. Save evidence to local directory
+         ↓
+9. Return validated data to orchestrator
+```
 
 ---
 
-## 💡 Key Takeaways
+## 📚 References
 
-1. **Two Separate Worlds**: Manual (SQL Server) ≠ Automated (Athena/S3)
-2. **Your Script Uses Athena**: No direct SQL Server connection
-3. **S3 is the Data Source**: Data is replicated from SQL Server to S3
-4. **awswrangler is Key**: Use this library instead of pyodbc
-5. **Confirm Everything**: Table names, database names, authentication method
+- **Teleport Documentation**: [https://goteleport.com/docs/](https://goteleport.com/docs/)
+- **SQL Server Documentation**: [https://learn.microsoft.com/en-us/sql/](https://learn.microsoft.com/en-us/sql/)
+- **SOX Compliance**: [https://www.sox-online.com/](https://www.sox-online.com/)
 
 ---
 
-**Status**: ✅ Architecture Understood  
-**Next**: Confirm Athena resources and refactor code  
-**Impact**: Major refactoring required, but architecture is clearer
+**Last Updated**: 06 November 2025

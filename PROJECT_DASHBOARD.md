@@ -1,15 +1,15 @@
 # PROJECT DASHBOARD — SOXauto PG-01
 
-> Source of truth for current priorities, status, and links. Updated: 2025-10-24
+> Source of truth for current priorities, status, and links. Updated: 2025-11-06
 
 ## Objectives
 
-- Phase 1 (priority): Replicate the manual reconciliation process via MSSQL as described in `docs/development/TODO_MANUAL_PROCESS.md`.
-- Phase 2 (target): Gradually migrate eligible IPEs to the AWS Athena architecture.
+- Phase 1 (current): Direct connection to SQL Server (`fin-sql.jumia.local`) via Teleport secure tunnel using `mssql_runner.py`.
+- Replicate the manual reconciliation process as described in `docs/development/TODO_MANUAL_PROCESS.md`.
 
 ## Recent decisions
 
-- Use a read-only MSSQL service account for direct access to the Data Warehouse (no intermediate ETL). Athena ingestion returns as a phase 2 target.
+- Use a read-only MSSQL service account for direct access to the Data Warehouse.
 - While credentials are pending, progress in “offline mode” with a mocked MSSQL runner returning a test DataFrame and integrate the Digital Evidence Manager end to end.
 - Orchestrate via `scripts/run_full_reconciliation.py` driven by the catalog.
 
@@ -23,7 +23,7 @@
 
 Notes:
 
-- Statuses above describe the MSSQL phase replicating the manual process. The Athena target will follow.
+- All IPEs now connect via Teleport secure tunnel to on-premises SQL Server.
 - Update as work progresses (In progress, Blocked, Done) and add the owner.
 
 ## Current blockers (top-1)

@@ -24,13 +24,13 @@
                           [ AUTOMATION TARGET ]
                                     ↓
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                      AUTOMATED PROCESS (TARGET)                           │
+│                      AUTOMATED PROCESS (PRODUCTION)                       │
 │                                                                            │
-│  Step 1: Execute Athena queries (via Python awswrangler)                  │
+│  Step 1: Execute SQL queries via Teleport tunnel (mssql_runner.py)        │
 │  Step 2: Process results in pandas DataFrames                             │
 │  Step 3: Aggregate components programmatically                            │
 │  Step 4: Perform reconciliation                                           │
-│  Step 5: Generate evidence JSON automatically                             │
+│  Step 5: Generate Digital Evidence Package automatically                  │
 │                                                                            │
 │  Time Required: < 5 minutes                                               │
 └──────────────────────────────────────────────────────────────────────────┘
@@ -98,36 +98,36 @@
 
 ---
 
-### Target Automated Process
+### Current Automated Process
 
 ```
-                      AWS ATHENA SOURCES
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-        ▼                     ▼                     ▼
-┌───────────────┐   ┌────────────────┐   ┌────────────┐
-│process_central│   │process_central │   │process_pg  │
-│  _fin_dwh     │   │  _fin_dwh      │   │  _bob      │
-│               │   │                │   │            │
-│• customer_    │   │• rpt_soi       │   │• v_store   │
-│  ledger_*     │   │• rpt_cashrec_* │   │  credit    │
-│• v_bs_anaplan │   │• rpt_fx_rates  │   │  voucher   │
-└───────────────┘   └────────────────┘   └────────────┘
-        │                     │                     │
-        └─────────────────────┴─────────────────────┘
-                              │
-                              ▼
-            ┌──────────────────────────────────┐
-            │   PYTHON IPERunner (SINGLE APP)  │
-            │                                  │
-            │  1. Execute 12 Athena queries    │
-            │     via awswrangler              │
-            │                                  │
-            │  2. Load results into pandas DFs │
-            │                                  │
-            │  3. Apply business logic:        │
-            │     • Filter by GL accounts      │
+              SQL SERVER (via Teleport)
+                          │
+    ┌─────────────────────┼─────────────────────┐
+    │                     │                     │
+    ▼                     ▼                     ▼
+┌───────────┐   ┌────────────────┐   ┌────────────┐
+│  NAV_BI   │   │    FINREC      │   │    BOB     │
+│ (AIG_Nav  │   │                │   │            │
+│   _DW)    │   │                │   │            │
+│           │   │• rpt_soi       │   │• orders    │
+│• customer_│   │• rpt_cashrec_* │   │• vouchers  │
+│  ledger_* │   │• rpt_fx_rates  │   │            │
+└───────────┘   └────────────────┘   └────────────┘
+    │                     │                     │
+    └─────────────────────┴─────────────────────┘
+                          │
+                          ▼
+        ┌──────────────────────────────────┐
+        │   PYTHON IPERunner (SINGLE APP)  │
+        │                                  │
+        │  1. Execute SQL queries via      │
+        │     Teleport tunnel              │
+        │                                  │
+        │  2. Load results into pandas DFs │
+        │                                  │
+        │  3. Apply business logic:        │
+        │     • Filter by GL accounts      │
             │     • Filter by date ranges      │
             │     • Aggregate by country       │
             │                                  │
