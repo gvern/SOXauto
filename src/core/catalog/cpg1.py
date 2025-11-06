@@ -225,14 +225,28 @@ DROP TABLE ##temp2;
         descriptor_excel=None,
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]", system="NAV", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]", system="NAV", domain="FinRec"),
         ],
-        sql_query="""SELECT [Base_Currency]
-            ,[Quote_Currency]
-            ,[Rate_Date]
-            ,[bid]
-            FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES_DAILY]
-            where year([Rate_Date]) in ('2025','2024','2023')
-            and [Base_Currency] in ('EUR','USD','AED','GBP')""",
+        sql_query="""SELECT DISTINCT
+    b.Company_Code,
+    [base_currency],
+    [final_currency],
+    [rate],
+    month,
+    [rate_type]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES] a
+LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] b
+    ON a.final_currency = b.Company_Currency
+WHERE yeaR = {year}
+AND cod_month = {month}
+AND base_currency = 'USD'
+AND rate_type = 'Closing'
+AND b.Company_Code IN (
+    'EC_IC','EC_KE','EC_MA','EC_NG','HF_SN','JD_DZ',
+    'JD_GH','JD_UG','JD_ZA','JM_EG','JM_TN','JT_EG'
+)
+ORDER BY month ASC
+""",
     ),
     CatalogItem(
         item_id="CR_05a",
