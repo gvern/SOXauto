@@ -13,6 +13,7 @@ Notes
 
 from dataclasses import dataclass, asdict
 from typing import List, Optional, Dict, Any
+import os
 
 
 @dataclass
@@ -58,6 +59,25 @@ def _src_excel(location: str) -> CatalogSource:
 
 def _src_gdrive(location: str) -> CatalogSource:
     return CatalogSource(type="GoogleDrive", location=location)
+
+
+def _load_sql(item_id: str) -> str:
+    """Load SQL query from external .sql file in queries/ subdirectory."""
+    queries_dir = os.path.join(os.path.dirname(__file__), "queries")
+    sql_file = os.path.join(queries_dir, f"{item_id}.sql")
+    
+    try:
+        with open(sql_file, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"SQL query file not found for item '{item_id}'. "
+            f"Expected file: {sql_file}"
+        )
+    except IOError as e:
+        raise IOError(
+            f"Error reading SQL query file for item '{item_id}': {e}"
+        )
 
 
 # Catalog entries populated from user's provided list
@@ -111,95 +131,7 @@ CPG1_CATALOG: List[CatalogItem] = [
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Busline]", system="NAV", domain="FinRec"),
             _src_sql("[AAN_Nav_Jumia_Reconciliation].[dbo].[Customers]", system="NAV", domain="NAVBI"),
         ],
-    sql_query="""
-IF OBJECT_ID('tempdb..##temp') IS NOT NULL DROP TABLE ##temp;
-IF OBJECT_ID('tempdb..##temp2') IS NOT NULL DROP TABLE ##temp2;
-
-select * into ##temp from (
-    SELECT [id_company]
-    ,[Customer No_]
-    ,sum([Amount (LCY)]) rem_bal_LCY
-    FROM [AIG_Nav_DW].[dbo].[Detailed Customer Ledg_ Entry]
-    WHERE [Posting Date] <= '{cutoff_date}'
-    GROUP BY [id_company],[Customer No_]
-    Having sum([Amount (LCY)]) <> 0
-) a;
-
-CREATE NONCLUSTERED INDEX IDX_Temp
-ON ##temp ([ID_company],[Customer No_])
-INCLUDE (rem_bal_LCY);
-
-select * into ##temp2 from (
-    SELECT [id_company]
-    ,[Cust_ Ledger Entry No_]
-    ,sum([Amount (LCY)]) rem_amt_LCY
-    FROM [AIG_Nav_DW].[dbo].[Detailed Customer Ledg_ Entry]
-    WHERE [Posting Date] <= '{cutoff_date}'
-    GROUP BY [id_company],[Cust_ Ledger Entry No_]
-    Having sum([Amount (LCY)]) <> 0
-) b;
-
-CREATE NONCLUSTERED INDEX IDX_Temp2
-ON ##temp2 ([ID_company],[Cust_ Ledger Entry No_])
-INCLUDE (rem_amt_LCY);
-
-SELECT cle.[id_company]
-,comp.Company_Country
-,comp.[Opco/Central_?]
-,cle.[Entry No_]
-,cle.[GL Entry No_]
-,cle.[Document No_]
-,cle.[Document Type]
-,cle.[External Document No_]
-,cle.[Posting Date]
-,cle.[Customer No_]
-,cst.[Name] 'Customer Name'
-,cst.[Busline Code] 'Customer Busline'
-,cst.[Automatically integrated]
-,cst.[Customer Posting Group] currentpostinggroup
-,cst.[Stream],cle.[Customer Posting Group]
-,cle.[Description]
-,cle.[Source Code]
-,cle.[Reason Code]
-,cle.[Busline Code]
-,bl.[Busline_Vertical_Name_1]
-,bl.[Busline_Vertical_Name_2]
-,bl.[Busline_Vertical_Name_3]
-,cle.[Department Code]
-,cle.[Original Amount]
-,cle.[Currency]
-,cle.[Original Amount (LCY)]
-,dcle_2.rem_amt_LCY
-,cle.[Open],cle.[Due Date]
-,cle.[Posted by]
-,cle.[Destination Code]
-,cle.[Partner Code]
-,cle.[IC Partner Code]
-,CASE WHEN EOMONTH(cle.[Due Date]) < EOMONTH(GETDATE()) THEN 'Credit'
-    WHEN EOMONTH(cle.[Due Date]) > EOMONTH(GETDATE()) THEN 'Debit'
-    ELSE 'Due Month' END 'Debit_Credit_DueMonth'
-FROM [AIG_Nav_DW].[dbo].[Customer Ledger Entries] cle
-INNER JOIN ##temp dcle
-    on cle.ID_company=dcle.ID_company and cle.[Customer No_]=dcle.[Customer No_]
-INNER JOIN ##temp2 dcle_2
-    on cle.ID_company=dcle_2.ID_company and cle.[Entry No_]=dcle_2.[Cust_ Ledger Entry No_]
-LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] comp
-    on comp.Company_Code=cle.id_company
-LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Busline] bl
-    on bl.[Company_Code]=cle.id_company and bl.[Busline_Code]=cle.[Busline Code]
-LEFT JOIN [AAN_Nav_Jumia_Reconciliation].[dbo].[Customers] cst
-    on cst.[id_company]=cle.id_company and cst.[No_]=cle.[Customer No_]
-WHERE cle.[Posting Date] <= '{cutoff_date}'
-and cle.[Customer Posting Group] in (
-    'LOAN-REC-NAT', 'B2B-NG-NAT','B2C-NG-NAT','B2C-NG-INT','NTR-NG-NAT',
-    'B2B-NG-INT','NTR-NG-INT','UE','INL','EXPORT','EU','NATIONAL',
-    'OM','NAT','AUS','EXCB2B-NAT','EMP-NAT'
-)
-and comp.Flg_In_Conso_Scope = 1;
-
-DROP TABLE ##temp;
-DROP TABLE ##temp2;
-""",
+        sql_query=_load_sql("IPE_07"),
     ),
     CatalogItem(
         item_id="CR_05",
@@ -227,35 +159,7 @@ DROP TABLE ##temp2;
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]", system="NAV", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Country]", system="NAV", domain="FinRec"),
         ],
-        sql_query="""SELECT
-    comp.[Company_Code],
-    comp.[Company_Name],
-    comp.[Opco/Central_?],
-    comp.[Company_Country],
-    comp.[Is_Active?],
-    fx.[rate_type],
-    fx.[year],
-    fx.[cod_month],
-    case
-        when c.[Country_Name] in ('United States of America') or (c.[Country_Name] in ('Germany') and right(comp.[Company_Code],4)='_USD')
-        then 1
-        else fx.rate
-    end FX_rate,
-    c.[Country_Name]
-FROM [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] comp
-left join (
-    Select [country_code],[rate_type],[year],[cod_month],[rate]
-    from [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]
-    where [year] = {year}
-    and [cod_month] = {month}
-    and [rate_type] = 'Closing'
-    and [base_currency] = 'USD'
-    and country <> 'United arab emirates (the)'
-) fx
-    on fx.country_code = comp.Company_Country
-left join [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Country] c
-    on comp.[Company_Country] = c.[Country_Code]
-""",
+        sql_query=_load_sql("CR_05"),
     ),
     CatalogItem(
         item_id="CR_05a",
@@ -277,10 +181,7 @@ left join [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Country] c
         sources=[
             _src_sql("[D365BC14_DZ].[dbo].[Jade DZ$Currency Exchange Rate]", system="NAV", domain="FinRec"),
         ],
-    sql_query="""SELECT TOP (1) [Currency Code],year([Starting Date]) year,month([Starting Date]) month,[Relational Exch_ Rate Amount]
-FROM [D365BC14_DZ].[dbo].[Jade DZ$Currency Exchange Rate]
-WHERE [Currency Code] = 'USD'
-and [Starting Date] = '{fx_date}'""",
+        sql_query=_load_sql("CR_05a"),
         
     ),
     CatalogItem(
@@ -344,71 +245,7 @@ On a monthly basis the group head of shared accounting formalizes the outcome of
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
-    sql_query="""SELECT
-    [ID_COMPANY]
-    ,[IS_PREPAYMENT]
-    ,[COD_OMS_SALES_ORDER_ITEM]
-    ,[ORDER_NR]
-    ,[BOB_ID_CUSTOMER]
-    ,[CURRENT_STATUS]
-    ,case when [CURRENT_STATUS] = 'closed' then 1 else 0 end IS_CLOSED
-    ,[IS_MARKETPLACE]
-    ,[PAYMENT_METHOD]
-    ,[ORDER_CREATION_DATE]
-    ,[FINANCE_VERIFIED_DATE]
-    ,[DELIVERED_DATE]
-    ,[PACKAGE_DELIVERY_DATE]
-    ,[REFUND_COMPLETED]
-    ,[REFUND_DATE]
-    ,[FAIL_DATE]
-    ,ISNULL([MTR_UNIT_PRICE],0)-ISNULL([MTR_COUPON_MONEY_VALUE],0)-ISNULL([MTR_CART_RULE_DISCOUNT],0) PAID_FOR_ITEMS
-    ,ISNULL([MTR_PAID_PRICE],0) PAID_PRICE
-    ,ISNULL([MTR_BASE_SHIPPING_AMOUNT],0)-ISNULL([MTR_SHIPPING_CART_RULE_DISCOUNT],0)-ISNULL([MTR_SHIPPING_VOUCHER_DISCOUNT],0)+ISNULL([MTR_INTERNATIONAL_CUSTOMS_FEE_AMOUNT],0)-ISNULL([MTR_INTERNATIONAL_CUSTOMS_FEE_CART_RULE_DISCOUNT],0) + ISNULL([MTR_INTERNATIONAL_FREIGHT_FEE], 0) PAID_FOR_SHIPPING
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]
-WHERE ORDER_CREATION_DATE > '2018-01-01 00:00:00'
-AND [IS_PREPAYMENT] = 1
-AND [FINANCE_VERIFIED_DATE] BETWEEN '2018-01-01 00:00:00' AND '{cutoff_date}'
-AND (
-    IS_MARKETPLACE = 1
-    AND (
-        (
-            [DELIVERED_DATE] IS NULL
-            OR [DELIVERED_DATE] > '{cutoff_date}'
-        )
-        AND (
-            [REFUND_DATE] IS NULL
-            OR [REFUND_DATE] > '{cutoff_date}'
-        )
-    )
-    OR (
-        IS_MARKETPLACE = 0
-        AND (
-            (
-                (
-                    [DELIVERY_TYPE] IN (
-                        'Digital Content'
-                        ,'Gift Card'
-                    )
-                    AND ([DELIVERED_DATE] IS NULL
-                    OR [DELIVERED_DATE] > '{cutoff_date}')
-                )
-                OR (
-                    [DELIVERY_TYPE] NOT IN (
-                        'Digital Content'
-                        ,'Gift Card'
-                    )
-                    AND ([PACKAGE_DELIVERY_DATE] IS NULL
-                    OR [PACKAGE_DELIVERY_DATE] > '{cutoff_date}')
-                )
-            )
-            AND (
-                [REFUND_DATE] IS NULL
-                OR [REFUND_DATE] > '{cutoff_date}'
-            )
-        )
-    )
-)
-""",
+        sql_query=_load_sql("IPE_10"),
         
     ),
     CatalogItem(
@@ -439,70 +276,7 @@ along with related sales order item information for reconciliation purposes.""",
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[StoreCreditVoucher]", system="BOB", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
-        sql_query="""select
-    scv.[ID_COMPANY],
-    scv.[id],
-    scv.[business_use],
-    case when scv.[business_use] = 'jpay_store_credit' then (case when LEFT(scv.[code],2)='GC' then 'jpay_store_credit_gift'
-        when LEFT(scv.[code],2)='JP' then 'jpay_store_credit_DS' else 'jpay_store_credit_other' end)
-        else scv.[business_use] end as 'business_use_formatted',
-    scv2.[template_id],
-    scv2.[template_name],
-    scv.[description],
-    scv.[is_active],
-    scv.[type],
-    scv.[Template_status]
-    -- ,scv.[code],scv.[discount_amount],scv.[from_date],scv.[to_date],concat(year(scv.[to_date]),'-',month(scv.[to_date])) expiration_ym
-    ,(case when scv.[to_date]<'{cutoff_date}' then 'expired' else 'valid' end) Is_Valid,
-    scv.[created_at],
-    concat(year(scv.[created_at]),'-',month(scv.[created_at])) creation_ym,
-    concat(year(scv.[updated_at]),'-',month(scv.[updated_at])) last_update_ym,
-    scv.[last_time_used],
-    scv.[snapshot_date],
-    scv.[voucher_inactive_date],
-    scv.[template_inactive_date],
-    concat(year(scv.[voucher_inactive_date]),'-',month(scv.[voucher_inactive_date])) codeinactive_ym,
-    concat(year(scv.[template_inactive_date]),'-',month(scv.[template_inactive_date])) templateinactive_ym,
-    scv.[reason],
-    scv.[updated_at],
-    scv.[fk_customer],
-    scv.[used_discount_amount],
-    scv.[times_used],
-    scv.[remaining_amount],
-    sd3.[voucher_type],
-    isnull(sd3.shipping_discount,0) shipping_discount,
-    isnull(sd3.shipping_storecredit,0) shipping_storecredit,
-    isnull(sd3.MPL_storecredit,0) MPL_storecredit,
-    isnull(sd3.RTL_storecredit,0) RTL_storecredit,
-    (isnull(sd3.shipping_storecredit,0) + isnull(sd3.MPL_storecredit,0) + isnull(sd3.RTL_storecredit,0)) TotalAmountUsed,
-    (isnull(scv.discount_amount,0) - (isnull(sd3.shipping_storecredit,0) + isnull(sd3.MPL_storecredit,0) + isnull(sd3.RTL_storecredit,0))) TotalRemainingAmount,
-    case when scv.[to_date] >(case when scv.[voucher_inactive_date] > scv.[template_inactive_date] then scv.[template_inactive_date] else scv.[voucher_inactive_date] end)
-        then (case when scv.[voucher_inactive_date] > scv.[template_inactive_date] then scv.[template_inactive_date] else scv.[voucher_inactive_date] end)
-        else scv.[to_date] end min_inactive_date
-from [AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING] scv
-left join [AIG_Nav_Jumia_Reconciliation].[dbo].[StoreCreditVoucher] scv2
-    on scv.id=scv2.id and scv.ID_COMPANY=scv2.ID_COMPANY
-Left join(
-    SELECT
-        [ID_Company],
-        [voucher_code],
-        [voucher_type],
-        sum(ISNULL([MTR_SHIPPING_DISCOUNT_AMOUNT],0)) shipping_discount,
-        sum(ISNULL([MTR_SHIPPING_VOUCHER_DISCOUNT],0)) shipping_storecredit,
-        sum(case when [is_marketplace] = 1 then ISNULL([MTR_COUPON_MONEY_VALUE],0) else 0 end) MPL_storecredit,
-        sum(case when [is_marketplace] = 0 then ISNULL([MTR_COUPON_MONEY_VALUE],0) else 0 end) RTL_storecredit
-    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]
-    where [PACKAGE_DELIVERY_DATE] < '{cutoff_date}' and year([DELIVERED_DATE])>2014
-    group by
-        [ID_Company],
-        [voucher_code],
-        [voucher_type]
-) sd3
-    on scv.ID_company = sd3.[ID_Company] and scv.[code]=sd3.[voucher_code]
-where scv.ID_company in {id_companies_active}
-and scv.created_at > '2016-12-31'
-and scv.created_at < '{cutoff_date}'
-""",
+        sql_query=_load_sql("IPE_08"),
     ),
     # =================================================================
     # == DOC_VOUCHER_USAGE: Data for Timing Difference Bridge
@@ -540,29 +314,7 @@ The query aggregates shipping discounts, shipping store credits, and marketplace
                 domain="FinRec",
             ),
         ],
-        sql_query="""SELECT
-    soi.[ID_Company],
-    soi.[voucher_code],
-    soi.[voucher_type],
-    sum(ISNULL(soi.[MTR_SHIPPING_DISCOUNT_AMOUNT],0)) shipping_discount,
-    sum(ISNULL(soi.[MTR_SHIPPING_VOUCHER_DISCOUNT],0)) shipping_storecredit,
-    sum(case when soi.[is_marketplace] = 1 then ISNULL(soi.[MTR_COUPON_MONEY_VALUE],0) else 0 end) MPL_storecredit,
-    sum(case when soi.[is_marketplace] = 0 then ISNULL(soi.[MTR_COUPON_MONEY_VALUE],0) else 0 end) RTL_storecredit,
-    sum(
-        ISNULL(soi.[MTR_SHIPPING_VOUCHER_DISCOUNT],0) +
-        (case when soi.[is_marketplace] = 1 then ISNULL(soi.[MTR_COUPON_MONEY_VALUE],0) else 0 end) +
-        (case when soi.[is_marketplace] = 0 then ISNULL(soi.[MTR_COUPON_MONEY_VALUE],0) else 0 end)
-    ) as TotalUsageAmount
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI] soi
-WHERE soi.[VOUCHER_TYPE] = 'reusablecredit'
-AND soi.[PACKAGE_DELIVERY_DATE] < '{cutoff_date}'
-AND year(soi.[DELIVERED_DATE]) > 2014
-AND soi.ID_Company in {id_companies_active}
-GROUP BY
-    soi.[ID_Company],
-    soi.[voucher_code],
-    soi.[voucher_type]
-"""
+        sql_query=_load_sql("DOC_VOUCHER_USAGE"),
     ),
     CatalogItem(
         item_id="IPE_31",
@@ -608,168 +360,7 @@ On a monthly basis the group head of shared accounting formalizes the outcome of
             _src_sql("[AIG_Nav_DW].[dbo].[Bank Accounts]", system="NAV", domain="NAVBI"),
             _src_sql("[AIG_Nav_DW].[dbo].[Bank Account Posting Group]", system="NAV", domain="NAVBI"),
         ],
-    sql_query="""
-;WITH CTE AS (SELECT DISTINCT CONCAT(p.[ID_Company], p.[OMS_Packlist_No]) conc
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PACKAGES] p
-LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS] ppa
-ON p.id_company = ppa.id_company AND p.OMS_PACKLIST_No = ppa.OMS_PACKLIST_No
-AND ppa.OMS_PAYMENT_RECONCILED_AMOUNT IS NOT NULL
-WHERE p.OMS_Packlist_status IN ('waitingApproval')
-OR (p.OMS_Packlist_Status = 'waitingConfirmation' AND ppa.OMS_PAYMENT_RECONCILED_AMOUNT IS NULL)
-)
-SELECT a.*,sn.SERVICE_PROVIDER,cp.Type,cp.ERP_Name,comp.[Company_Country],DATEADD(day, -1, DATEADD(day, 1, '{cutoff_date}')) AS Closing_date,
-bankacc.[G_L Bank Account No_]
-FROM (
--- OPEN TRANSACTIONS --
-SELECT
-    t1.[ID_Company],
-    CASE
-        WHEN t1.[Transaction_Type] = 'Transfer to' OR t1.[Transaction_Type] = 'Third Party Collection'
-        THEN ISNULL(p1.OMS_Payment_Date, t1.created_date)
-        WHEN t1.[Transaction_Type] = 'Payment - Rev'
-        THEN ISNULL(p1.payment_reversal_date, t1.created_date)
-        ELSE t1.Created_Date
-    END AS Event_date,
-    t1.[Collection_Partner] AS CP,
-    t1.[Transaction_Type],
-    t1.Related_Entity,
-    t1.[Amount]
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHREC_TRANSACTION] t1
-LEFT JOIN CTE ON CONCAT(t1.[ID_Company], t1.Transaction_List_Nr) = CTE.conc
-LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHDEPOSIT] p1
-    ON t1.Related_Entity = p1.OMS_Payment_No
-    AND t1.ID_Company = p1.ID_Company
-    AND ((t1.Transaction_Type = 'Transfer to' AND p1.OMS_Type = 'Transfer') OR
-    (t1.Transaction_Type = 'Third Party Collection' AND p1.OMS_Type = 'Payment') OR
-    (t1.Transaction_Type = 'Payment - Rev' AND p1.OMS_Type = 'Payment')
-    )
-WHERE t1.[Transaction_Type] NOT IN ('Payment','Collection Adjustment (over)','Collection Adjustment (under)','Payment Charges',
-'Reallocation From','Transfer From','Payment Charges Rev'
-)
-AND (CASE
-        WHEN t1.[Transaction_Type] = 'Transfer to' OR t1.[Transaction_Type] = 'Third Party Collection'
-        THEN ISNULL(p1.OMS_Payment_Date, t1.created_date)
-        WHEN t1.[Transaction_Type] = 'Payment - Rev'
-        THEN ISNULL(p1.payment_reversal_date, t1.created_date)
-        ELSE t1.Created_Date
-    END) < DATEADD(day, 1, '{cutoff_date}')
-AND (t1.Transaction_List_Nr IS NULL
-    OR t1.Transaction_List_Date >= DATEADD(day, 1, '{cutoff_date}')
-    OR CTE.conc IS NOT NULL
-)
-AND t1.[Amount] <> 0
-
-UNION ALL
-
-SELECT
-    [ID_Company],
-    [Original_Transaction_date] AS Event_date,
-    [Collection_Partner_From] AS CP,
-    [Transaction_type],
-    Related_Entity,
-    [Amount]
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHREC_REALLOCATIONS] realoc
-WHERE [Original_Transaction_date] < DATEADD(day, 1, '{cutoff_date}')
-AND [Reallocated_Transaction_Date] >= DATEADD(day, 1, '{cutoff_date}')
-
-UNION ALL
-
--- TRANSACTIONLISTS IN PROGRESS --
-SELECT
-    tl.ID_company,
-    tl.OMS_Packlist_Created_Date AS Event_date,
-    tl.[OMS_Collection_Partner_Name] AS CP,
-    'Translist in progress' AS Transaction_Type,
-    tl.[OMS_Packlist_No] AS Related_entity,
-    (tl.OMS_Amount_Received - ISNULL(t2.applied_amount, 0)) AS Amount
-FROM (
-    SELECT
-        ID_Company, OMS_Collection_Partner_Name, OMS_Packlist_No,
-        OMS_Amount_Received, OMS_Packlist_Created_Date
-    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS]
-    WHERE OMS_Packlist_Created_Date < DATEADD(day, 1, '{cutoff_date}')
-    AND OMS_Packlist_Status IN ('inProgress', 'closed', 'waitingConfirmation')
-    AND OMS_PAYMENT_RECONCILED_AMOUNT IS NOT NULL
-    GROUP BY ID_Company, OMS_Collection_Partner_Name, OMS_Packlist_No, OMS_Amount_Received, OMS_Packlist_Created_Date
-) tl
-LEFT JOIN (
-    SELECT
-        [ID_Company], [OMS_Packlist_No],
-        SUM(ISNULL([OMS_Payment_Reconciled_Amount], 0) + ISNULL([OMS_Payment_Charges_Reconciled_Amount], 0)) AS applied_amount
-    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS]
-    WHERE [OMS_Payment_Date] < DATEADD(day, 1, '{cutoff_date}')
-    GROUP BY [ID_Company], [OMS_Packlist_No]
-) t2 ON t2.ID_Company = tl.ID_Company AND t2.OMS_Packlist_No = tl.OMS_Packlist_No
-LEFT JOIN (
-    SELECT id_company, OMS_entity_No, OMS_Force_Closed
-    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_COLLECTIONADJ]
-    WHERE OMS_Entity_Type = 'packlist'
-    AND OMS_Force_Closed = 1
-    AND (OMS_Close_Date < DATEADD(day, 1, '{cutoff_date}') OR OMS_Close_Date IS NULL)
-) fc ON fc.ID_Company = tl.ID_Company AND fc.OMS_Entity_No = tl.OMS_Packlist_No
-WHERE (fc.OMS_Force_Closed = 0 OR fc.OMS_Force_Closed IS NULL)
-AND (tl.OMS_Amount_Received - ISNULL(t2.applied_amount, 0)) > 0
-
-UNION ALL
-
--- PAYMENTS/TRANSFERS IN PROGRESS --
-SELECT DISTINCT
-    p.[ID_Company] AS [ID_Company],
-    p.[OMS_Payment_Date] AS Event_date,
-    p.OMS_Collection_Partner AS CP,
-    p.OMS_Type AS Transaction_Type,
-    p.OMS_Payment_No AS Related_entity,
-    -(ISNULL(p.OMS_Payment_Amount, 0) + ISNULL(p.OMS_Charges_Amount, 0) - ISNULL(p2.applied_amount, 0)) AS Amount
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHDEPOSIT] p
-LEFT JOIN (
-    SELECT DISTINCT
-        p1.[ID_Company] AS [ID_Company],
-        p1.[OMS_Payment_No],
-        SUM(ISNULL(p1.[OMS_Payment_Reconciled_Amount], 0) + ISNULL(p1.[OMS_Payment_Charges_Reconciled_Amount], 0)) AS applied_amount
-    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS] p1
-    WHERE p1.[OMS_Packlist_Created_Date] < DATEADD(day, 1, '{cutoff_date}')
-    AND p1.[OMS_Payment_Date] < DATEADD(day, 1, '{cutoff_date}')
-    AND p1.[OMS_Payment_Status] IN ('inProgress', 'closed', 'waitingConfirmation')
-    AND OMS_PAYMENT_RECONCILED_AMOUNT IS NOT NULL
-    GROUP BY p1.[ID_Company], p1.[OMS_Payment_No]
-) p2 ON p2.ID_Company = p.[ID_Company]
-AND p.OMS_Payment_No = p2.OMS_Payment_No
-LEFT JOIN (
-    SELECT DISTINCT
-        [ID_Company] AS [ID_Company],
-        OMS_entity_No, OMS_Force_Closed
-    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_COLLECTIONADJ]
-    WHERE OMS_Entity_Type <> 'packlist'
-    AND ((OMS_Force_Closed = 1 AND (OMS_Close_Date < DATEADD(day, 1, '{cutoff_date}') OR OMS_Close_Date IS NULL)) OR OMS_Close_Date < DATEADD(day, 1, '{cutoff_date}'))
-) fc ON fc.ID_Company = p.[ID_Company]
-AND fc.OMS_Entity_No = p.OMS_Payment_No
-WHERE p.OMS_Payment_Date < DATEADD(day, 1, '{cutoff_date}')
-AND (ISNULL(p.OMS_Payment_Amount, 0) + ISNULL(p.OMS_Charges_Amount, 0) - ISNULL(p2.applied_amount, 0)) > 0
-AND fc.OMS_Force_Closed IS NULL
-AND p.OMS_Payment_Status IN ('inProgress', 'closed', 'waitingConfirmation')
-) a
-LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_HUBS_3PL_MAPPING] sn
-    ON sn.ID_COMPANY = a.[ID_Company] AND sn.[NODE] = a.cp
-LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_COLLECTIONPARTNERS] cp
-    ON cp.ID_Company = a.ID_Company AND cp.Name = a.cp
-LEFT JOIN (
-    SELECT * FROM [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]
-    WHERE [Flg_In_Conso_Scope] = 1
-) comp ON a.[ID_Company] = comp.[Company_Code]
-LEFT JOIN (
-    SELECT DISTINCT
-        CONCAT(bk.ID_company,bk.[Service Provider No_]) AS CP_Key,
-        bank_acc_post.[G_L Bank Account No_]
-    FROM [AIG_Nav_DW].[dbo].[Bank Accounts] bk
-    LEFT JOIN [AIG_Nav_DW].[dbo].[Bank Account Posting Group] bank_acc_post
-        ON bank_acc_post.[ID_Company] = bk.[ID_Company]
-        AND bank_acc_post.[Code] = bk.[Bank Account Posting Group]
-    WHERE (bk.[Service Provider No_] IS NOT NULL AND bk.[Service Provider No_] <> '')
-    AND bank_acc_post.[G_L Bank Account No_] <> '10058'
-) bankacc
-    ON bankacc.CP_Key = CONCAT(a.[ID_Company], cp.ERP_Name)
-WHERE Company_Country not in ('TN','TZ','ZA')
-""",
+        sql_query=_load_sql("IPE_31"),
         
     ),
     CatalogItem(
@@ -867,36 +458,7 @@ Given the above, and that the period and date of extraction are validated in eve
                 domain="FinRec",
             ),
         ],
-    sql_query="""SELECT
-    [ID_COMPANY],
-    [COMPANY_NAME],
-    [COUNTRY_CODE],
-    [COUNTRY_NAME],
-    [CLOSING_DATE],
-    [REFRESH_DATE],
-    [GROUP_COA_ACCOUNT_NO],
-    [GROUP_COA_ACCOUNT_NAME],
-    [REAL_COA],
-    [CURRENCY],
-    [FX_RATE],
-    [BALANCE_AT_DATE],
-    [BUSLINE_CODE],
-    [REPORTING_COUNTRY_CODE],
-    [REPORTING_COUNTRY_NAME],
-    [PARTNER_CODE],
-    [IC_PARTNER_CODE],
-    [IS_RECHARGE],
-    [IS_RETAINED_EARNINGS],
-    [CONSO_ACCOUNT_NO],
-    [CONSO_ACCOUNT_NAME],
-    [IFRS_LEVEL_1_NAME],
-    [IFRS_LEVEL_2_NAME],
-    [IFRS_LEVEL_3_NAME],
-    [IS_INTERCO]
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_BS_ANAPLAN_IMPORT_IFRS_MAPPING_CURRENCY_SPLIT]
-WHERE [CLOSING_DATE] = '{cutoff_date}'
-AND [GROUP_COA_ACCOUNT_NO] IN {gl_accounts}
-""",
+        sql_query=_load_sql("CR_04"),
         
     ),
     # =================================================================
@@ -928,75 +490,7 @@ AND [GROUP_COA_ACCOUNT_NO] IN {gl_accounts}
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_ChartOfAccounts]", system="NAV", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[GDOC_IFRS_Tabular_Mapping]", system="NAV", domain="FinRec"),
         ],
-        sql_query="""SELECT
-    gl.[id_company],
-    comp.[Company_Country],
-    comp.Flg_In_Conso_Scope,
-    comp.[Opco/Central_?],
-    gl.[Entry No_],
-    gl.[Document No_],
-    gl.[External Document No_],
-    gl.[Voucher No_],
-    gl.[Posting Date],
-    gl.[Document Date],
-    gl.[Document Type],
-    gl.[Chart of Accounts No_],
-    gl.[Account Name],
-    coa.Group_COA_Account_no,
-    coa.[Group_COA_Account_Name],
-    gl.[Document Description],
-    gl.[Amount],
-    dgl.rem_bal_LCY Remaining_amount,
-    gl.[Busline Code],
-    gl.[Department Code],
-    gl.[Bal_ Account Type],
-    gl.[Bal_ Account No_],
-    gl.[Bal_ Account Name],
-    gl.[Reason Code],
-    gl.[Source Code],
-    gl.[Reversed],
-    gl.[User ID],
-    gl.[G_L Creation Date],
-    gl.[Destination Code],
-    gl.[Partner Code],
-    gl.[System-Created Entry],
-    gl.[Source Type],
-    gl.[Source No],
-    gl.[IC Partner Code],
-    gl.[VendorTag Code],
-    gl.[CustomerTag Code],
-    gl.[Service_Period],
-    ifrs.Level_1_Name,
-    ifrs.Level_2_Name,
-    ifrs.Level_3_Name,
-    CASE
-        WHEN [Document Description] LIKE '%BM%' OR [Document Description] LIKE '%BACKMARGIN%' THEN 'BackMargin'
-        ELSE 'Other'
-    END AS EntryType
-FROM [AIG_Nav_DW].[dbo].[G_L Entries] gl WITH (INDEX([IDX_NAV_GL_Entries]))
-INNER JOIN (
-    SELECT
-        det.[id_company],
-        det.[Gen_ Ledger Entry No_],
-        sum(det.[Amount]) rem_bal_LCY
-    FROM [AIG_Nav_DW].[dbo].[Detailed G_L Entry] det
-    LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] comp
-        on comp.Company_Code = det.id_company
-    WHERE det.[Posting Date] BETWEEN '{year_start}' AND '{year_end}'
-    AND det.[G_L Account No_] IN {gl_accounts}
-    AND comp.Flg_In_Conso_Scope = 1
-    GROUP BY det.[id_company], det.[Gen_ Ledger Entry No_]
-    having sum(det.[Amount]) <> 0
-) dgl
-    on gl.id_company = dgl.id_company and dgl.[Gen_ Ledger Entry No_] = gl.[Entry No_]
-LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] comp
-    on comp.Company_Code = gl.id_company
-LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_ChartOfAccounts] coa
-    on coa.[Company_Code] = gl.id_company and coa.[G/L_Account_No] = gl.[Chart of Accounts No_]
-LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[GDOC_IFRS_Tabular_Mapping] ifrs
-    on ifrs.Level_4_Code = coa.Group_COA_Account_no
-WHERE comp.Flg_In_Conso_Scope = 1
-""",
+        sql_query=_load_sql("CR_03"),
     ),
     # =================================================================
     # == 10. IPE-34: Marketplace Refund Liability
