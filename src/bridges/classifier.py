@@ -125,7 +125,6 @@ def calculate_customer_posting_group_bridge(
     return bridge_amount, problem_customers
 
 
-__all__ = ["classify_bridges", "calculate_customer_posting_group_bridge"]
 def calculate_vtc_adjustment(
     ipe_08_df: Optional[pd.DataFrame], categorized_cr_03_df: Optional[pd.DataFrame]
 ) -> tuple[float, pd.DataFrame]:
@@ -187,10 +186,10 @@ def calculate_vtc_adjustment(
     return adjustment_amount, unmatched_df
 
 
-__all__ = ["classify_bridges", "calculate_vtc_adjustment"]
 def _categorize_nav_vouchers(cr_03_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Categorize NAV General Ledger entries (CR_03) for GL account 18412 according to VTC Part 1 rules.
+    Categorize NAV General Ledger entries (CR_03) for GL account 18412
+    according to VTC Part 1 rules.
 
     Adds a 'bridge_category' column with one of the following values:
     - 'VTC Manual': Manual voucher transactions
@@ -224,85 +223,186 @@ def _categorize_nav_vouchers(cr_03_df: pd.DataFrame) -> pd.DataFrame:
     col_map = {}
     for col in out.columns:
         col_lower = col.lower().strip()
-        if 'chart of accounts' in col_lower or col_lower == 'gl account':
-            col_map['gl_account'] = col
-        elif col_lower in ['amount', 'amt']:
-            col_map['amount'] = col
-        elif 'bal' in col_lower and 'account type' in col_lower:
-            col_map['bal_account_type'] = col
-        elif col_lower in ['user id', 'user_id', 'userid']:
-            col_map['user_id'] = col
-        elif 'document description' in col_lower or col_lower in ['description', 'desc']:
-            col_map['description'] = col
-        elif 'document type' in col_lower or col_lower == 'doc_type':
-            col_map['doc_type'] = col
+        if "chart of accounts" in col_lower or col_lower == "gl account":
+            col_map["gl_account"] = col
+        elif col_lower in ["amount", "amt"]:
+            col_map["amount"] = col
+        elif "bal" in col_lower and "account type" in col_lower:
+            col_map["bal_account_type"] = col
+        elif col_lower in ["user id", "user_id", "userid"]:
+            col_map["user_id"] = col
+        elif "document description" in col_lower or col_lower in [
+            "description",
+            "desc",
+        ]:
+            col_map["description"] = col
+        elif "document type" in col_lower or col_lower == "doc_type":
+            col_map["doc_type"] = col
 
     # Check if we have the required columns
-    if 'gl_account' not in col_map or 'amount' not in col_map:
+    if "gl_account" not in col_map or "amount" not in col_map:
         # Cannot categorize without at least GL account and amount
         return out
 
-    gl_col = col_map['gl_account']
-    amt_col = col_map['amount']
-    bal_type_col = col_map.get('bal_account_type')
-    user_col = col_map.get('user_id')
-    desc_col = col_map.get('description')
-    doc_type_col = col_map.get('doc_type')
+    gl_col = col_map["gl_account"]
+    amt_col = col_map["amount"]
+    bal_type_col = col_map.get("bal_account_type")
+    user_col = col_map.get("user_id")
+    desc_col = col_map.get("description")
+    doc_type_col = col_map.get("doc_type")
 
     # Apply categorization rules in order
     for idx, row in out.iterrows():
         # Skip if not GL account 18412
-        if pd.notna(row[gl_col]) and str(row[gl_col]).strip() != '18412':
+        if pd.notna(row[gl_col]) and str(row[gl_col]).strip() != "18412":
             continue
 
         amount = row[amt_col] if pd.notna(row[amt_col]) else 0
-        user_id = str(row[user_col]).strip() if user_col and pd.notna(row[user_col]) else ''
-        description = str(row[desc_col]).lower().strip() if desc_col and pd.notna(row[desc_col]) else ''
-        bal_type = str(row[bal_type_col]).lower().strip() if bal_type_col and pd.notna(row[bal_type_col]) else ''
-        doc_type = str(row[doc_type_col]).lower().strip() if doc_type_col and pd.notna(row[doc_type_col]) else ''
+        user_id = (
+            str(row[user_col]).strip() if user_col and pd.notna(row[user_col]) else ""
+        )
+        description = (
+            str(row[desc_col]).lower().strip()
+            if desc_col and pd.notna(row[desc_col])
+            else ""
+        )
+        bal_type = (
+            str(row[bal_type_col]).lower().strip()
+            if bal_type_col and pd.notna(row[bal_type_col])
+            else ""
+        )
+        doc_type = (
+            str(row[doc_type_col]).lower().strip()
+            if doc_type_col and pd.notna(row[doc_type_col])
+            else ""
+        )
 
         # Rule 1: VTC Manual
-        if (amount > 0 and
-                bal_type == 'bank account' and
-                user_id != 'NAV/13'):
+        if amount > 0 and bal_type == "bank account" and user_id != "NAV/13":
             out.at[idx, "bridge_category"] = "VTC Manual"
 
         # Rule 2: Usage
-        elif (amount > 0 and
-              user_id == 'NAV/13' and
-              any(keyword in description for keyword in
-                  ['item price credit', 'item shipping fees', 'voucher application'])):
+        elif (
+            amount > 0
+            and user_id == "NAV/13"
+            and any(
+                keyword in description
+                for keyword in [
+                    "item price credit",
+                    "item shipping fees",
+                    "voucher application",
+                ]
+            )
+        ):
             out.at[idx, "bridge_category"] = "Usage"
 
         # Rule 3: Issuance (amount < 0)
         elif amount < 0:
-            if 'refund' in description or 'rfn' in description:
+            if "refund" in description or "rfn" in description:
                 out.at[idx, "bridge_category"] = "Issuance - Refund"
-            elif 'commercial register' in description or 'cxp' in description:
+            elif "commercial register" in description or "cxp" in description:
                 out.at[idx, "bridge_category"] = "Issuance - Apology"
-            elif 'pyt_pf' in description:
+            elif "pyt_pf" in description:
                 out.at[idx, "bridge_category"] = "Issuance - JForce"
             else:
                 # Generic issuance if no sub-category matches
                 out.at[idx, "bridge_category"] = "Issuance"
 
         # Rule 4: Cancellation (amount > 0)
-        elif (amount > 0 and
-              doc_type == 'credit memo' and
-              user_id != 'NAV/13'):
+        elif amount > 0 and doc_type == "credit memo" and user_id != "NAV/13":
             out.at[idx, "bridge_category"] = "Cancellation - Store Credit"
-        elif (amount > 0 and
-              description == 'voucher occur' and
-              user_id == 'NAV/13'):
+        elif amount > 0 and description == "voucher occur" and user_id == "NAV/13":
             out.at[idx, "bridge_category"] = "Cancellation - Apology"
 
         # Rule 5: Expired
-        elif (amount > 0 and
-              description.startswith('exp') and
-              user_id != 'NAV/13'):
+        elif amount > 0 and description.startswith("exp") and user_id != "NAV/13":
             out.at[idx, "bridge_category"] = "Expired"
 
     return out
 
 
-__all__ = ["classify_bridges", "_categorize_nav_vouchers"]
+def calculate_timing_difference_bridge(
+    jdash_df: pd.DataFrame, doc_voucher_usage_df: pd.DataFrame
+) -> tuple[float, pd.DataFrame]:
+    """
+    Calculate the timing difference bridge between Jdash and Usage TV Extract.
+
+    This function performs a direct reconciliation of voucher usage amounts between
+    two data sources:
+    1. Jdash export (source A) - aggregated by voucher_id
+    2. Usage TV Extract from DOC_VOUCHER_USAGE (source B) - aggregated by voucher_code
+
+    The bridge value is the sum of unexplained variances between these sources.
+
+    Args:
+        jdash_df: DataFrame from Jdash export containing voucher usage data.
+                  Expected columns: 'voucher_id', 'amount_used'
+        doc_voucher_usage_df: DataFrame from DOC_VOUCHER_USAGE catalog item.
+                             Expected columns: 'voucher_code', 'TotalUsageAmount'
+
+    Returns:
+        tuple: (bridge_amount, proof_df)
+            - bridge_amount: Sum of all variances (amount_used - TotalUsageAmount)
+            - proof_df: DataFrame with columns ['amount_used', 'TotalUsageAmount', 'variance']
+                       indexed by voucher_id/voucher_code, containing only non-zero variances
+    """
+    # Handle empty inputs
+    if (jdash_df is None or jdash_df.empty) and (
+        doc_voucher_usage_df is None or doc_voucher_usage_df.empty
+    ):
+        return 0.0, pd.DataFrame(
+            columns=["amount_used", "TotalUsageAmount", "variance"]
+        )
+
+    # Data Preparation (Source A - Jdash)
+    if jdash_df is None or jdash_df.empty:
+        jdash_agg = pd.Series(dtype=float, name="amount_used")
+    else:
+        # Validate required columns exist
+        if (
+            "voucher_id" not in jdash_df.columns
+            or "amount_used" not in jdash_df.columns
+        ):
+            raise ValueError(
+                "jdash_df must contain 'voucher_id' and 'amount_used' columns"
+            )
+        jdash_agg = jdash_df.groupby("voucher_id")["amount_used"].sum()
+
+    # Data Preparation (Source B - Usage TV)
+    if doc_voucher_usage_df is None or doc_voucher_usage_df.empty:
+        usage_tv_agg = pd.Series(dtype=float, name="TotalUsageAmount")
+    else:
+        # Validate required columns exist
+        if (
+            "voucher_code" not in doc_voucher_usage_df.columns
+            or "TotalUsageAmount" not in doc_voucher_usage_df.columns
+        ):
+            raise ValueError(
+                "doc_voucher_usage_df must contain 'voucher_code' and 'TotalUsageAmount' columns"
+            )
+        usage_tv_agg = doc_voucher_usage_df.groupby("voucher_code")[
+            "TotalUsageAmount"
+        ].sum()
+
+    # Perform Reconciliation (Outer Join)
+    merged_df = pd.merge(
+        jdash_agg, usage_tv_agg, left_index=True, right_index=True, how="outer"
+    ).fillna(0)
+
+    # Calculate Variance
+    merged_df["variance"] = merged_df["amount_used"] - merged_df["TotalUsageAmount"]
+
+    # Calculate Result
+    proof_df = merged_df[merged_df["variance"] != 0].copy()
+    bridge_amount = proof_df["variance"].sum()
+
+    return bridge_amount, proof_df
+
+
+__all__ = [
+    "classify_bridges",
+    "calculate_customer_posting_group_bridge",
+    "calculate_vtc_adjustment",
+    "_categorize_nav_vouchers",
+    "calculate_timing_difference_bridge",
+]

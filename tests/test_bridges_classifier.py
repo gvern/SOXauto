@@ -8,7 +8,13 @@ if REPO_ROOT not in sys.path:
     sys.path.append(REPO_ROOT)
 
 from src.bridges.catalog import load_rules
-from src.bridges.classifier import classify_bridges, calculate_vtc_adjustment, _categorize_nav_vouchers,calculate_customer_posting_group_bridge
+from src.bridges.classifier import (
+    classify_bridges,
+    calculate_vtc_adjustment,
+    _categorize_nav_vouchers,
+    calculate_customer_posting_group_bridge,
+    calculate_timing_difference_bridge,
+)
 
 
 def test_rules_loading():
@@ -208,6 +214,8 @@ def test_customer_posting_group_bridge_output_format():
     assert len(proof_df) == 1
     # Verify the posting groups are sorted and comma-separated
     assert proof_df.iloc[0]["Customer Posting Group"] == "GROUP_A, GROUP_B"
+
+
 def test_calculate_vtc_adjustment_basic():
     """Test basic VTC adjustment calculation with unmatched vouchers."""
     # Create IPE_08 data with canceled refund vouchers
@@ -452,6 +460,8 @@ def test_calculate_vtc_adjustment_non_cancellation_categories():
     # Both vouchers should be unmatched since NAV entries are not cancellations
     assert adjustment == 300.0
     assert len(proof) == 2
+
+
 def test_categorize_nav_vouchers_empty_df():
     """Test that empty DataFrames are handled correctly."""
     empty_df = pd.DataFrame()
@@ -470,24 +480,26 @@ def test_categorize_nav_vouchers_none_df():
 
 def test_categorize_nav_vouchers_rule1_vtc_manual():
     """Test Rule 1: VTC Manual - manual bank account transactions."""
-    df = pd.DataFrame([
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 100.0,
-            "Bal_ Account Type": "Bank Account",
-            "User ID": "USER/01",
-            "Document Description": "Manual voucher entry",
-            "Document Type": "Payment"
-        },
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 50.0,
-            "Bal_ Account Type": "Bank Account",
-            "User ID": "ADMIN/05",
-            "Document Description": "Another manual entry",
-            "Document Type": "Payment"
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 100.0,
+                "Bal_ Account Type": "Bank Account",
+                "User ID": "USER/01",
+                "Document Description": "Manual voucher entry",
+                "Document Type": "Payment",
+            },
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 50.0,
+                "Bal_ Account Type": "Bank Account",
+                "User ID": "ADMIN/05",
+                "Document Description": "Another manual entry",
+                "Document Type": "Payment",
+            },
+        ]
+    )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "VTC Manual"
     assert result.loc[1, "bridge_category"] == "VTC Manual"
@@ -495,16 +507,18 @@ def test_categorize_nav_vouchers_rule1_vtc_manual():
 
 def test_categorize_nav_vouchers_rule1_not_vtc_manual_nav13():
     """Test Rule 1: Should NOT be VTC Manual when user is NAV/13."""
-    df = pd.DataFrame([
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 100.0,
-            "Bal_ Account Type": "Bank Account",
-            "User ID": "NAV/13",
-            "Document Description": "Automated entry",
-            "Document Type": "Payment"
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 100.0,
+                "Bal_ Account Type": "Bank Account",
+                "User ID": "NAV/13",
+                "Document Description": "Automated entry",
+                "Document Type": "Payment",
+            }
+        ]
+    )
     result = _categorize_nav_vouchers(df)
     # Should not be VTC Manual since user is NAV/13
     assert result.loc[0, "bridge_category"] != "VTC Manual"
@@ -512,32 +526,34 @@ def test_categorize_nav_vouchers_rule1_not_vtc_manual_nav13():
 
 def test_categorize_nav_vouchers_rule2_usage():
     """Test Rule 2: Usage - voucher application by NAV/13."""
-    df = pd.DataFrame([
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 75.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "NAV/13",
-            "Document Description": "Item price credit applied",
-            "Document Type": "Sales"
-        },
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 50.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "NAV/13",
-            "Document Description": "Voucher application for order",
-            "Document Type": "Sales"
-        },
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 25.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "NAV/13",
-            "Document Description": "Item shipping fees discount",
-            "Document Type": "Sales"
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 75.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "NAV/13",
+                "Document Description": "Item price credit applied",
+                "Document Type": "Sales",
+            },
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 50.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "NAV/13",
+                "Document Description": "Voucher application for order",
+                "Document Type": "Sales",
+            },
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 25.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "NAV/13",
+                "Document Description": "Item shipping fees discount",
+                "Document Type": "Sales",
+            },
+        ]
+    )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Usage"
     assert result.loc[1, "bridge_category"] == "Usage"
@@ -546,24 +562,26 @@ def test_categorize_nav_vouchers_rule2_usage():
 
 def test_categorize_nav_vouchers_rule3_issuance_refund():
     """Test Rule 3.b.1: Issuance - Refund."""
-    df = pd.DataFrame([
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": -100.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "NAV/13",
-            "Document Description": "Refund voucher issued",
-            "Document Type": "Credit Memo"
-        },
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": -50.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "USER/01",
-            "Document Description": "RFN voucher for customer",
-            "Document Type": "Credit Memo"
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": -100.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "NAV/13",
+                "Document Description": "Refund voucher issued",
+                "Document Type": "Credit Memo",
+            },
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": -50.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "USER/01",
+                "Document Description": "RFN voucher for customer",
+                "Document Type": "Credit Memo",
+            },
+        ]
+    )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - Refund"
     assert result.loc[1, "bridge_category"] == "Issuance - Refund"
@@ -571,24 +589,26 @@ def test_categorize_nav_vouchers_rule3_issuance_refund():
 
 def test_categorize_nav_vouchers_rule3_issuance_apology():
     """Test Rule 3.b.2: Issuance - Apology."""
-    df = pd.DataFrame([
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": -75.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "NAV/13",
-            "Document Description": "Commercial register voucher",
-            "Document Type": "Credit Memo"
-        },
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": -60.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "USER/02",
-            "Document Description": "CXP apology voucher",
-            "Document Type": "Credit Memo"
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": -75.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "NAV/13",
+                "Document Description": "Commercial register voucher",
+                "Document Type": "Credit Memo",
+            },
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": -60.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "USER/02",
+                "Document Description": "CXP apology voucher",
+                "Document Type": "Credit Memo",
+            },
+        ]
+    )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - Apology"
     assert result.loc[1, "bridge_category"] == "Issuance - Apology"
@@ -596,88 +616,98 @@ def test_categorize_nav_vouchers_rule3_issuance_apology():
 
 def test_categorize_nav_vouchers_rule3_issuance_jforce():
     """Test Rule 3.b.3: Issuance - JForce."""
-    df = pd.DataFrame([
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": -200.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "NAV/13",
-            "Document Description": "PYT_PF JForce payout voucher",
-            "Document Type": "Payment"
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": -200.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "NAV/13",
+                "Document Description": "PYT_PF JForce payout voucher",
+                "Document Type": "Payment",
+            }
+        ]
+    )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - JForce"
 
 
 def test_categorize_nav_vouchers_rule3_generic_issuance():
     """Test Rule 3: Generic Issuance when no sub-category matches."""
-    df = pd.DataFrame([
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": -150.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "USER/03",
-            "Document Description": "Some other voucher issuance",
-            "Document Type": "Credit Memo"
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": -150.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "USER/03",
+                "Document Description": "Some other voucher issuance",
+                "Document Type": "Credit Memo",
+            }
+        ]
+    )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance"
 
 
 def test_categorize_nav_vouchers_rule4_cancellation_store_credit():
     """Test Rule 4.a: Cancellation - Store Credit."""
-    df = pd.DataFrame([
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 85.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "USER/04",
-            "Document Description": "Store credit cancellation",
-            "Document Type": "Credit Memo"
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 85.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "USER/04",
+                "Document Description": "Store credit cancellation",
+                "Document Type": "Credit Memo",
+            }
+        ]
+    )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Cancellation - Store Credit"
 
 
 def test_categorize_nav_vouchers_rule4_cancellation_apology():
     """Test Rule 4.b: Cancellation - Apology."""
-    df = pd.DataFrame([
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 45.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "NAV/13",
-            "Document Description": "Voucher occur",
-            "Document Type": "Payment"
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 45.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "NAV/13",
+                "Document Description": "Voucher occur",
+                "Document Type": "Payment",
+            }
+        ]
+    )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Cancellation - Apology"
 
 
 def test_categorize_nav_vouchers_rule5_expired():
     """Test Rule 5: Expired vouchers."""
-    df = pd.DataFrame([
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 30.0,
-            "Bal_ Account Type": "G/L Account",
-            "User ID": "USER/05",
-            "Document Description": "EXP-2024-001",
-            "Document Type": "General Journal"
-        },
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 20.0,
-            "Bal_ Account Type": "G/L Account",
-            "User ID": "ADMIN/02",
-            "Document Description": "Expired voucher cleanup",
-            "Document Type": "General Journal"
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 30.0,
+                "Bal_ Account Type": "G/L Account",
+                "User ID": "USER/05",
+                "Document Description": "EXP-2024-001",
+                "Document Type": "General Journal",
+            },
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 20.0,
+                "Bal_ Account Type": "G/L Account",
+                "User ID": "ADMIN/02",
+                "Document Description": "Expired voucher cleanup",
+                "Document Type": "General Journal",
+            },
+        ]
+    )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Expired"
     assert result.loc[1, "bridge_category"] == "Expired"
@@ -685,97 +715,450 @@ def test_categorize_nav_vouchers_rule5_expired():
 
 def test_categorize_nav_vouchers_non_18412_account():
     """Test that non-18412 accounts are not categorized."""
-    df = pd.DataFrame([
-        {
-            "Chart of Accounts No_": "18410",
-            "Amount": 100.0,
-            "Bal_ Account Type": "Bank Account",
-            "User ID": "USER/01",
-            "Document Description": "Different account",
-            "Document Type": "Payment"
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18410",
+                "Amount": 100.0,
+                "Bal_ Account Type": "Bank Account",
+                "User ID": "USER/01",
+                "Document Description": "Different account",
+                "Document Type": "Payment",
+            }
+        ]
+    )
     result = _categorize_nav_vouchers(df)
-    assert pd.isna(result.loc[0, "bridge_category"]) or result.loc[0, "bridge_category"] is None
+    assert (
+        pd.isna(result.loc[0, "bridge_category"])
+        or result.loc[0, "bridge_category"] is None
+    )
 
 
 def test_categorize_nav_vouchers_mixed_scenarios():
     """Test a mix of different categorization rules."""
-    df = pd.DataFrame([
-        # VTC Manual
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 100.0,
-            "Bal_ Account Type": "Bank Account",
-            "User ID": "USER/01",
-            "Document Description": "Manual entry",
-            "Document Type": "Payment"
-        },
-        # Usage
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 50.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "NAV/13",
-            "Document Description": "Item price credit",
-            "Document Type": "Sales"
-        },
-        # Issuance - Refund
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": -75.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "NAV/13",
-            "Document Description": "Refund voucher",
-            "Document Type": "Credit Memo"
-        },
-        # Expired
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 25.0,
-            "Bal_ Account Type": "G/L Account",
-            "User ID": "USER/02",
-            "Document Description": "EXP-2024-123",
-            "Document Type": "General Journal"
-        },
-        # Non-18412 (should not be categorized)
-        {
-            "Chart of Accounts No_": "13011",
-            "Amount": 200.0,
-            "Bal_ Account Type": "Bank Account",
-            "User ID": "USER/03",
-            "Document Description": "Different account",
-            "Document Type": "Payment"
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            # VTC Manual
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 100.0,
+                "Bal_ Account Type": "Bank Account",
+                "User ID": "USER/01",
+                "Document Description": "Manual entry",
+                "Document Type": "Payment",
+            },
+            # Usage
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 50.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "NAV/13",
+                "Document Description": "Item price credit",
+                "Document Type": "Sales",
+            },
+            # Issuance - Refund
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": -75.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "NAV/13",
+                "Document Description": "Refund voucher",
+                "Document Type": "Credit Memo",
+            },
+            # Expired
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 25.0,
+                "Bal_ Account Type": "G/L Account",
+                "User ID": "USER/02",
+                "Document Description": "EXP-2024-123",
+                "Document Type": "General Journal",
+            },
+            # Non-18412 (should not be categorized)
+            {
+                "Chart of Accounts No_": "13011",
+                "Amount": 200.0,
+                "Bal_ Account Type": "Bank Account",
+                "User ID": "USER/03",
+                "Document Description": "Different account",
+                "Document Type": "Payment",
+            },
+        ]
+    )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "VTC Manual"
     assert result.loc[1, "bridge_category"] == "Usage"
     assert result.loc[2, "bridge_category"] == "Issuance - Refund"
     assert result.loc[3, "bridge_category"] == "Expired"
-    assert pd.isna(result.loc[4, "bridge_category"]) or result.loc[4, "bridge_category"] is None
+    assert (
+        pd.isna(result.loc[4, "bridge_category"])
+        or result.loc[4, "bridge_category"] is None
+    )
 
 
 def test_categorize_nav_vouchers_case_insensitivity():
     """Test that categorization is case-insensitive."""
-    df = pd.DataFrame([
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": 50.0,
-            "Bal_ Account Type": "BANK ACCOUNT",
-            "User ID": "user/01",
-            "Document Description": "MANUAL ENTRY",
-            "Document Type": "PAYMENT"
-        },
-        {
-            "Chart of Accounts No_": "18412",
-            "Amount": -100.0,
-            "Bal_ Account Type": "Customer",
-            "User ID": "NAV/13",
-            "Document Description": "REFUND VOUCHER ISSUED",
-            "Document Type": "CREDIT MEMO"
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 50.0,
+                "Bal_ Account Type": "BANK ACCOUNT",
+                "User ID": "user/01",
+                "Document Description": "MANUAL ENTRY",
+                "Document Type": "PAYMENT",
+            },
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": -100.0,
+                "Bal_ Account Type": "Customer",
+                "User ID": "NAV/13",
+                "Document Description": "REFUND VOUCHER ISSUED",
+                "Document Type": "CREDIT MEMO",
+            },
+        ]
+    )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "VTC Manual"
     assert result.loc[1, "bridge_category"] == "Issuance - Refund"
+
+
+# ========================================================================
+# Tests for calculate_timing_difference_bridge
+# ========================================================================
+
+
+def test_calculate_timing_difference_bridge_basic():
+    """Test basic timing difference bridge calculation with simple variance."""
+    # Create Jdash data
+    jdash_df = pd.DataFrame(
+        [
+            {"voucher_id": "V001", "amount_used": 100.0},
+            {"voucher_id": "V002", "amount_used": 200.0},
+            {"voucher_id": "V003", "amount_used": 150.0},
+        ]
+    )
+
+    # Create Usage TV data
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 100.0},  # Matches exactly
+            {"voucher_code": "V002", "TotalUsageAmount": 180.0},  # Variance of 20
+            {"voucher_code": "V003", "TotalUsageAmount": 150.0},  # Matches exactly
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # Only V002 should have a variance
+    assert bridge_amount == 20.0
+    assert len(proof_df) == 1
+    assert proof_df.loc["V002", "variance"] == 20.0
+    assert proof_df.loc["V002", "amount_used"] == 200.0
+    assert proof_df.loc["V002", "TotalUsageAmount"] == 180.0
+
+
+def test_calculate_timing_difference_bridge_empty_inputs():
+    """Test with both empty DataFrames."""
+    jdash_df = pd.DataFrame()
+    doc_voucher_usage_df = pd.DataFrame()
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    assert bridge_amount == 0.0
+    assert proof_df.empty
+    assert list(proof_df.columns) == ["amount_used", "TotalUsageAmount", "variance"]
+
+
+def test_calculate_timing_difference_bridge_none_inputs():
+    """Test with None inputs."""
+    bridge_amount, proof_df = calculate_timing_difference_bridge(None, None)
+
+    assert bridge_amount == 0.0
+    assert proof_df.empty
+    assert list(proof_df.columns) == ["amount_used", "TotalUsageAmount", "variance"]
+
+
+def test_calculate_timing_difference_bridge_empty_jdash():
+    """Test with empty Jdash data but populated Usage TV data."""
+    jdash_df = pd.DataFrame()
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 100.0},
+            {"voucher_code": "V002", "TotalUsageAmount": 200.0},
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # All Usage TV amounts should appear as negative variances
+    assert bridge_amount == -300.0
+    assert len(proof_df) == 2
+    assert proof_df.loc["V001", "variance"] == -100.0
+    assert proof_df.loc["V002", "variance"] == -200.0
+
+
+def test_calculate_timing_difference_bridge_empty_usage_tv():
+    """Test with populated Jdash data but empty Usage TV data."""
+    jdash_df = pd.DataFrame(
+        [
+            {"voucher_id": "V001", "amount_used": 100.0},
+            {"voucher_id": "V002", "amount_used": 200.0},
+        ]
+    )
+    doc_voucher_usage_df = pd.DataFrame()
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # All Jdash amounts should appear as positive variances
+    assert bridge_amount == 300.0
+    assert len(proof_df) == 2
+    assert proof_df.loc["V001", "variance"] == 100.0
+    assert proof_df.loc["V002", "variance"] == 200.0
+
+
+def test_calculate_timing_difference_bridge_unmatched_vouchers():
+    """Test with vouchers appearing in only one source."""
+    jdash_df = pd.DataFrame(
+        [
+            {"voucher_id": "V001", "amount_used": 100.0},
+            {"voucher_id": "V002", "amount_used": 200.0},
+            {"voucher_id": "V003", "amount_used": 150.0},
+        ]
+    )
+
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V002", "TotalUsageAmount": 200.0},  # Matches
+            {"voucher_code": "V004", "TotalUsageAmount": 300.0},  # Only in Usage TV
+            {"voucher_code": "V005", "TotalUsageAmount": 250.0},  # Only in Usage TV
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # V001: +100 (in Jdash only)
+    # V002: 0 (matched)
+    # V003: +150 (in Jdash only)
+    # V004: -300 (in Usage TV only)
+    # V005: -250 (in Usage TV only)
+    # Total: 100 + 150 - 300 - 250 = -300
+    assert bridge_amount == -300.0
+    assert len(proof_df) == 4  # V002 matched, so not in proof
+    assert "V002" not in proof_df.index
+
+
+def test_calculate_timing_difference_bridge_aggregation():
+    """Test that duplicate voucher IDs are properly aggregated."""
+    jdash_df = pd.DataFrame(
+        [
+            {"voucher_id": "V001", "amount_used": 50.0},
+            {"voucher_id": "V001", "amount_used": 50.0},  # Duplicate
+            {"voucher_id": "V002", "amount_used": 100.0},
+        ]
+    )
+
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 80.0},
+            {"voucher_code": "V001", "TotalUsageAmount": 20.0},  # Duplicate
+            {"voucher_code": "V002", "TotalUsageAmount": 100.0},
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # V001: (50+50) - (80+20) = 100 - 100 = 0 (matched after aggregation)
+    # V002: 100 - 100 = 0 (matched)
+    assert bridge_amount == 0.0
+    assert len(proof_df) == 0
+
+
+def test_calculate_timing_difference_bridge_negative_variance():
+    """Test with Usage TV amounts exceeding Jdash amounts."""
+    jdash_df = pd.DataFrame(
+        [
+            {"voucher_id": "V001", "amount_used": 100.0},
+            {"voucher_id": "V002", "amount_used": 50.0},
+        ]
+    )
+
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 150.0},
+            {"voucher_code": "V002", "TotalUsageAmount": 100.0},
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # V001: 100 - 150 = -50
+    # V002: 50 - 100 = -50
+    # Total: -100
+    assert bridge_amount == -100.0
+    assert len(proof_df) == 2
+    assert proof_df.loc["V001", "variance"] == -50.0
+    assert proof_df.loc["V002", "variance"] == -50.0
+
+
+def test_calculate_timing_difference_bridge_positive_variance():
+    """Test with Jdash amounts exceeding Usage TV amounts."""
+    jdash_df = pd.DataFrame(
+        [
+            {"voucher_id": "V001", "amount_used": 200.0},
+            {"voucher_id": "V002", "amount_used": 150.0},
+        ]
+    )
+
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 100.0},
+            {"voucher_code": "V002", "TotalUsageAmount": 50.0},
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # V001: 200 - 100 = 100
+    # V002: 150 - 50 = 100
+    # Total: 200
+    assert bridge_amount == 200.0
+    assert len(proof_df) == 2
+    assert proof_df.loc["V001", "variance"] == 100.0
+    assert proof_df.loc["V002", "variance"] == 100.0
+
+
+def test_calculate_timing_difference_bridge_mixed_variances():
+    """Test with a mix of positive and negative variances."""
+    jdash_df = pd.DataFrame(
+        [
+            {"voucher_id": "V001", "amount_used": 100.0},  # Positive variance
+            {"voucher_id": "V002", "amount_used": 50.0},  # Negative variance
+            {"voucher_id": "V003", "amount_used": 200.0},  # Exact match
+        ]
+    )
+
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 80.0},
+            {"voucher_code": "V002", "TotalUsageAmount": 100.0},
+            {"voucher_code": "V003", "TotalUsageAmount": 200.0},
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # V001: 100 - 80 = +20
+    # V002: 50 - 100 = -50
+    # V003: 200 - 200 = 0 (excluded from proof)
+    # Total: 20 - 50 = -30
+    assert bridge_amount == -30.0
+    assert len(proof_df) == 2
+    assert proof_df.loc["V001", "variance"] == 20.0
+    assert proof_df.loc["V002", "variance"] == -50.0
+    assert "V003" not in proof_df.index
+
+
+def test_calculate_timing_difference_bridge_missing_jdash_columns():
+    """Test that missing required columns in jdash_df raise ValueError."""
+    jdash_df = pd.DataFrame(
+        [
+            {"voucher_id": "V001"},  # Missing amount_used
+        ]
+    )
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 100.0},
+        ]
+    )
+
+    with pytest.raises(ValueError, match="jdash_df must contain"):
+        calculate_timing_difference_bridge(jdash_df, doc_voucher_usage_df)
+
+
+def test_calculate_timing_difference_bridge_missing_usage_tv_columns():
+    """Test that missing required columns in doc_voucher_usage_df raise ValueError."""
+    jdash_df = pd.DataFrame(
+        [
+            {"voucher_id": "V001", "amount_used": 100.0},
+        ]
+    )
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001"},  # Missing TotalUsageAmount
+        ]
+    )
+
+    with pytest.raises(ValueError, match="doc_voucher_usage_df must contain"):
+        calculate_timing_difference_bridge(jdash_df, doc_voucher_usage_df)
+
+
+def test_calculate_timing_difference_bridge_output_format():
+    """Test that output DataFrame has the correct format and columns."""
+    jdash_df = pd.DataFrame(
+        [
+            {"voucher_id": "V001", "amount_used": 100.0},
+        ]
+    )
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 80.0},
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    assert bridge_amount == 20.0
+    assert list(proof_df.columns) == ["amount_used", "TotalUsageAmount", "variance"]
+    assert proof_df.index.name in [
+        None,
+        "voucher_id",
+        "voucher_code",
+    ]  # Index from merge
+    assert len(proof_df) == 1
+
+
+def test_calculate_timing_difference_bridge_zero_amounts():
+    """Test handling of zero amounts."""
+    jdash_df = pd.DataFrame(
+        [
+            {"voucher_id": "V001", "amount_used": 0.0},
+            {"voucher_id": "V002", "amount_used": 100.0},
+        ]
+    )
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 0.0},
+            {"voucher_code": "V002", "TotalUsageAmount": 0.0},
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # V001: 0 - 0 = 0 (excluded)
+    # V002: 100 - 0 = 100
+    assert bridge_amount == 100.0
+    assert len(proof_df) == 1
+    assert proof_df.loc["V002", "variance"] == 100.0
