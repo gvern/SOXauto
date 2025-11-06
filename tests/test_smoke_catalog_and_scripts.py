@@ -248,49 +248,66 @@ def test_catalog_ipe_31_aligned_with_baseline():
 
 
 def test_catalog_cr_05_aligned_with_baseline():
-    """Test CR_05 query is aligned with audited FX rates baseline (with Dim_Company join and proper parameterization)."""
+    """Test CR_05 query is aligned with correct audited baseline (3-table join with CASE WHEN FX logic)."""
     from src.core.catalog.cpg1 import get_item_by_id
 
     item = get_item_by_id("CR_05")
     assert item is not None, "CR_05 should exist in the catalog"
     assert isinstance(item.sql_query, str) and item.sql_query.strip(), "CR_05 should have a non-empty sql_query"
     
-    # Verify {year} and {month} parameters are used (not hardcoded values or wrong field names)
+    # Verify {year} and {month} parameters are used (not hardcoded values)
     assert "{year}" in item.sql_query, "CR_05 should use {year} parameter"
     assert "{month}" in item.sql_query, "CR_05 should use {month} parameter"
     
-    # Verify correct baseline field names (yeaR, cod_month)
-    assert "yeaR" in item.sql_query, "CR_05 should use yeaR field for year filtering"
-    assert "cod_month" in item.sql_query, "CR_05 should use cod_month field for month filtering"
+    # Verify correct baseline field names (year, cod_month)
+    assert "[year]" in item.sql_query, "CR_05 should use [year] field for year filtering"
+    assert "[cod_month]" in item.sql_query, "CR_05 should use [cod_month] field for month filtering"
     
-    # Verify LEFT JOIN on Dim_Company exists
-    assert "left join" in item.sql_query.lower(), \
-        "CR_05 should have LEFT JOIN clause"
+    # Verify all 3 tables are joined (Dim_Company as main, RPT_FX_RATES subquery, Dim_Country)
     assert "[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]" in item.sql_query, \
-        "CR_05 should join with Dim_Company table"
-    assert "Company_Code" in item.sql_query, "CR_05 should use Company_Code in join or filter"
+        "CR_05 should query from Dim_Company table"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]" in item.sql_query, \
+        "CR_05 should join with RPT_FX_RATES table"
+    assert "[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Country]" in item.sql_query, \
+        "CR_05 should join with Dim_Country table"
     
-    # Verify WHERE clause with specific filters
-    assert "base_currency = 'USD'" in item.sql_query or "base_currency='USD'" in item.sql_query, \
+    # Verify 3 LEFT JOINs exist (subquery fx and table c)
+    assert item.sql_query.lower().count("left join") >= 2, \
+        "CR_05 should have at least 2 LEFT JOIN clauses"
+    
+    # Verify CASE WHEN logic for FX rate special handling
+    assert "case" in item.sql_query.lower() and "when" in item.sql_query.lower(), \
+        "CR_05 should have CASE WHEN logic"
+    assert "'United States of America'" in item.sql_query, \
+        "CR_05 should include USA special handling in CASE WHEN"
+    assert "'Germany'" in item.sql_query, \
+        "CR_05 should include Germany special handling in CASE WHEN"
+    assert "right(comp.[Company_Code],4)='_USD'" in item.sql_query, \
+        "CR_05 should check for _USD suffix in Company_Code for Germany"
+    assert "then 1" in item.sql_query, \
+        "CR_05 should set FX_rate to 1 for USA and Germany _USD companies"
+    assert "else fx.rate" in item.sql_query, \
+        "CR_05 should use fx.rate as default in CASE WHEN"
+    
+    # Verify WHERE clause with specific filters in the subquery
+    assert "[base_currency] = 'USD'" in item.sql_query, \
         "CR_05 should filter for USD base currency"
-    assert "rate_type = 'Closing'" in item.sql_query or "rate_type='Closing'" in item.sql_query, \
+    assert "[rate_type] = 'Closing'" in item.sql_query, \
         "CR_05 should filter for Closing rate type"
+    assert "country <> 'United arab emirates (the)'" in item.sql_query, \
+        "CR_05 should exclude 'United arab emirates (the)'"
     
-    # Verify the 12 specific Company_Codes are in scope
-    company_codes = ['EC_IC', 'EC_KE', 'EC_MA', 'EC_NG', 'HF_SN', 'JD_DZ', 
-                     'JD_GH', 'JD_UG', 'JD_ZA', 'JM_EG', 'JM_TN', 'JT_EG']
-    for code in company_codes:
-        assert code in item.sql_query, f"CR_05 should include Company_Code '{code}' in filter"
-    
-    # Verify sources list contains both RPT_FX_RATES and Dim_Company
-    assert item.sources is not None and len(item.sources) == 2, \
-        "CR_05 should have exactly 2 sources (RPT_FX_RATES and Dim_Company)"
+    # Verify sources list contains all 3 tables
+    assert item.sources is not None and len(item.sources) == 3, \
+        "CR_05 should have exactly 3 sources (Dim_Company, RPT_FX_RATES, Dim_Country)"
     
     source_locations = [src.location for src in item.sources]
-    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]" in source_locations, \
-        "CR_05 should have RPT_FX_RATES as a source"
     assert "[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]" in source_locations, \
         "CR_05 should have Dim_Company as a source"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]" in source_locations, \
+        "CR_05 should have RPT_FX_RATES as a source"
+    assert "[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Country]" in source_locations, \
+        "CR_05 should have Dim_Country as a source"
 
 
 @pytest.mark.parametrize(

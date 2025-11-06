@@ -216,36 +216,45 @@ DROP TABLE ##temp2;
         cross_reference=None,
         description="""This is a pre-defined query, used to pull the FX amounts to be used in the FX reasonableness test of prepayments, as of the period when the control (for instance C-FSC-43) is being executed.""",
         notes=(
-            "Multiple baseline files: CR_05_test.xlsx, "
-            "CR_05a__IPE Baseline__FA table - FX rates.xlsx, "
-            "CR_05b__IPE Baseline__Daily FX rates.xlsx. "
-            "May require two separate Athena tables or one combined view."
+            "Correct baseline from '1. All Countries May-25 - IBSAR - Consolidation.xlsx'. "
+            "3-table join: Dim_Company, RPT_FX_RATES, Dim_Country. "
+            "Includes CASE WHEN logic for USA and Germany special FX rate handling."
         ),
         evidence_ref="CR_05",
         descriptor_excel=None,
         sources=[
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]", system="NAV", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]", system="NAV", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]", system="NAV", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Country]", system="NAV", domain="FinRec"),
         ],
-        sql_query="""SELECT DISTINCT
-    b.Company_Code,
-    [base_currency],
-    [final_currency],
-    [rate],
-    month,
-    [rate_type]
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES] a
-LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] b
-    ON a.final_currency = b.Company_Currency
-WHERE yeaR = {year}
-AND cod_month = {month}
-AND base_currency = 'USD'
-AND rate_type = 'Closing'
-AND b.Company_Code IN (
-    'EC_IC','EC_KE','EC_MA','EC_NG','HF_SN','JD_DZ',
-    'JD_GH','JD_UG','JD_ZA','JM_EG','JM_TN','JT_EG'
-)
-ORDER BY month ASC
+        sql_query="""SELECT
+    comp.[Company_Code],
+    comp.[Company_Name],
+    comp.[Opco/Central_?],
+    comp.[Company_Country],
+    comp.[Is_Active?],
+    fx.[rate_type],
+    fx.[year],
+    fx.[cod_month],
+    case
+        when c.[Country_Name] in ('United States of America') or (c.[Country_Name] in ('Germany') and right(comp.[Company_Code],4)='_USD')
+        then 1
+        else fx.rate
+    end FX_rate,
+    c.[Country_Name]
+FROM [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] comp
+left join (
+    Select [country_code],[rate_type],[year],[cod_month],[rate]
+    from [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]
+    where [year] = {year}
+    and [cod_month] = {month}
+    and [rate_type] = 'Closing'
+    and [base_currency] = 'USD'
+    and country <> 'United arab emirates (the)'
+) fx
+    on fx.country_code = comp.Company_Country
+left join [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Country] c
+    on comp.[Company_Country] = c.[Country_Code]
 """,
     ),
     CatalogItem(
