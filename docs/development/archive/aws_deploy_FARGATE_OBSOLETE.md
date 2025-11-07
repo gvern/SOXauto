@@ -1,7 +1,6 @@
 # [DEPRECATED] AWS Deployment Guide (Pre-Temporal Architecture)
 
-> This document is archived. The project now uses a Temporal Worker + Teleport tunnel architecture for orchestration and database access.
-> Please refer to `docs/deployment/temporal_worker_deploy.md` for current deployment instructions.
+> **ARCHIVED & OBSOLETE:** This document describes a deprecated architecture (Fargate/Lambda). The current, correct deployment guide is `docs/deployment/temporal_worker_deploy.md`.
 
 ## Table of Contents
 1. [Prerequisites](#prerequisites)
