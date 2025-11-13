@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 """
-Standalone classifier test script.
-
-This script runs the entire classification logic offline using local CSV files
-from tests/fixtures/. It does not depend on temporalio or mssql_runner, only
-on pandas and the classifier module.
+Standalone classifier test script (clean output).
 
 Usage:
-    python scripts/run_classifier_test.py
+  python scripts/run_classifier_test.py [--country JD_GH] [--summary-only] [--quiet] [--limit 10]
 """
 
 import os
 import sys
+import argparse
 import pandas as pd
 
 # Add the repository root to the Python path
@@ -19,7 +16,6 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-# Import classifier functions
 from src.bridges.classifier import (
     _categorize_nav_vouchers,
     calculate_vtc_adjustment,
@@ -27,12 +23,51 @@ from src.bridges.classifier import (
     calculate_timing_difference_bridge,
 )
 
+# -------------------------------
+# Console rendering utilities
+# -------------------------------
+class Box:
+    def __init__(self, title: str, width: int = 61):
+        self.title = title
+        self.width = max(width, len(title) + 4)
 
-def load_fixtures():
-    """Load all required fixture files from tests/fixtures/."""
+    def header(self):
+        return (
+            "\n" +
+            "┌" + "─" * (self.width - 2) + "┐\n" +
+            f"│ {self.title.ljust(self.width - 3)}│\n" +
+            "├" + "─" * (self.width - 2) + "┤"
+        )
+
+    def line(self, text: str):
+        return f"\n│ {text.ljust(self.width - 3)}│"
+
+    def footer(self):
+        return "\n" + "└" + "─" * (self.width - 2) + "┘"
+
+def print_df(df: pd.DataFrame, title: str, limit: int = 10):
+    if df is None or df.empty:
+        print(f"\n{title}: <empty>")
+        return
+    print(f"\n{title}:")
+    # affichage stable / non verbeux
+    with pd.option_context(
+        "display.max_rows", limit,
+        "display.max_columns", 12,
+        "display.max_colwidth", 80,
+        "display.width", 120
+    ):
+        print(df.head(limit).to_string(index=False))
+
+def hr(title: str):
+    bar = "=" * 80
+    print(f"\n{bar}\n{title}\n{bar}")
+
+# -------------------------------
+# Data loading
+# -------------------------------
+def load_fixtures(country_code: str):
     fixtures_dir = os.path.join(REPO_ROOT, "tests", "fixtures")
-
-    fixtures = {}
     fixture_files = {
         "CR_03": "fixture_CR_03.csv",
         "IPE_08": "fixture_IPE_08.csv",
@@ -41,225 +76,154 @@ def load_fixtures():
         "DOC_VOUCHER_USAGE": "fixture_DOC_VOUCHER_USAGE.csv",
     }
 
-    print("=" * 80)
-    print("LOADING FIXTURES")
-    print("=" * 80)
+    hr("LOADING FIXTURES")
 
+    fixtures = {}
     for name, filename in fixture_files.items():
-        filepath = os.path.join(fixtures_dir, filename)
-        if not os.path.exists(filepath):
-            print(f"❌ ERROR: Fixture file not found: {filepath}")
+        path = os.path.join(fixtures_dir, filename)
+        if not os.path.exists(path):
+            print(f"❌ ERROR: Fixture file not found: {path}")
             sys.exit(1)
+        # Réduit les DtypeWarning bruyants
+        df = pd.read_csv(path, low_memory=False)
+        fixtures[name] = df
+        print(f"Colonnes pour {name}: {list(df.columns)}")
+        print(f"✓ Loaded {name}: {len(df)} rows from {filename}")
 
-        fixtures[name] = pd.read_csv(filepath)
-        print(f"Colonnes pour {name}: {list(fixtures[name].columns)}")
-        print(f"✓ Loaded {name}: {len(fixtures[name])} rows from {filename}")
-    # ================================================================================
-    # FILTRAGE DES FIXTURES (POUR UN SEUL PAYS)
-    # ================================================================================
-    print("\n================================================================================")
-    print("FILTERING FIXTURES FOR A SINGLE COUNTRY (GHANA)")
-    print("================================================================================")
-
-    # Définir le code pays pour le Ghana (basé sur vos exports SQL)
-    COUNTRY_CODE_TO_TEST = 'JD_GH'
-
+    # Filter by country
+    hr(f"FILTERING FIXTURES FOR A SINGLE COUNTRY ({country_code})")
     try:
-        # Filtre CR_03 (utilise 'id_company' en minuscules)
         rows_before = len(fixtures['CR_03'])
-        fixtures['CR_03'] = fixtures['CR_03'][fixtures['CR_03']['id_company'] == COUNTRY_CODE_TO_TEST].copy()
-        print(f"✓ Filtered CR_03: {rows_before} rows -> {len(fixtures['CR_03'])} rows")
+        fixtures['CR_03'] = fixtures['CR_03'][fixtures['CR_03']['id_company'] == country_code].copy()
+        print(f"✓ Filtered CR_03: {rows_before} -> {len(fixtures['CR_03'])}")
 
-        # Filtre IPE_08 (utilise 'ID_COMPANY' en majuscules)
         rows_before = len(fixtures['IPE_08'])
-        fixtures['IPE_08'] = fixtures['IPE_08'][fixtures['IPE_08']['ID_COMPANY'] == COUNTRY_CODE_TO_TEST].copy()
-        print(f"✓ Filtered IPE_08: {rows_before} rows -> {len(fixtures['IPE_08'])} rows")
+        fixtures['IPE_08'] = fixtures['IPE_08'][fixtures['IPE_08']['ID_COMPANY'] == country_code].copy()
+        print(f"✓ Filtered IPE_08: {rows_before} -> {len(fixtures['IPE_08'])}")
 
-        # Filtre IPE_07 (utilise 'id_company' en minuscules)
         rows_before = len(fixtures['IPE_07'])
-        fixtures['IPE_07'] = fixtures['IPE_07'][fixtures['IPE_07']['id_company'] == COUNTRY_CODE_TO_TEST].copy()
-        print(f"✓ Filtered IPE_07: {rows_before} rows -> {len(fixtures['IPE_07'])} rows")
+        fixtures['IPE_07'] = fixtures['IPE_07'][fixtures['IPE_07']['id_company'] == country_code].copy()
+        print(f"✓ Filtered IPE_07: {rows_before} -> {len(fixtures['IPE_07'])}")
 
-        # Filtre DOC_VOUCHER_USAGE (utilise 'ID_COMPANY' en majuscules)
         rows_before = len(fixtures['DOC_VOUCHER_USAGE'])
-        fixtures['DOC_VOUCHER_USAGE'] = fixtures['DOC_VOUCHER_USAGE'][fixtures['DOC_VOUCHER_USAGE']['ID_Company'] == COUNTRY_CODE_TO_TEST].copy()
-        print(f"✓ Filtered DOC_VOUCHER_USAGE: {rows_before} rows -> {len(fixtures['DOC_VOUCHER_USAGE'])} rows")
+        fixtures['DOC_VOUCHER_USAGE'] = fixtures['DOC_VOUCHER_USAGE'][fixtures['DOC_VOUCHER_USAGE']['ID_Company'] == country_code].copy()
+        print(f"✓ Filtered DOC_VOUCHER_USAGE: {rows_before} -> {len(fixtures['DOC_VOUCHER_USAGE'])}")
 
-        # Le fichier JDASH est déjà filtré, nous le laissons tel quel.
-        print(f"✓ Kept JDASH: {len(fixtures['JDASH'])} rows (already filtered)")
+        print(f"✓ Kept JDASH: {len(fixtures['JDASH'])} rows (already filtered or global)")
 
     except KeyError as e:
-        print(f"\n❌ ERREUR DE FILTRAGE: Une colonne n'a pas été trouvée. Vérifiez 'id_company' ou 'ID_COMPANY'.")
+        print("\n❌ ERREUR DE FILTRAGE: colonne manquante (id_company / ID_COMPANY / ID_Company).")
         print(f"Erreur: {e}")
-        # Vous pouvez ajouter 'import sys; sys.exit(1)' ici si vous voulez arrêter le script en cas d'erreur.
-    print()
+        sys.exit(1)
+
     return fixtures
 
+# -------------------------------
+# Tasks
+# -------------------------------
+def run_task2_vtc(fixtures, quiet=False, limit=10):
+    hr("TASK 2: VTC (VOUCHER TO CASH) RECONCILIATION")
+    if not quiet:
+        print("\n[Step 1] Categorizing NAV vouchers from CR_03...")
+    categorized = _categorize_nav_vouchers(fixtures["CR_03"])
+    if not quiet:
+        print(f"✓ Categorized {len(categorized)} voucher entries")
+        print_df(categorized, "Categorization Results", limit)
 
-def run_task2_vtc(fixtures):
-    """
-    Task 2: VTC (Voucher to Cash) Reconciliation
-
-    Steps:
-    1. Categorize NAV vouchers from CR_03
-    2. Calculate VTC adjustment using IPE_08 and categorized CR_03
-    """
-    print("=" * 80)
-    print("TASK 2: VTC (VOUCHER TO CASH) RECONCILIATION")
-    print("=" * 80)
-
-    # Step 1: Categorize NAV vouchers
-    print("\n[Step 1] Categorizing NAV vouchers from CR_03...")
-    categorized_cr_03 = _categorize_nav_vouchers(fixtures["CR_03"])
-    print(f"✓ Categorized {len(categorized_cr_03)} voucher entries")
-    print("\nCategorization Results:")
-    # Corrigé : Imprime juste les 10 premières lignes sans sélectionner de colonnes
-    print(categorized_cr_03.head(10))
-
-    # Step 2: Calculate VTC adjustment
-    print("\n[Step 2] Calculating VTC adjustment...")
+    if not quiet:
+        print("\n[Step 2] Calculating VTC adjustment...")
     adjustment_amount, proof_df = calculate_vtc_adjustment(
-        fixtures["IPE_08"], categorized_cr_03
+        fixtures["IPE_08"], categorized
     )
 
-    print(f"\n✓ VTC Adjustment Amount: ${adjustment_amount:,.2f}")
-    print(f"✓ Number of unmatched vouchers: {len(proof_df)}")
+    if not quiet:
+        print(f"\n✓ VTC Adjustment Amount: ${adjustment_amount:,.2f}")
+        print(f"✓ Number of unmatched vouchers: {len(proof_df)}")
+        print_df(proof_df, "Unmatched Vouchers (proof_df)", limit)
 
-    if not proof_df.empty:
-        print("\nUnmatched Vouchers (proof_df.head()):")
-        print(proof_df.head().to_string())
-    else:
-        print("\nNo unmatched vouchers found.")
-
-    print()
     return adjustment_amount, proof_df
 
-
-def run_task4_customer_reclass(fixtures):
-    """
-    Task 4: Customer Posting Group Reclassification
-
-    Identifies customers with multiple posting groups for manual review.
-    """
-    print("=" * 80)
-    print("TASK 4: CUSTOMER POSTING GROUP RECLASSIFICATION")
-    print("=" * 80)
-
-    print("\nCalculating customer posting group bridge...")
-    bridge_amount, proof_df = calculate_customer_posting_group_bridge(
-        fixtures["IPE_07"]
-    )
-
-    print(
-        f"\n✓ Bridge Amount: ${bridge_amount:,.2f} (always 0 for identification tasks)"
-    )
-    print(f"✓ Number of customers with multiple posting groups: {len(proof_df)}")
-
-    if not proof_df.empty:
-        print("\nCustomers with Multiple Posting Groups (proof_df.head()):")
-        print(proof_df.head().to_string())
-    else:
-        print("\nNo customers with multiple posting groups found.")
-
-    print()
+def run_task4_customer_reclass(fixtures, quiet=False, limit=10):
+    hr("TASK 4: CUSTOMER POSTING GROUP RECLASSIFICATION")
+    bridge_amount, proof_df = calculate_customer_posting_group_bridge(fixtures["IPE_07"])
+    if not quiet:
+        print(f"\n✓ Bridge Amount: ${bridge_amount:,.2f} (always 0 for identification tasks)")
+        print(f"✓ Number of customers with multiple posting groups: {len(proof_df)}")
+        print_df(proof_df, "Customers with Multiple Posting Groups (proof_df)", limit)
     return bridge_amount, proof_df
 
-
-def run_task1_timing_diff(fixtures):
-    """
-    Task 1: Timing Difference Bridge
-
-    Calculates timing differences between Jdash and Usage TV Extract.
-    """
-    print("=" * 80)
-    print("TASK 1: TIMING DIFFERENCE BRIDGE")
-    print("=" * 80)
-
-    print("\nCalculating timing difference bridge...")
+def run_task1_timing_diff(fixtures, quiet=False, limit=10):
+    hr("TASK 1: TIMING DIFFERENCE BRIDGE")
     bridge_amount, proof_df = calculate_timing_difference_bridge(
         fixtures["JDASH"], fixtures["DOC_VOUCHER_USAGE"]
     )
-
-    print(f"\n✓ Bridge Amount: ${bridge_amount:,.2f}")
-    print(f"✓ Number of vouchers with variances: {len(proof_df)}")
-
-    if not proof_df.empty:
-        print("\nVouchers with Variances (proof_df.head()):")
-        print(proof_df.head().to_string())
-    else:
-        print("\nNo timing differences found.")
-
-    print()
+    if not quiet:
+        print(f"\n✓ Bridge Amount: ${bridge_amount:,.2f}")
+        print(f"✓ Number of vouchers with variances: {len(proof_df)}")
+        print_df(proof_df, "Vouchers with Variances (proof_df)", limit)
     return bridge_amount, proof_df
 
+# -------------------------------
+# Summary
+# -------------------------------
+def print_summary(task2, task4, task1):
+    b1 = Box("Task 2: VTC (Voucher to Cash) Reconciliation")
+    b2 = Box("Task 4: Customer Posting Group Reclassification")
+    b3 = Box("Task 1: Timing Difference Bridge")
+    bt = Box("TOTAL BRIDGES/ADJUSTMENTS")
 
-def print_summary(task2_result, task4_result, task1_result):
-    """Print final summary of all bridges/adjustments."""
-    print("=" * 80)
-    print("SUMMARY OF ALL BRIDGES/ADJUSTMENTS")
-    print("=" * 80)
+    # Task 2
+    print(b1.header())
+    print(b1.line(f"Adjustment Amount:      ${task2[0]:>16,.2f}"))
+    print(b1.line(f"Unmatched Vouchers:     {len(task2[1]):>6} items"))
+    print(b1.footer())
 
-    print("\n┌─────────────────────────────────────────────────────────────┐")
-    print("│ Task 2: VTC (Voucher to Cash) Reconciliation               │")
-    print("├─────────────────────────────────────────────────────────────┤")
-    print(f"│ Adjustment Amount:      ${task2_result[0]:>16,.2f}            │")
-    print(
-        f"│ Unmatched Vouchers:     {len(task2_result[1]):>6} items                    │"
-    )
-    print("└─────────────────────────────────────────────────────────────┘")
+    # Task 4
+    print(b2.header())
+    print(b2.line(f"Bridge Amount:          ${task4[0]:>16,.2f}"))
+    print(b2.line(f"Problem Customers:      {len(task4[1]):>6} items"))
+    print(b2.footer())
 
-    print("\n┌─────────────────────────────────────────────────────────────┐")
-    print("│ Task 4: Customer Posting Group Reclassification             │")
-    print("├─────────────────────────────────────────────────────────────┤")
-    print(f"│ Bridge Amount:          ${task4_result[0]:>16,.2f}            │")
-    print(
-        f"│ Problem Customers:      {len(task4_result[1]):>6} items                    │"
-    )
-    print("└─────────────────────────────────────────────────────────────┘")
+    # Task 1
+    print(b3.header())
+    print(b3.line(f"Bridge Amount:          ${task1[0]:>16,.2f}"))
+    print(b3.line(f"Vouchers w/ Variance:   {len(task1[1]):>6} items"))
+    print(b3.footer())
 
-    print("\n┌─────────────────────────────────────────────────────────────┐")
-    print("│ Task 1: Timing Difference Bridge                            │")
-    print("├─────────────────────────────────────────────────────────────┤")
-    print(f"│ Bridge Amount:          ${task1_result[0]:>16,.2f}            │")
-    print(
-        f"│ Vouchers w/ Variance:   {len(task1_result[1]):>6} items                    │"
-    )
-    print("└─────────────────────────────────────────────────────────────┘")
+    total = task2[0] + task4[0] + task1[0]
+    print(bt.header())
+    print(bt.line(f"Total Amount:           ${total:>16,.2f}"))
+    print(bt.footer())
 
-    total_bridges = task2_result[0] + task4_result[0] + task1_result[0]
-    print("\n┌─────────────────────────────────────────────────────────────┐")
-    print("│ TOTAL BRIDGES/ADJUSTMENTS                                   │")
-    print("├─────────────────────────────────────────────────────────────┤")
-    print(f"│ Total Amount:           ${total_bridges:>16,.2f}            │")
-    print("└─────────────────────────────────────────────────────────────┘")
-    print()
-
+# -------------------------------
+# Main
+# -------------------------------
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument("--country", default="JD_GH", help="ID_COMPANY / id_company code to filter (default: JD_GH)")
+    p.add_argument("--summary-only", action="store_true", help="Print only the final summary (no step details)")
+    p.add_argument("--quiet", action="store_true", help="Hide intermediate DataFrame heads")
+    p.add_argument("--limit", type=int, default=10, help="Max rows to display in DataFrame previews")
+    return p.parse_args()
 
 def main():
-    """Main entry point for the classifier test script."""
-    print("\n" + "=" * 80)
-    print("CLASSIFIER TEST SCRIPT")
+    args = parse_args()
+
+    hr("CLASSIFIER TEST SCRIPT")
     print("Testing classification logic offline using local fixtures")
-    print("=" * 80 + "\n")
 
-    # Load fixtures
-    fixtures = load_fixtures()
+    fixtures = load_fixtures(args.country)
 
-    # Run Task 2: VTC
-    task2_result = run_task2_vtc(fixtures)
+    # Steps
+    task2 = run_task2_vtc(fixtures, quiet=args.summary_only or args.quiet, limit=args.limit)
+    task4 = run_task4_customer_reclass(fixtures, quiet=args.summary_only or args.quiet, limit=args.limit)
+    task1 = run_task1_timing_diff(fixtures, quiet=args.summary_only or args.quiet, limit=args.limit)
 
-    # Run Task 4: Customer Reclass
-    task4_result = run_task4_customer_reclass(fixtures)
+    # Single, clean summary
+    hr("SUMMARY OF ALL BRIDGES/ADJUSTMENTS")
+    print_summary(task2, task4, task1)
 
-    # Run Task 1: Timing Diff
-    task1_result = run_task1_timing_diff(fixtures)
-
-    # Print summary
-    print_summary(task2_result, task4_result, task1_result)
-
-    print("✓ Test completed successfully!")
-    print()
-
+    print("\n✓ Test completed successfully!\n")
 
 if __name__ == "__main__":
     main()

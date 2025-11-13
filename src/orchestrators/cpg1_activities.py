@@ -343,7 +343,7 @@ async def calculate_customer_posting_group_bridge_activity(
         # Call core business logic
         bridge_amount, proof_df = calculate_customer_posting_group_bridge(ipe_07_df)
         
-    log.info("Customer posting group bridge calculated", bridge_amount=float(bridge_amount), problem_customers=len(proof_df))
+        log.info("Customer posting group bridge calculated", bridge_amount=float(bridge_amount), problem_customers=len(proof_df))
         
         return {
             "bridge_amount": float(bridge_amount),

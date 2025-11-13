@@ -156,13 +156,13 @@ def calculate_vtc_adjustment(
     # Filter source vouchers (BOB): canceled refund vouchers
     source_vouchers_df = ipe_08_df[
         (ipe_08_df["business_use_formatted"] == "refund")
-        & (ipe_08_df["is_valid"] == "valid")
+        & (ipe_08_df["Is_Valid"] == "valid")
         & (ipe_08_df["is_active"] == 0)
     ].copy()
 
     if categorized_cr_03_df is None or categorized_cr_03_df.empty:
         # All source vouchers are unmatched
-        adjustment_amount = source_vouchers_df["Remaining Amount"].sum()
+        adjustment_amount = source_vouchers_df["remaining_amount"].sum()
         return adjustment_amount, source_vouchers_df
 
     # Filter target entries (NAV): cancellation categories
@@ -177,11 +177,11 @@ def calculate_vtc_adjustment(
     # Perform left anti-join: find vouchers in source that are NOT in target
     # Left anti-join means: keep rows from left where the join key does NOT match any row in right
     unmatched_df = source_vouchers_df[
-        ~source_vouchers_df["id"].isin(target_entries_df["[Voucher No_]"])
+        ~source_vouchers_df["id"].isin(target_entries_df["Voucher No_"])
     ].copy()
 
     # Calculate adjustment amount
-    adjustment_amount = unmatched_df["Remaining Amount"].sum()
+    adjustment_amount = unmatched_df["remaining_amount"].sum()
 
     return adjustment_amount, unmatched_df
 
@@ -351,22 +351,19 @@ def calculate_timing_difference_bridge(
         doc_voucher_usage_df is None or doc_voucher_usage_df.empty
     ):
         return 0.0, pd.DataFrame(
-            columns=["amount_used", "TotalUsageAmount", "variance"]
+            columns=["Amount Used", "TotalUsageAmount", "variance"]
         )
 
     # Data Preparation (Source A - Jdash)
     if jdash_df is None or jdash_df.empty:
-        jdash_agg = pd.Series(dtype=float, name="amount_used")
+        jdash_agg = pd.Series(dtype=float, name="Amount Used")
     else:
         # Validate required columns exist
-        if (
-            "voucher_id" not in jdash_df.columns
-            or "amount_used" not in jdash_df.columns
-        ):
+        if "Voucher Id" not in jdash_df.columns or "Amount Used" not in jdash_df.columns:
             raise ValueError(
-                "jdash_df must contain 'voucher_id' and 'amount_used' columns"
+                "jdash_df must contain 'Voucher Id' and 'Amount Used' columns"
             )
-        jdash_agg = jdash_df.groupby("voucher_id")["amount_used"].sum()
+        jdash_agg = jdash_df.groupby("Voucher Id")["Amount Used"].sum()
 
     # Data Preparation (Source B - Usage TV)
     if doc_voucher_usage_df is None or doc_voucher_usage_df.empty:
@@ -390,7 +387,7 @@ def calculate_timing_difference_bridge(
     ).fillna(0)
 
     # Calculate Variance
-    merged_df["variance"] = merged_df["amount_used"] - merged_df["TotalUsageAmount"]
+    merged_df["variance"] = merged_df["Amount Used"] - merged_df["TotalUsageAmount"]
 
     # Calculate Result
     proof_df = merged_df[merged_df["variance"] != 0].copy()
