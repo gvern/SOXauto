@@ -271,7 +271,7 @@ def test_catalog_ipe_31_aligned_with_baseline():
 
 
 def test_catalog_doc_voucher_usage_with_sql_and_sources():
-    """Test DOC_VOUCHER_USAGE query for Timing Difference Bridge (Usage May 2025 Query)."""
+    """Test DOC_VOUCHER_USAGE query for Timing Difference Bridge (Usage May 2025 Query - Corrected)."""
     from src.core.catalog.cpg1 import get_item_by_id
 
     item = get_item_by_id("DOC_VOUCHER_USAGE")
@@ -292,6 +292,12 @@ def test_catalog_doc_voucher_usage_with_sql_and_sources():
     assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]" in item.sql_query, \
         "DOC_VOUCHER_USAGE should query from RPT_SOI table"
     
+    # Verify joins with new tables
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING]" in item.sql_query, \
+        "DOC_VOUCHER_USAGE should join with V_STORECREDITVOUCHER_CLOSING table"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_TRANSACTIONS_SELLER]" in item.sql_query, \
+        "DOC_VOUCHER_USAGE should join with RPT_TRANSACTIONS_SELLER table"
+    
     # Verify key business logic filters
     assert "VOUCHER_TYPE] = 'reusablecredit'" in item.sql_query, \
         "DOC_VOUCHER_USAGE should filter for reusablecredit voucher type"
@@ -300,34 +306,40 @@ def test_catalog_doc_voucher_usage_with_sql_and_sources():
     assert "year(soi.[DELIVERED_DATE]) > 2014" in item.sql_query, \
         "DOC_VOUCHER_USAGE should filter DELIVERED_DATE year > 2014"
     
-    # Verify aggregation columns
-    assert "sum(ISNULL(soi.[MTR_SHIPPING_DISCOUNT_AMOUNT],0)) shipping_discount" in item.sql_query, \
-        "DOC_VOUCHER_USAGE should aggregate MTR_SHIPPING_DISCOUNT_AMOUNT"
+    # Verify aggregation columns (note: new query structure)
     assert "sum(ISNULL(soi.[MTR_SHIPPING_VOUCHER_DISCOUNT],0)) shipping_storecredit" in item.sql_query, \
         "DOC_VOUCHER_USAGE should aggregate MTR_SHIPPING_VOUCHER_DISCOUNT"
     assert "MPL_storecredit" in item.sql_query, \
         "DOC_VOUCHER_USAGE should calculate MPL_storecredit for marketplace"
     assert "RTL_storecredit" in item.sql_query, \
         "DOC_VOUCHER_USAGE should calculate RTL_storecredit for retail"
-    assert "TotalUsageAmount" in item.sql_query, \
-        "DOC_VOUCHER_USAGE should calculate TotalUsageAmount"
+    assert "TotalAmountUsed" in item.sql_query, \
+        "DOC_VOUCHER_USAGE should calculate TotalAmountUsed"
     
-    # Verify GROUP BY clause
-    assert "GROUP BY" in item.sql_query, "DOC_VOUCHER_USAGE should have GROUP BY clause"
+    # Verify business_use column from V_STORECREDITVOUCHER_CLOSING
+    assert "business_use" in item.sql_query, \
+        "DOC_VOUCHER_USAGE should include business_use from V_STORECREDITVOUCHER_CLOSING"
+    
+    # Verify GROUP BY clause (note: different grouping in new query)
+    assert "group by" in item.sql_query.lower(), "DOC_VOUCHER_USAGE should have GROUP BY clause"
     assert "soi.[ID_Company]" in item.sql_query, "DOC_VOUCHER_USAGE should group by ID_Company"
-    assert "soi.[voucher_code]" in item.sql_query, "DOC_VOUCHER_USAGE should group by voucher_code"
     assert "soi.[voucher_type]" in item.sql_query, "DOC_VOUCHER_USAGE should group by voucher_type"
     
-    # Verify sources list
-    assert item.sources is not None and len(item.sources) == 1, "DOC_VOUCHER_USAGE should have exactly 1 source"
+    # Verify sources list (now includes 3 tables)
+    assert item.sources is not None and len(item.sources) == 3, "DOC_VOUCHER_USAGE should have exactly 3 sources"
     
     source_locations = [src.location for src in item.sources]
     assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]" in source_locations, \
         "DOC_VOUCHER_USAGE should have RPT_SOI as a source"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING]" in source_locations, \
+        "DOC_VOUCHER_USAGE should have V_STORECREDITVOUCHER_CLOSING as a source"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_TRANSACTIONS_SELLER]" in source_locations, \
+        "DOC_VOUCHER_USAGE should have RPT_TRANSACTIONS_SELLER as a source"
     
-    # Verify source metadata
-    assert item.sources[0].system == "OMS", "DOC_VOUCHER_USAGE source should be from OMS system"
-    assert item.sources[0].domain == "FinRec", "DOC_VOUCHER_USAGE source should be from FinRec domain"
+    # Verify source metadata (all should be from OMS/FinRec)
+    for source in item.sources:
+        assert source.system == "OMS", f"DOC_VOUCHER_USAGE source {source.location} should be from OMS system"
+        assert source.domain == "FinRec", f"DOC_VOUCHER_USAGE source {source.location} should be from FinRec domain"
 
 
 def test_catalog_cr_05_aligned_with_baseline():
