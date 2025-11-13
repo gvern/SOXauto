@@ -322,76 +322,83 @@ def _categorize_nav_vouchers(cr_03_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def calculate_timing_difference_bridge(
-    jdash_df: pd.DataFrame, doc_voucher_usage_df: pd.DataFrame
+    ipe_08_df: pd.DataFrame, cutoff_date: str
 ) -> tuple[float, pd.DataFrame]:
     """
-    Calculate the timing difference bridge between Jdash and Usage TV Extract.
+    Calculate the timing difference bridge for vouchers used in Month N but delivered/canceled in Month N+1.
 
-    This function performs a direct reconciliation of voucher usage amounts between
-    two data sources:
-    1. Jdash export (source A) - aggregated by voucher_id
-    2. Usage TV Extract from DOC_VOUCHER_USAGE (source B) - aggregated by voucher_code
-
-    The bridge value is the sum of unexplained variances between these sources.
+    This function identifies vouchers that were used (order created) in the reconciliation month
+    but were delivered or canceled in the following month, representing a timing difference.
 
     Args:
-        jdash_df: DataFrame from Jdash export containing voucher usage data.
-                  Expected columns: 'voucher_id', 'amount_used'
-        doc_voucher_usage_df: DataFrame from DOC_VOUCHER_USAGE catalog item.
-                             Expected columns: 'voucher_code', 'TotalUsageAmount'
+        ipe_08_df: DataFrame from IPE_08 extraction containing voucher data.
+                   Expected columns: 'Business_Use', 'Order_Creation_Date',
+                                   'Order_Delivery_Date', 'Order_Cancellation_Date', 'remaining_amount'
+        cutoff_date: The cutoff date for the reconciliation in format 'YYYY-MM-DD'.
+                    This determines the reconciliation month (Month N).
 
     Returns:
         tuple: (bridge_amount, proof_df)
-            - bridge_amount: Sum of all variances (amount_used - TotalUsageAmount)
-            - proof_df: DataFrame with columns ['amount_used', 'TotalUsageAmount', 'variance']
-                       indexed by voucher_id/voucher_code, containing only non-zero variances
+            - bridge_amount: Sum of remaining_amount for all timing difference vouchers
+            - proof_df: DataFrame containing vouchers with timing differences
     """
     # Handle empty inputs
-    if (jdash_df is None or jdash_df.empty) and (
-        doc_voucher_usage_df is None or doc_voucher_usage_df.empty
-    ):
-        return 0.0, pd.DataFrame(
-            columns=["Amount Used", "TotalUsageAmount", "variance"]
-        )
+    if ipe_08_df is None or ipe_08_df.empty:
+        return 0.0, pd.DataFrame()
 
-    # Data Preparation (Source A - Jdash)
-    if jdash_df is None or jdash_df.empty:
-        jdash_agg = pd.Series(dtype=float, name="Amount Used")
-    else:
-        # Validate required columns exist
-        if "Voucher Id" not in jdash_df.columns or "Amount Used" not in jdash_df.columns:
-            raise ValueError(
-                "jdash_df must contain 'Voucher Id' and 'Amount Used' columns"
-            )
-        jdash_agg = jdash_df.groupby("Voucher Id")["Amount Used"].sum()
+    # Parse cutoff_date to get recon_month and next_month
+    try:
+        cutoff_dt = pd.to_datetime(cutoff_date)
+    except Exception as e:
+        raise ValueError(f"Invalid cutoff_date format '{cutoff_date}'. Expected 'YYYY-MM-DD'. Error: {e}")
 
-    # Data Preparation (Source B - Usage TV)
-    if doc_voucher_usage_df is None or doc_voucher_usage_df.empty:
-        usage_tv_agg = pd.Series(dtype=float, name="TotalUsageAmount")
-    else:
-        # Validate required columns exist
-        if (
-            "voucher_code" not in doc_voucher_usage_df.columns
-            or "TotalUsageAmount" not in doc_voucher_usage_df.columns
-        ):
-            raise ValueError(
-                "doc_voucher_usage_df must contain 'voucher_code' and 'TotalUsageAmount' columns"
-            )
-        usage_tv_agg = doc_voucher_usage_df.groupby("voucher_code")[
-            "TotalUsageAmount"
-        ].sum()
+    # Get the reconciliation month (Month N) and next month (Month N+1)
+    recon_month_start = cutoff_dt.replace(day=1)
+    next_month_start = (recon_month_start + pd.DateOffset(months=1))
+    next_month_end = (next_month_start + pd.DateOffset(months=1)) - pd.Timedelta(days=1)
 
-    # Perform Reconciliation (Outer Join)
-    merged_df = pd.merge(
-        jdash_agg, usage_tv_agg, left_index=True, right_index=True, how="outer"
-    ).fillna(0)
+    # Validate required columns
+    required_cols = ['Business_Use', 'Order_Creation_Date', 'Order_Delivery_Date',
+                    'Order_Cancellation_Date', 'remaining_amount']
+    missing_cols = [col for col in required_cols if col not in ipe_08_df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing required columns in ipe_08_df: {missing_cols}")
 
-    # Calculate Variance
-    merged_df["variance"] = merged_df["Amount Used"] - merged_df["TotalUsageAmount"]
+    # Make a working copy
+    df = ipe_08_df.copy()
 
-    # Calculate Result
-    proof_df = merged_df[merged_df["variance"] != 0].copy()
-    bridge_amount = proof_df["variance"].sum()
+    # Convert date columns to datetime
+    df['Order_Creation_Date'] = pd.to_datetime(df['Order_Creation_Date'], errors='coerce')
+    df['Order_Delivery_Date'] = pd.to_datetime(df['Order_Delivery_Date'], errors='coerce')
+    df['Order_Cancellation_Date'] = pd.to_datetime(df['Order_Cancellation_Date'], errors='coerce')
+
+    # Filter 1: Non-marketing Business_Use types
+    # Marketing types to exclude: 'marketing', and types containing 'marketing'
+    # Non-marketing types include: apology_v2, jforce, refund, store_credit, etc.
+    df['Business_Use_lower'] = df['Business_Use'].astype(str).str.lower()
+    non_marketing_mask = ~df['Business_Use_lower'].str.contains('marketing', na=False)
+    df_filtered = df[non_marketing_mask].copy()
+
+    # Filter 2: Order_Creation_Date in recon_month (Month N)
+    creation_in_recon_month = (
+        (df_filtered['Order_Creation_Date'] >= recon_month_start) &
+        (df_filtered['Order_Creation_Date'] < next_month_start)
+    )
+    df_filtered = df_filtered[creation_in_recon_month].copy()
+
+    # Filter 3: Order_Delivery_Date OR Order_Cancellation_Date in next_month (Month N+1)
+    delivery_in_next_month = (
+        (df_filtered['Order_Delivery_Date'] >= next_month_start) &
+        (df_filtered['Order_Delivery_Date'] <= next_month_end)
+    )
+    cancellation_in_next_month = (
+        (df_filtered['Order_Cancellation_Date'] >= next_month_start) &
+        (df_filtered['Order_Cancellation_Date'] <= next_month_end)
+    )
+    proof_df = df_filtered[delivery_in_next_month | cancellation_in_next_month].copy()
+
+    # Calculate bridge amount
+    bridge_amount = proof_df['remaining_amount'].sum()
 
     return bridge_amount, proof_df
 
