@@ -297,18 +297,29 @@ along with related sales order item information for reconciliation purposes.""",
         third_party=False,
         cross_reference=None,
         notes=(
-            "Baseline: 'Usage May 2025 Query' from IPE_08 documentation. "
+            "Baseline: 'Usage May 2025 Query' from IPE_08 documentation (corrected). "
             "This extract provides the Usage side for Task 1 (Timing Difference Bridge). "
-            "It queries RPT_SOI for voucher usage data that reconciles with the Jdash extract."
+            "It queries RPT_SOI with joins to V_STORECREDITVOUCHER_CLOSING and RPT_TRANSACTIONS_SELLER for enriched voucher usage data."
         ),
         evidence_ref="DOC_VOUCHER_USAGE",
         descriptor_excel=None,
         description="""This query extracts voucher usage data from RPT_SOI for the Timing Difference Bridge reconciliation.
 It provides the "Usage TV Extract" side that reconciles with the Jdash extract in Task 1.
-The query aggregates shipping discounts, shipping store credits, and marketplace/retail store credits by company, voucher code, and voucher type.""",
+The query joins with V_STORECREDITVOUCHER_CLOSING to obtain business_use and creation year, and with RPT_TRANSACTIONS_SELLER to get transaction numbers.
+It aggregates shipping store credits and marketplace/retail store credits by company, voucher id, transaction number, voucher type, business use, creation year, and delivery month.""",
         sources=[
             _src_sql(
                 "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]",
+                system="OMS",
+                domain="FinRec",
+            ),
+            _src_sql(
+                "[AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING]",
+                system="OMS",
+                domain="FinRec",
+            ),
+            _src_sql(
+                "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_TRANSACTIONS_SELLER]",
                 system="OMS",
                 domain="FinRec",
             ),
