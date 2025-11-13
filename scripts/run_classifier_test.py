@@ -52,8 +52,46 @@ def load_fixtures():
             sys.exit(1)
 
         fixtures[name] = pd.read_csv(filepath)
+        print(f"Colonnes pour {name}: {list(fixtures[name].columns)}")
         print(f"✓ Loaded {name}: {len(fixtures[name])} rows from {filename}")
+    # ================================================================================
+    # FILTRAGE DES FIXTURES (POUR UN SEUL PAYS)
+    # ================================================================================
+    print("\n================================================================================")
+    print("FILTERING FIXTURES FOR A SINGLE COUNTRY (GHANA)")
+    print("================================================================================")
 
+    # Définir le code pays pour le Ghana (basé sur vos exports SQL)
+    COUNTRY_CODE_TO_TEST = 'JD_GH'
+
+    try:
+        # Filtre CR_03 (utilise 'id_company' en minuscules)
+        rows_before = len(fixtures['CR_03'])
+        fixtures['CR_03'] = fixtures['CR_03'][fixtures['CR_03']['id_company'] == COUNTRY_CODE_TO_TEST].copy()
+        print(f"✓ Filtered CR_03: {rows_before} rows -> {len(fixtures['CR_03'])} rows")
+
+        # Filtre IPE_08 (utilise 'ID_COMPANY' en majuscules)
+        rows_before = len(fixtures['IPE_08'])
+        fixtures['IPE_08'] = fixtures['IPE_08'][fixtures['IPE_08']['ID_COMPANY'] == COUNTRY_CODE_TO_TEST].copy()
+        print(f"✓ Filtered IPE_08: {rows_before} rows -> {len(fixtures['IPE_08'])} rows")
+
+        # Filtre IPE_07 (utilise 'id_company' en minuscules)
+        rows_before = len(fixtures['IPE_07'])
+        fixtures['IPE_07'] = fixtures['IPE_07'][fixtures['IPE_07']['id_company'] == COUNTRY_CODE_TO_TEST].copy()
+        print(f"✓ Filtered IPE_07: {rows_before} rows -> {len(fixtures['IPE_07'])} rows")
+
+        # Filtre DOC_VOUCHER_USAGE (utilise 'ID_COMPANY' en majuscules)
+        rows_before = len(fixtures['DOC_VOUCHER_USAGE'])
+        fixtures['DOC_VOUCHER_USAGE'] = fixtures['DOC_VOUCHER_USAGE'][fixtures['DOC_VOUCHER_USAGE']['ID_Company'] == COUNTRY_CODE_TO_TEST].copy()
+        print(f"✓ Filtered DOC_VOUCHER_USAGE: {rows_before} rows -> {len(fixtures['DOC_VOUCHER_USAGE'])} rows")
+
+        # Le fichier JDASH est déjà filtré, nous le laissons tel quel.
+        print(f"✓ Kept JDASH: {len(fixtures['JDASH'])} rows (already filtered)")
+
+    except KeyError as e:
+        print(f"\n❌ ERREUR DE FILTRAGE: Une colonne n'a pas été trouvée. Vérifiez 'id_company' ou 'ID_COMPANY'.")
+        print(f"Erreur: {e}")
+        # Vous pouvez ajouter 'import sys; sys.exit(1)' ici si vous voulez arrêter le script en cas d'erreur.
     print()
     return fixtures
 
@@ -75,11 +113,8 @@ def run_task2_vtc(fixtures):
     categorized_cr_03 = _categorize_nav_vouchers(fixtures["CR_03"])
     print(f"✓ Categorized {len(categorized_cr_03)} voucher entries")
     print("\nCategorization Results:")
-    print(
-        categorized_cr_03[
-            ["Chart of Accounts No_", "Amount", "[Voucher No_]", "bridge_category"]
-        ].to_string()
-    )
+    # Corrigé : Imprime juste les 10 premières lignes sans sélectionner de colonnes
+    print(categorized_cr_03.head(10))
 
     # Step 2: Calculate VTC adjustment
     print("\n[Step 2] Calculating VTC adjustment...")
