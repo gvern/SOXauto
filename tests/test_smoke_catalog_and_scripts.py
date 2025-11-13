@@ -333,7 +333,6 @@ def test_catalog_doc_voucher_usage_with_sql_and_sources():
         assert source.domain == "FinRec", f"DOC_VOUCHER_USAGE source {source.location} should be from FinRec domain"
 
 
-
 def test_catalog_cr_05_aligned_with_baseline():
     """Test CR_05 query is aligned with correct audited baseline (3-table join with CASE WHEN FX logic)."""
     from src.core.catalog.cpg1 import get_item_by_id
