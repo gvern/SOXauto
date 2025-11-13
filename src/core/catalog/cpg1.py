@@ -273,7 +273,6 @@ along with related sales order item information for reconciliation purposes.""",
         descriptor_excel="IPE_FILES/IPE_08_test.xlsx",
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING]", system="BOB", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[StoreCreditVoucher]", system="BOB", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
         sql_query=_load_sql("IPE_08"),
