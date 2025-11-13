@@ -5,8 +5,6 @@ PG-01.pages
 data/
 credentials.json
 *.csv
-!tests/fixtures/*.csv
-!tests/fixtures/**/*.csv
 NOtes.md
 
 # Python
