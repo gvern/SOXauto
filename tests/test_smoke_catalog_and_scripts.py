@@ -60,30 +60,39 @@ def test_catalog_has_ipe_08_with_sql_and_sources():
     # Check that {cutoff_date} parameter is present in the query
     assert "{cutoff_date}" in item.sql_query, "IPE_08 sql_query should contain {cutoff_date} parameter"
     
-    # Verify the query joins RPT_SOI at row level (not aggregated)
-    assert "LEFT JOIN" in item.sql_query, "IPE_08 should use LEFT JOIN to RPT_SOI"
-    assert "t1.fk_Sales_Order_Item = tTwo.ID_Sales_Order_Item" in item.sql_query, \
-        "IPE_08 should join RPT_SOI on fk_Sales_Order_Item at row level"
+    # Verify the query uses the "Issuance" baseline with aggregated sd3 subquery
+    assert "LEFT JOIN" in item.sql_query, "IPE_08 should use LEFT JOIN"
+    assert "sd3" in item.sql_query, "IPE_08 should use the sd3 aggregated subquery (Issuance baseline)"
+    assert "GROUP BY" in item.sql_query, "IPE_08 should use GROUP BY in the sd3 subquery for aggregation"
     
-    # Verify critical date columns are included (needed for Timing Difference bridge)
-    assert "Order_Creation_Date" in item.sql_query, "IPE_08 should include Order_Creation_Date column"
-    assert "Order_Delivery_Date" in item.sql_query, "IPE_08 should include Order_Delivery_Date column"
-    assert "Order_Cancellation_Date" in item.sql_query, "IPE_08 should include Order_Cancellation_Date column"
+    # Verify the sd3 subquery joins on voucher_code (not fk_Sales_Order_Item)
+    assert "scv.[code]=sd3.[voucher_code]" in item.sql_query or "scv.[code] = sd3.[voucher_code]" in item.sql_query, \
+        "IPE_08 should join sd3 subquery on voucher_code"
     
-    # Verify it does NOT use the incorrect aggregated subquery approach
-    assert "GROUP BY" not in item.sql_query, "IPE_08 should NOT use GROUP BY (no aggregation)"
-    assert "sd3" not in item.sql_query, "IPE_08 should NOT use the sd3 aggregated subquery"
+    # Verify aggregated columns from sd3 are included
+    assert "shipping_discount" in item.sql_query, "IPE_08 should include shipping_discount from sd3"
+    assert "shipping_storecredit" in item.sql_query, "IPE_08 should include shipping_storecredit from sd3"
+    assert "MPL_storecredit" in item.sql_query, "IPE_08 should include MPL_storecredit from sd3"
+    assert "RTL_storecredit" in item.sql_query, "IPE_08 should include RTL_storecredit from sd3"
+    assert "TotalAmountUsed" in item.sql_query, "IPE_08 should calculate TotalAmountUsed"
+    assert "TotalRemainingAmount" in item.sql_query, "IPE_08 should calculate TotalRemainingAmount"
     
-    # Verify sources list contains only the 2 required tables (V_STORECREDITVOUCHER_CLOSING and RPT_SOI)
-    assert item.sources is not None and len(item.sources) == 2, "IPE_08 should have exactly 2 sources"
+    # Verify it does NOT use row-level join to RPT_SOI (that was the incorrect PR #56 version)
+    assert "fk_Sales_Order_Item" not in item.sql_query, "IPE_08 should NOT use fk_Sales_Order_Item (row-level join)"
+    assert "Order_Creation_Date" not in item.sql_query, "IPE_08 should NOT include Order_Creation_Date (not in Issuance baseline)"
+    assert "Order_Delivery_Date" not in item.sql_query, "IPE_08 should NOT include Order_Delivery_Date (not in Issuance baseline)"
+    assert "Order_Cancellation_Date" not in item.sql_query, "IPE_08 should NOT include Order_Cancellation_Date (not in Issuance baseline)"
+    
+    # Verify sources list contains all 3 required tables for the Issuance query
+    assert item.sources is not None and len(item.sources) == 3, "IPE_08 should have exactly 3 sources"
     
     source_locations = [src.location for src in item.sources]
     assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING]" in source_locations, \
         "IPE_08 should have V_STORECREDITVOUCHER_CLOSING as a source"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[StoreCreditVoucher]" in source_locations, \
+        "IPE_08 should have StoreCreditVoucher as a source (for template_id and template_name)"
     assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]" in source_locations, \
-        "IPE_08 should have RPT_SOI as a source"
-    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[StoreCreditVoucher]" not in source_locations, \
-        "IPE_08 should NOT have StoreCreditVoucher as a source (removed in baseline revert)"
+        "IPE_08 should have RPT_SOI as a source (used in sd3 aggregated subquery)"
 
 
 def test_catalog_has_cr_03_with_sql_and_sources():
