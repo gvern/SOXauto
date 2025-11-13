@@ -30,16 +30,16 @@ logger = logging.getLogger(__name__)
 def dataframe_to_dict(df: pd.DataFrame) -> Dict[str, Any]:
     """
     Serialize a pandas DataFrame to a JSON-compatible dictionary.
-    
+
     Args:
         df: DataFrame to serialize
-        
+
     Returns:
         Dictionary with data and metadata
     """
     if df is None or df.empty:
         return {"data": [], "columns": [], "index": [], "dtypes": {}}
-    
+
     return {
         "data": df.to_dict(orient="records"),
         "columns": df.columns.tolist(),
@@ -51,22 +51,22 @@ def dataframe_to_dict(df: pd.DataFrame) -> Dict[str, Any]:
 def dict_to_dataframe(data_dict: Dict[str, Any]) -> pd.DataFrame:
     """
     Deserialize a dictionary back to a pandas DataFrame.
-    
+
     Args:
         data_dict: Dictionary containing DataFrame data
-        
+
     Returns:
         Reconstructed DataFrame
     """
     if not data_dict or not data_dict.get("data"):
         return pd.DataFrame()
-    
+
     df = pd.DataFrame(data_dict["data"])
-    
+
     # Restore column order if available
     if data_dict.get("columns"):
         df = df[data_dict["columns"]]
-    
+
     # Restore data types if available
     if data_dict.get("dtypes"):
         for col, dtype in data_dict["dtypes"].items():
@@ -75,7 +75,7 @@ def dict_to_dataframe(data_dict: Dict[str, Any]) -> pd.DataFrame:
                     df[col] = df[col].astype(dtype)
                 except (ValueError, TypeError):
                     logger.warning(f"Could not restore dtype {dtype} for column {col}")
-    
+
     return df
 
 
@@ -86,11 +86,11 @@ async def execute_ipe_query_activity(
 ) -> Dict[str, Any]:
     """
     Execute an IPE query using the IPERunner.
-    
+
     Args:
         ipe_id: IPE identifier (e.g., "IPE_07", "IPE_31")
         cutoff_date: Optional cutoff date for the query (YYYY-MM-DD)
-        
+
     Returns:
         Dictionary containing:
         - data: Serialized DataFrame
@@ -108,17 +108,17 @@ async def execute_ipe_query_activity(
         cutoff_date=cutoff_date,
     )
     log.info("Executing IPE query")
-    
+
     try:
         # Import here to avoid circular dependencies
         from src.core.catalog.cpg1 import get_item_by_id
         from src.utils.aws_utils import AWSSecretsManager
-        
+
         # Get IPE configuration
         ipe_config = get_item_by_id(ipe_id)
         if not ipe_config:
             raise ValueError(f"IPE {ipe_id} not found in catalog")
-        
+
         # Convert CatalogItem to dict format expected by IPERunner
         # Note: IPERunner validation queries are not defined in the catalog yet.
         # For now, we disable validation checks by setting them to None.
@@ -132,26 +132,26 @@ async def execute_ipe_query_activity(
                 "completeness_query": None,  # TODO: Add to catalog when validation queries are defined
                 "accuracy_positive_query": None,  # TODO: Add to catalog when validation queries are defined
                 "accuracy_negative_query": None,  # TODO: Add to catalog when validation queries are defined
-            }
+            },
         }
-        
+
         # Initialize secrets manager (will use env var fallback if AWS not available)
         secrets_manager = AWSSecretsManager()
-        
+
         # Initialize evidence manager
         evidence_manager = DigitalEvidenceManager("evidence")
-        
+
         # Create and run IPE runner
         runner = IPERunner(
             ipe_config=ipe_config_dict,
             secret_manager=secrets_manager,
             cutoff_date=cutoff_date,
-            evidence_manager=evidence_manager
+            evidence_manager=evidence_manager,
         )
-        
+
         # Execute query
         df = runner.run()
-        
+
         # Serialize result
         result = {
             "data": dataframe_to_dict(df),
@@ -160,10 +160,10 @@ async def execute_ipe_query_activity(
             "ipe_id": ipe_id,
             "rows_extracted": len(df),
         }
-        
+
         log.info("IPE executed", rows=len(df))
         return result
-        
+
     except Exception as e:
         log.error(f"Error executing IPE: {e}")
         raise
@@ -176,11 +176,11 @@ async def execute_cr_query_activity(
 ) -> Dict[str, Any]:
     """
     Execute a CR (Custom Report) query.
-    
+
     Args:
         cr_id: CR identifier (e.g., "CR_03", "CR_04")
         parameters: Query parameters (e.g., cutoff_date, gl_accounts)
-        
+
     Returns:
         Dictionary containing serialized DataFrame
     """
@@ -194,29 +194,29 @@ async def execute_cr_query_activity(
         cr_id=cr_id,
     )
     log.info("Executing CR query", parameters=parameters)
-    
+
     try:
         from src.core.catalog.cpg1 import get_item_by_id
         from src.utils.sql_template import render_sql
         import pyodbc
         import os
-        
+
         # Get CR configuration
         cr_config = get_item_by_id(cr_id)
         if not cr_config:
             raise ValueError(f"CR {cr_id} not found in catalog")
-        
+
         if not cr_config.sql_query:
             raise ValueError(f"CR {cr_id} has no SQL query defined")
-        
+
         # Render SQL with parameters
         rendered_query = render_sql(cr_config.sql_query, parameters)
-        
+
         # Get database connection
         connection_string = os.getenv("DB_CONNECTION_STRING")
         if not connection_string:
             raise ValueError("DB_CONNECTION_STRING environment variable not set")
-        
+
         # Execute query
         with pyodbc.connect(connection_string) as conn:
             df = pd.read_sql(rendered_query, conn)
@@ -226,7 +226,7 @@ async def execute_cr_query_activity(
             "cr_id": cr_id,
             "rows_extracted": len(df),
         }
-        
+
     except Exception as e:
         log.error(f"Error executing CR: {e}")
         raise
@@ -239,35 +239,42 @@ async def calculate_timing_difference_bridge_activity(
 ) -> Dict[str, Any]:
     """
     Calculate timing difference bridge between Jdash and DOC_VOUCHER_USAGE.
-    
+
     Args:
         jdash_data: Serialized Jdash DataFrame
         doc_voucher_usage_data: Serialized DOC_VOUCHER_USAGE DataFrame
-        
+
     Returns:
         Dictionary with bridge_amount and proof data
     """
     activity_logger = activity.logger
     info = activity.info()
-    log = enrich(activity_logger, activity_id=info.activity_id, workflow_id=info.workflow_id, run_id=info.workflow_run_id)
+    log = enrich(
+        activity_logger,
+        activity_id=info.activity_id,
+        workflow_id=info.workflow_id,
+        run_id=info.workflow_run_id,
+    )
     log.info("Calculating timing difference bridge")
-    
+
     try:
         # Deserialize inputs
         jdash_df = dict_to_dataframe(jdash_data)
         doc_voucher_usage_df = dict_to_dataframe(doc_voucher_usage_data)
-        
+
         # Call core business logic
         bridge_amount, proof_df = calculate_timing_difference_bridge(
             jdash_df, doc_voucher_usage_df
         )
-        log.info("Timing difference bridge calculated", bridge_amount=float(bridge_amount))
+        log.info(
+            "Timing difference bridge calculated", bridge_amount=float(bridge_amount)
+        )
         return {
             "bridge_amount": float(bridge_amount),
             "proof_data": dataframe_to_dict(proof_df),
             "variance_count": len(proof_df),
         }
-        
+
     except Exception as e:
         log.error(f"Error calculating timing difference bridge: {e}")
         raise
@@ -280,19 +287,24 @@ async def calculate_vtc_adjustment_activity(
 ) -> Dict[str, Any]:
     """
     Calculate VTC (Voucher to Cash) adjustment.
-    
+
     Args:
         ipe_08_data: Serialized IPE_08 DataFrame
         categorized_cr_03_data: Optional serialized categorized CR_03 DataFrame
-        
+
     Returns:
         Dictionary with adjustment_amount and proof data
     """
     activity_logger = activity.logger
     info = activity.info()
-    log = enrich(activity_logger, activity_id=info.activity_id, workflow_id=info.workflow_id, run_id=info.workflow_run_id)
+    log = enrich(
+        activity_logger,
+        activity_id=info.activity_id,
+        workflow_id=info.workflow_id,
+        run_id=info.workflow_run_id,
+    )
     log.info("Calculating VTC adjustment")
-    
+
     try:
         # Deserialize inputs
         ipe_08_df = dict_to_dataframe(ipe_08_data)
@@ -301,18 +313,20 @@ async def calculate_vtc_adjustment_activity(
             if categorized_cr_03_data
             else None
         )
-        
+
         # Call core business logic
         adjustment_amount, proof_df = calculate_vtc_adjustment(
             ipe_08_df, categorized_cr_03_df
         )
-        log.info("VTC adjustment calculated", adjustment_amount=float(adjustment_amount))
+        log.info(
+            "VTC adjustment calculated", adjustment_amount=float(adjustment_amount)
+        )
         return {
             "adjustment_amount": float(adjustment_amount),
             "proof_data": dataframe_to_dict(proof_df),
             "unmatched_count": len(proof_df),
         }
-        
+
     except Exception as e:
         log.error(f"Error calculating VTC adjustment: {e}")
         raise
@@ -324,33 +338,42 @@ async def calculate_customer_posting_group_bridge_activity(
 ) -> Dict[str, Any]:
     """
     Calculate customer posting group bridge (identifies posting group inconsistencies).
-    
+
     Args:
         ipe_07_data: Serialized IPE_07 DataFrame
-        
+
     Returns:
         Dictionary with bridge_amount and proof data
     """
     activity_logger = activity.logger
     info = activity.info()
-    log = enrich(activity_logger, activity_id=info.activity_id, workflow_id=info.workflow_id, run_id=info.workflow_run_id)
+    log = enrich(
+        activity_logger,
+        activity_id=info.activity_id,
+        workflow_id=info.workflow_id,
+        run_id=info.workflow_run_id,
+    )
     log.info("Calculating customer posting group bridge")
-    
+
     try:
         # Deserialize input
         ipe_07_df = dict_to_dataframe(ipe_07_data)
-        
+
         # Call core business logic
         bridge_amount, proof_df = calculate_customer_posting_group_bridge(ipe_07_df)
-        
-        log.info("Customer posting group bridge calculated", bridge_amount=float(bridge_amount), problem_customers=len(proof_df))
-        
+
+        log.info(
+            "Customer posting group bridge calculated",
+            bridge_amount=float(bridge_amount),
+            problem_customers=len(proof_df),
+        )
+
         return {
             "bridge_amount": float(bridge_amount),
             "proof_data": dataframe_to_dict(proof_df),
             "problem_customers_count": len(proof_df),
         }
-        
+
     except Exception as e:
         log.error(f"Error calculating customer posting group bridge: {e}")
         raise
@@ -364,39 +387,46 @@ async def save_evidence_activity(
 ) -> Dict[str, Any]:
     """
     Save evidence for audit trail.
-    
+
     Args:
         evidence_type: Type of evidence (e.g., "bridge", "adjustment", "validation")
         evidence_data: Evidence data to save
         metadata: Additional metadata for the evidence
-        
+
     Returns:
         Dictionary with evidence_path and confirmation
     """
     activity_logger = activity.logger
     info = activity.info()
-    log = enrich(activity_logger, activity_id=info.activity_id, workflow_id=info.workflow_id, run_id=info.workflow_run_id, evidence_type=evidence_type)
+    log = enrich(
+        activity_logger,
+        activity_id=info.activity_id,
+        workflow_id=info.workflow_id,
+        run_id=info.workflow_run_id,
+        evidence_type=evidence_type,
+    )
     log.info("Saving evidence")
-    
+
     try:
         # Initialize evidence manager
         evidence_manager = DigitalEvidenceManager("evidence")
-        
+
         # Create evidence package
         execution_metadata = {
             "evidence_type": evidence_type,
             "timestamp": datetime.now().isoformat(),
             **metadata,
         }
-        
+
         evidence_id = f"{evidence_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         evidence_dir = evidence_manager.create_evidence_package(
             evidence_id, execution_metadata
         )
-        
+
         # Save evidence data as JSON
         import json
         import os
+
         evidence_file = os.path.join(evidence_dir, "evidence_data.json")
         with open(evidence_file, "w") as f:
             json.dump(evidence_data, f, indent=2, default=str)
@@ -406,7 +436,7 @@ async def save_evidence_activity(
             "evidence_id": evidence_id,
             "status": "success",
         }
-        
+
     except Exception as e:
         log.error(f"Error saving evidence: {e}")
         raise
@@ -419,41 +449,52 @@ async def classify_bridges_activity(
 ) -> Dict[str, Any]:
     """
     Apply bridge classification rules to data.
-    
+
     Args:
         dataframe_data: Serialized DataFrame to classify
         rules_config: Optional bridge rules configuration
-        
+
     Returns:
         Dictionary with classified data
     """
     activity_logger = activity.logger
     info = activity.info()
-    log = enrich(activity_logger, activity_id=info.activity_id, workflow_id=info.workflow_id, run_id=info.workflow_run_id)
+    log = enrich(
+        activity_logger,
+        activity_id=info.activity_id,
+        workflow_id=info.workflow_id,
+        run_id=info.workflow_run_id,
+    )
     log.info("Classifying bridges")
-    
+
     try:
         from src.bridges.classifier import classify_bridges
         from src.bridges.catalog import load_rules
-        
+
         # Deserialize input
         df = dict_to_dataframe(dataframe_data)
-        
+
         # Load rules
         rules = load_rules() if rules_config is None else rules_config
-        
+
         # Apply classification
         classified_df = classify_bridges(df, rules)
-        
+
         # Count classifications
-        classification_counts = classified_df["bridge_key"].value_counts(dropna=False).to_dict()
-        log.info("Classification completed", total_rows=len(classified_df), categories=len(classification_counts))
+        classification_counts = (
+            classified_df["bridge_key"].value_counts(dropna=False).to_dict()
+        )
+        log.info(
+            "Classification completed",
+            total_rows=len(classified_df),
+            categories=len(classification_counts),
+        )
         return {
             "data": dataframe_to_dict(classified_df),
             "classification_counts": classification_counts,
             "total_rows": len(classified_df),
         }
-        
+
     except Exception as e:
         log.error(f"Error classifying bridges: {e}")
         raise

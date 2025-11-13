@@ -359,7 +359,10 @@ def calculate_timing_difference_bridge(
         jdash_agg = pd.Series(dtype=float, name="Amount Used")
     else:
         # Validate required columns exist
-        if "Voucher Id" not in jdash_df.columns or "Amount Used" not in jdash_df.columns:
+        if (
+            "Voucher Id" not in jdash_df.columns
+            or "Amount Used" not in jdash_df.columns
+        ):
             raise ValueError(
                 "jdash_df must contain 'Voucher Id' and 'Amount Used' columns"
             )
