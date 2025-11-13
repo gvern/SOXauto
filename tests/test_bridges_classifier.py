@@ -824,297 +824,341 @@ def test_categorize_nav_vouchers_case_insensitivity():
 
 
 # ========================================================================
-# Tests for calculate_timing_difference_bridge (Month N vs N+1 logic)
+# Tests for calculate_timing_difference_bridge
 # ========================================================================
 
 
 def test_calculate_timing_difference_bridge_basic():
-    """Test basic timing difference bridge calculation with Month N vs N+1 logic."""
-    # Create IPE_08 data with vouchers used in September, delivered/canceled in October
-    ipe_08_df = pd.DataFrame(
+    """Test basic timing difference bridge calculation with simple variance."""
+    # Create Jdash data
+    jdash_df = pd.DataFrame(
         [
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": "2025-09-15",
-                "Order_Delivery_Date": "2025-10-05",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 100.0,
-            },
-            {
-                "Business_Use": "apology_v2",
-                "Order_Creation_Date": "2025-09-20",
-                "Order_Delivery_Date": pd.NaT,
-                "Order_Cancellation_Date": "2025-10-10",
-                "remaining_amount": 200.0,
-            },
-            {
-                "Business_Use": "store_credit",
-                "Order_Creation_Date": "2025-09-25",
-                "Order_Delivery_Date": "2025-09-28",  # Delivered in same month
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 150.0,
-            },
+            {"Voucher Id": "V001", "Amount Used": 100.0},
+            {"Voucher Id": "V002", "Amount Used": 200.0},
+            {"Voucher Id": "V003", "Amount Used": 150.0},
+        ]
+    )
+
+    # Create Usage TV data
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 100.0},  # Matches exactly
+            {"voucher_code": "V002", "TotalUsageAmount": 180.0},  # Variance of 20
+            {"voucher_code": "V003", "TotalUsageAmount": 150.0},  # Matches exactly
         ]
     )
 
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        ipe_08_df, "2025-09-30"
+        jdash_df, doc_voucher_usage_df
     )
 
-    # Only first two vouchers should be included (delivered/canceled in Oct)
+    # Only V002 should have a variance
+    assert bridge_amount == 20.0
+    assert len(proof_df) == 1
+    assert proof_df.loc["V002", "variance"] == 20.0
+    assert proof_df.loc["V002", "Amount Used"] == 200.0
+    assert proof_df.loc["V002", "TotalUsageAmount"] == 180.0
+
+
+def test_calculate_timing_difference_bridge_empty_inputs():
+    """Test with both empty DataFrames."""
+    jdash_df = pd.DataFrame()
+    doc_voucher_usage_df = pd.DataFrame()
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    assert bridge_amount == 0.0
+    assert proof_df.empty
+    assert list(proof_df.columns) == ["Amount Used", "TotalUsageAmount", "variance"]
+
+
+def test_calculate_timing_difference_bridge_none_inputs():
+    """Test with None inputs."""
+    bridge_amount, proof_df = calculate_timing_difference_bridge(None, None)
+
+    assert bridge_amount == 0.0
+    assert proof_df.empty
+    assert list(proof_df.columns) == ["Amount Used", "TotalUsageAmount", "variance"]
+
+
+def test_calculate_timing_difference_bridge_empty_jdash():
+    """Test with empty Jdash data but populated Usage TV data."""
+    jdash_df = pd.DataFrame()
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 100.0},
+            {"voucher_code": "V002", "TotalUsageAmount": 200.0},
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # All Usage TV amounts should appear as negative variances
+    assert bridge_amount == -300.0
+    assert len(proof_df) == 2
+    assert proof_df.loc["V001", "variance"] == -100.0
+    assert proof_df.loc["V002", "variance"] == -200.0
+
+
+def test_calculate_timing_difference_bridge_empty_usage_tv():
+    """Test with populated Jdash data but empty Usage TV data."""
+    jdash_df = pd.DataFrame(
+        [
+            {"Voucher Id": "V001", "Amount Used": 100.0},
+            {"Voucher Id": "V002", "Amount Used": 200.0},
+        ]
+    )
+    doc_voucher_usage_df = pd.DataFrame()
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # All Jdash amounts should appear as positive variances
     assert bridge_amount == 300.0
     assert len(proof_df) == 2
+    assert proof_df.loc["V001", "variance"] == 100.0
+    assert proof_df.loc["V002", "variance"] == 200.0
 
 
-def test_calculate_timing_difference_bridge_empty_input():
-    """Test with empty DataFrame."""
-    ipe_08_df = pd.DataFrame()
-
-    bridge_amount, proof_df = calculate_timing_difference_bridge(
-        ipe_08_df, "2025-09-30"
+def test_calculate_timing_difference_bridge_unmatched_vouchers():
+    """Test with vouchers appearing in only one source."""
+    jdash_df = pd.DataFrame(
+        [
+            {"Voucher Id": "V001", "Amount Used": 100.0},
+            {"Voucher Id": "V002", "Amount Used": 200.0},
+            {"Voucher Id": "V003", "Amount Used": 150.0},
+        ]
     )
 
-    assert bridge_amount == 0.0
-    assert proof_df.empty
-
-
-def test_calculate_timing_difference_bridge_none_input():
-    """Test with None input."""
-    bridge_amount, proof_df = calculate_timing_difference_bridge(None, "2025-09-30")
-
-    assert bridge_amount == 0.0
-    assert proof_df.empty
-
-
-def test_calculate_timing_difference_bridge_filters_marketing():
-    """Test that marketing vouchers are excluded."""
-    ipe_08_df = pd.DataFrame(
+    doc_voucher_usage_df = pd.DataFrame(
         [
-            {
-                "Business_Use": "marketing",
-                "Order_Creation_Date": "2025-09-15",
-                "Order_Delivery_Date": "2025-10-05",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 100.0,
-            },
-            {
-                "Business_Use": "marketing_campaign",
-                "Order_Creation_Date": "2025-09-20",
-                "Order_Delivery_Date": "2025-10-10",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 200.0,
-            },
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": "2025-09-25",
-                "Order_Delivery_Date": "2025-10-15",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 150.0,
-            },
+            {"voucher_code": "V002", "TotalUsageAmount": 200.0},  # Matches
+            {"voucher_code": "V004", "TotalUsageAmount": 300.0},  # Only in Usage TV
+            {"voucher_code": "V005", "TotalUsageAmount": 250.0},  # Only in Usage TV
         ]
     )
 
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        ipe_08_df, "2025-09-30"
+        jdash_df, doc_voucher_usage_df
     )
 
-    # Only the refund voucher should be included
-    assert bridge_amount == 150.0
+    # V001: +100 (in Jdash only)
+    # V002: 0 (matched)
+    # V003: +150 (in Jdash only)
+    # V004: -300 (in Usage TV only)
+    # V005: -250 (in Usage TV only)
+    # Total: 100 + 150 - 300 - 250 = -300
+    assert bridge_amount == -300.0
+    assert len(proof_df) == 4  # V002 matched, so not in proof
+    assert "V002" not in proof_df.index
+
+
+def test_calculate_timing_difference_bridge_aggregation():
+    """Test that duplicate voucher IDs are properly aggregated."""
+    jdash_df = pd.DataFrame(
+        [
+            {"Voucher Id": "V001", "Amount Used": 50.0},
+            {"Voucher Id": "V001", "Amount Used": 50.0},  # Duplicate
+            {"Voucher Id": "V002", "Amount Used": 100.0},
+        ]
+    )
+
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 80.0},
+            {"voucher_code": "V001", "TotalUsageAmount": 20.0},  # Duplicate
+            {"voucher_code": "V002", "TotalUsageAmount": 100.0},
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # V001: (50+50) - (80+20) = 100 - 100 = 0 (matched after aggregation)
+    # V002: 100 - 100 = 0 (matched)
+    assert bridge_amount == 0.0
+    assert len(proof_df) == 0
+
+
+def test_calculate_timing_difference_bridge_negative_variance():
+    """Test with Usage TV amounts exceeding Jdash amounts."""
+    jdash_df = pd.DataFrame(
+        [
+            {"Voucher Id": "V001", "Amount Used": 100.0},
+            {"Voucher Id": "V002", "Amount Used": 50.0},
+        ]
+    )
+
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 150.0},
+            {"voucher_code": "V002", "TotalUsageAmount": 100.0},
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # V001: 100 - 150 = -50
+    # V002: 50 - 100 = -50
+    # Total: -100
+    assert bridge_amount == -100.0
+    assert len(proof_df) == 2
+    assert proof_df.loc["V001", "variance"] == -50.0
+    assert proof_df.loc["V002", "variance"] == -50.0
+
+
+def test_calculate_timing_difference_bridge_positive_variance():
+    """Test with Jdash amounts exceeding Usage TV amounts."""
+    jdash_df = pd.DataFrame(
+        [
+            {"Voucher Id": "V001", "Amount Used": 200.0},
+            {"Voucher Id": "V002", "Amount Used": 150.0},
+        ]
+    )
+
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 100.0},
+            {"voucher_code": "V002", "TotalUsageAmount": 50.0},
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # V001: 200 - 100 = 100
+    # V002: 150 - 50 = 100
+    # Total: 200
+    assert bridge_amount == 200.0
+    assert len(proof_df) == 2
+    assert proof_df.loc["V001", "variance"] == 100.0
+    assert proof_df.loc["V002", "variance"] == 100.0
+
+
+def test_calculate_timing_difference_bridge_mixed_variances():
+    """Test with a mix of positive and negative variances."""
+    jdash_df = pd.DataFrame(
+        [
+            {"Voucher Id": "V001", "Amount Used": 100.0},  # Positive variance
+            {"Voucher Id": "V002", "Amount Used": 50.0},  # Negative variance
+            {"Voucher Id": "V003", "Amount Used": 200.0},  # Exact match
+        ]
+    )
+
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 80.0},
+            {"voucher_code": "V002", "TotalUsageAmount": 100.0},
+            {"voucher_code": "V003", "TotalUsageAmount": 200.0},
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    # V001: 100 - 80 = +20
+    # V002: 50 - 100 = -50
+    # V003: 200 - 200 = 0 (excluded from proof)
+    # Total: 20 - 50 = -30
+    assert bridge_amount == -30.0
+    assert len(proof_df) == 2
+    assert proof_df.loc["V001", "variance"] == 20.0
+    assert proof_df.loc["V002", "variance"] == -50.0
+    assert "V003" not in proof_df.index
+
+
+def test_calculate_timing_difference_bridge_missing_jdash_columns():
+    """Test that missing required columns in jdash_df raise ValueError."""
+    jdash_df = pd.DataFrame(
+        [
+            {"Voucher Id": "V001"},  # Missing Amount Used
+        ]
+    )
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 100.0},
+        ]
+    )
+
+    with pytest.raises(ValueError, match="jdash_df must contain"):
+        calculate_timing_difference_bridge(jdash_df, doc_voucher_usage_df)
+
+
+def test_calculate_timing_difference_bridge_missing_usage_tv_columns():
+    """Test that missing required columns in doc_voucher_usage_df raise ValueError."""
+    jdash_df = pd.DataFrame(
+        [
+            {"Voucher Id": "V001", "Amount Used": 100.0},
+        ]
+    )
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001"},  # Missing TotalUsageAmount
+        ]
+    )
+
+    with pytest.raises(ValueError, match="doc_voucher_usage_df must contain"):
+        calculate_timing_difference_bridge(jdash_df, doc_voucher_usage_df)
+
+
+def test_calculate_timing_difference_bridge_output_format():
+    """Test that output DataFrame has the correct format and columns."""
+    jdash_df = pd.DataFrame(
+        [
+            {"Voucher Id": "V001", "Amount Used": 100.0},
+        ]
+    )
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 80.0},
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        jdash_df, doc_voucher_usage_df
+    )
+
+    assert bridge_amount == 20.0
+    assert list(proof_df.columns) == ["Amount Used", "TotalUsageAmount", "variance"]
+    assert proof_df.index.name in [
+        None,
+        "Voucher Id",
+        "voucher_code",
+    ]  # Index from merge
     assert len(proof_df) == 1
-    assert proof_df.iloc[0]["Business_Use"] == "refund"
 
 
-def test_calculate_timing_difference_bridge_filters_by_month():
-    """Test that only vouchers created in Month N and delivered/canceled in Month N+1 are included."""
-    ipe_08_df = pd.DataFrame(
+def test_calculate_timing_difference_bridge_zero_amounts():
+    """Test handling of zero amounts."""
+    jdash_df = pd.DataFrame(
         [
-            # Created in Sep, delivered in Oct - INCLUDE
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": "2025-09-15",
-                "Order_Delivery_Date": "2025-10-05",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 100.0,
-            },
-            # Created in Aug, delivered in Oct - EXCLUDE (wrong creation month)
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": "2025-08-15",
-                "Order_Delivery_Date": "2025-10-05",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 200.0,
-            },
-            # Created in Sep, delivered in Sep - EXCLUDE (same month)
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": "2025-09-15",
-                "Order_Delivery_Date": "2025-09-25",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 150.0,
-            },
-            # Created in Sep, delivered in Nov - EXCLUDE (wrong delivery month)
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": "2025-09-15",
-                "Order_Delivery_Date": "2025-11-05",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 300.0,
-            },
+            {"Voucher Id": "V001", "Amount Used": 0.0},
+            {"Voucher Id": "V002", "Amount Used": 100.0},
+        ]
+    )
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"voucher_code": "V001", "TotalUsageAmount": 0.0},
+            {"voucher_code": "V002", "TotalUsageAmount": 0.0},
         ]
     )
 
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        ipe_08_df, "2025-09-30"
+        jdash_df, doc_voucher_usage_df
     )
 
-    # Only the first voucher should be included
+    # V001: 0 - 0 = 0 (excluded)
+    # V002: 100 - 0 = 100
     assert bridge_amount == 100.0
     assert len(proof_df) == 1
-
-
-def test_calculate_timing_difference_bridge_cancellation_date():
-    """Test that cancellation dates are properly handled."""
-    ipe_08_df = pd.DataFrame(
-        [
-            # Canceled in Month N+1
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": "2025-09-15",
-                "Order_Delivery_Date": pd.NaT,
-                "Order_Cancellation_Date": "2025-10-05",
-                "remaining_amount": 100.0,
-            },
-            # Delivered in Month N+1
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": "2025-09-20",
-                "Order_Delivery_Date": "2025-10-10",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 200.0,
-            },
-            # Both delivery and cancellation in Month N+1 (should count once)
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": "2025-09-25",
-                "Order_Delivery_Date": "2025-10-15",
-                "Order_Cancellation_Date": "2025-10-20",
-                "remaining_amount": 150.0,
-            },
-        ]
-    )
-
-    bridge_amount, proof_df = calculate_timing_difference_bridge(
-        ipe_08_df, "2025-09-30"
-    )
-
-    # All three vouchers should be included
-    assert bridge_amount == 450.0
-    assert len(proof_df) == 3
-
-
-def test_calculate_timing_difference_bridge_missing_columns():
-    """Test that missing required columns raise ValueError."""
-    ipe_08_df = pd.DataFrame(
-        [
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": "2025-09-15",
-                # Missing Order_Delivery_Date and other columns
-            }
-        ]
-    )
-
-    with pytest.raises(ValueError, match="Missing required columns"):
-        calculate_timing_difference_bridge(ipe_08_df, "2025-09-30")
-
-
-def test_calculate_timing_difference_bridge_invalid_cutoff_date():
-    """Test that invalid cutoff_date raises ValueError."""
-    ipe_08_df = pd.DataFrame(
-        [
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": "2025-09-15",
-                "Order_Delivery_Date": "2025-10-05",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 100.0,
-            }
-        ]
-    )
-
-    with pytest.raises(ValueError, match="Invalid cutoff_date format"):
-        calculate_timing_difference_bridge(ipe_08_df, "invalid-date")
-
-
-def test_calculate_timing_difference_bridge_business_use_types():
-    """Test that correct non-marketing business use types are included."""
-    ipe_08_df = pd.DataFrame(
-        [
-            # Non-marketing types that should be INCLUDED
-            {
-                "Business_Use": "apology_v2",
-                "Order_Creation_Date": "2025-09-15",
-                "Order_Delivery_Date": "2025-10-05",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 100.0,
-            },
-            {
-                "Business_Use": "jforce",
-                "Order_Creation_Date": "2025-09-16",
-                "Order_Delivery_Date": "2025-10-06",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 200.0,
-            },
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": "2025-09-17",
-                "Order_Delivery_Date": "2025-10-07",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 150.0,
-            },
-            {
-                "Business_Use": "store_credit",
-                "Order_Creation_Date": "2025-09-18",
-                "Order_Delivery_Date": "2025-10-08",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 250.0,
-            },
-        ]
-    )
-
-    bridge_amount, proof_df = calculate_timing_difference_bridge(
-        ipe_08_df, "2025-09-30"
-    )
-
-    # All non-marketing vouchers should be included
-    assert bridge_amount == 700.0
-    assert len(proof_df) == 4
-
-
-def test_calculate_timing_difference_bridge_date_parsing():
-    """Test that various date formats are parsed correctly."""
-    ipe_08_df = pd.DataFrame(
-        [
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": pd.Timestamp("2025-09-15"),
-                "Order_Delivery_Date": pd.Timestamp("2025-10-05"),
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 100.0,
-            },
-            {
-                "Business_Use": "refund",
-                "Order_Creation_Date": "2025-09-20T10:30:00",
-                "Order_Delivery_Date": "2025-10-10T15:45:00",
-                "Order_Cancellation_Date": pd.NaT,
-                "remaining_amount": 200.0,
-            },
-        ]
-    )
-
-    bridge_amount, proof_df = calculate_timing_difference_bridge(
-        ipe_08_df, "2025-09-30"
-    )
-
-    assert bridge_amount == 300.0
-    assert len(proof_df) == 2
+    assert proof_df.loc["V002", "variance"] == 100.0

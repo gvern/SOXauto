@@ -23,6 +23,7 @@ from src.bridges.classifier import (
     calculate_timing_difference_bridge,
 )
 
+
 # -------------------------------
 # Console rendering utilities
 # -------------------------------
@@ -33,10 +34,14 @@ class Box:
 
     def header(self):
         return (
-            "\n" +
-            "┌" + "─" * (self.width - 2) + "┐\n" +
-            f"│ {self.title.ljust(self.width - 3)}│\n" +
-            "├" + "─" * (self.width - 2) + "┤"
+            "\n"
+            + "┌"
+            + "─" * (self.width - 2)
+            + "┐\n"
+            + f"│ {self.title.ljust(self.width - 3)}│\n"
+            + "├"
+            + "─" * (self.width - 2)
+            + "┤"
         )
 
     def line(self, text: str):
@@ -45,6 +50,7 @@ class Box:
     def footer(self):
         return "\n" + "└" + "─" * (self.width - 2) + "┘"
 
+
 def print_df(df: pd.DataFrame, title: str, limit: int = 10):
     if df is None or df.empty:
         print(f"\n{title}: <empty>")
@@ -52,16 +58,22 @@ def print_df(df: pd.DataFrame, title: str, limit: int = 10):
     print(f"\n{title}:")
     # affichage stable / non verbeux
     with pd.option_context(
-        "display.max_rows", limit,
-        "display.max_columns", 12,
-        "display.max_colwidth", 80,
-        "display.width", 120
+        "display.max_rows",
+        limit,
+        "display.max_columns",
+        12,
+        "display.max_colwidth",
+        80,
+        "display.width",
+        120,
     ):
         print(df.head(limit).to_string(index=False))
+
 
 def hr(title: str):
     bar = "=" * 80
     print(f"\n{bar}\n{title}\n{bar}")
+
 
 # -------------------------------
 # Data loading
@@ -72,6 +84,8 @@ def load_fixtures(country_code: str):
         "CR_03": "fixture_CR_03.csv",
         "IPE_08": "fixture_IPE_08.csv",
         "IPE_07": "fixture_IPE_07.csv",
+        "JDASH": "fixture_JDASH.csv",
+        "DOC_VOUCHER_USAGE": "fixture_DOC_VOUCHER_USAGE.csv",
     }
 
     hr("LOADING FIXTURES")
@@ -81,7 +95,6 @@ def load_fixtures(country_code: str):
         path = os.path.join(fixtures_dir, filename)
         if not os.path.exists(path):
             print(f"❌ ERROR: Fixture file not found: {path}")
-            print(f"   Note: Task 1 (Timing Difference) now uses IPE_08 instead of JDASH/DOC_VOUCHER_USAGE")
             sys.exit(1)
         # Réduit les DtypeWarning bruyants
         df = pd.read_csv(path, low_memory=False)
@@ -92,24 +105,45 @@ def load_fixtures(country_code: str):
     # Filter by country
     hr(f"FILTERING FIXTURES FOR A SINGLE COUNTRY ({country_code})")
     try:
-        rows_before = len(fixtures['CR_03'])
-        fixtures['CR_03'] = fixtures['CR_03'][fixtures['CR_03']['id_company'] == country_code].copy()
+        rows_before = len(fixtures["CR_03"])
+        fixtures["CR_03"] = fixtures["CR_03"][
+            fixtures["CR_03"]["id_company"] == country_code
+        ].copy()
         print(f"✓ Filtered CR_03: {rows_before} -> {len(fixtures['CR_03'])}")
 
-        rows_before = len(fixtures['IPE_08'])
-        fixtures['IPE_08'] = fixtures['IPE_08'][fixtures['IPE_08']['ID_COMPANY'] == country_code].copy()
+        rows_before = len(fixtures["IPE_08"])
+        fixtures["IPE_08"] = fixtures["IPE_08"][
+            fixtures["IPE_08"]["ID_COMPANY"] == country_code
+        ].copy()
         print(f"✓ Filtered IPE_08: {rows_before} -> {len(fixtures['IPE_08'])}")
 
-        rows_before = len(fixtures['IPE_07'])
-        fixtures['IPE_07'] = fixtures['IPE_07'][fixtures['IPE_07']['id_company'] == country_code].copy()
+        rows_before = len(fixtures["IPE_07"])
+        fixtures["IPE_07"] = fixtures["IPE_07"][
+            fixtures["IPE_07"]["id_company"] == country_code
+        ].copy()
         print(f"✓ Filtered IPE_07: {rows_before} -> {len(fixtures['IPE_07'])}")
 
+        rows_before = len(fixtures["DOC_VOUCHER_USAGE"])
+        fixtures["DOC_VOUCHER_USAGE"] = fixtures["DOC_VOUCHER_USAGE"][
+            fixtures["DOC_VOUCHER_USAGE"]["ID_Company"] == country_code
+        ].copy()
+        print(
+            f"✓ Filtered DOC_VOUCHER_USAGE: {rows_before} -> {len(fixtures['DOC_VOUCHER_USAGE'])}"
+        )
+
+        print(
+            f"✓ Kept JDASH: {len(fixtures['JDASH'])} rows (already filtered or global)"
+        )
+
     except KeyError as e:
-        print("\n❌ ERREUR DE FILTRAGE: colonne manquante (id_company / ID_COMPANY / ID_Company).")
+        print(
+            "\n❌ ERREUR DE FILTRAGE: colonne manquante (id_company / ID_COMPANY / ID_Company)."
+        )
         print(f"Erreur: {e}")
         sys.exit(1)
 
     return fixtures
+
 
 # -------------------------------
 # Tasks
@@ -136,25 +170,32 @@ def run_task2_vtc(fixtures, quiet=False, limit=10):
 
     return adjustment_amount, proof_df
 
+
 def run_task4_customer_reclass(fixtures, quiet=False, limit=10):
     hr("TASK 4: CUSTOMER POSTING GROUP RECLASSIFICATION")
-    bridge_amount, proof_df = calculate_customer_posting_group_bridge(fixtures["IPE_07"])
+    bridge_amount, proof_df = calculate_customer_posting_group_bridge(
+        fixtures["IPE_07"]
+    )
     if not quiet:
-        print(f"\n✓ Bridge Amount: ${bridge_amount:,.2f} (always 0 for identification tasks)")
+        print(
+            f"\n✓ Bridge Amount: ${bridge_amount:,.2f} (always 0 for identification tasks)"
+        )
         print(f"✓ Number of customers with multiple posting groups: {len(proof_df)}")
         print_df(proof_df, "Customers with Multiple Posting Groups (proof_df)", limit)
     return bridge_amount, proof_df
 
-def run_task1_timing_diff(fixtures, cutoff_date="2025-09-30", quiet=False, limit=10):
+
+def run_task1_timing_diff(fixtures, quiet=False, limit=10):
     hr("TASK 1: TIMING DIFFERENCE BRIDGE")
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        fixtures["IPE_08"], cutoff_date
+        fixtures["JDASH"], fixtures["DOC_VOUCHER_USAGE"]
     )
     if not quiet:
         print(f"\n✓ Bridge Amount: ${bridge_amount:,.2f}")
-        print(f"✓ Number of vouchers with timing differences: {len(proof_df)}")
-        print_df(proof_df, "Vouchers with Timing Differences (proof_df)", limit)
+        print(f"✓ Number of vouchers with variances: {len(proof_df)}")
+        print_df(proof_df, "Vouchers with Variances (proof_df)", limit)
     return bridge_amount, proof_df
+
 
 # -------------------------------
 # Summary
@@ -188,17 +229,33 @@ def print_summary(task2, task4, task1):
     print(bt.line(f"Total Amount:           ${total:>16,.2f}"))
     print(bt.footer())
 
+
 # -------------------------------
 # Main
 # -------------------------------
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--country", default="JD_GH", help="ID_COMPANY / id_company code to filter (default: JD_GH)")
-    p.add_argument("--cutoff-date", default="2025-09-30", help="Cutoff date for Task 1 timing difference bridge (default: 2025-09-30)")
-    p.add_argument("--summary-only", action="store_true", help="Print only the final summary (no step details)")
-    p.add_argument("--quiet", action="store_true", help="Hide intermediate DataFrame heads")
-    p.add_argument("--limit", type=int, default=10, help="Max rows to display in DataFrame previews")
+    p.add_argument(
+        "--country",
+        default="JD_GH",
+        help="ID_COMPANY / id_company code to filter (default: JD_GH)",
+    )
+    p.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="Print only the final summary (no step details)",
+    )
+    p.add_argument(
+        "--quiet", action="store_true", help="Hide intermediate DataFrame heads"
+    )
+    p.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Max rows to display in DataFrame previews",
+    )
     return p.parse_args()
+
 
 def main():
     args = parse_args()
@@ -209,15 +266,22 @@ def main():
     fixtures = load_fixtures(args.country)
 
     # Steps
-    task2 = run_task2_vtc(fixtures, quiet=args.summary_only or args.quiet, limit=args.limit)
-    task4 = run_task4_customer_reclass(fixtures, quiet=args.summary_only or args.quiet, limit=args.limit)
-    task1 = run_task1_timing_diff(fixtures, cutoff_date=args.cutoff_date, quiet=args.summary_only or args.quiet, limit=args.limit)
+    task2 = run_task2_vtc(
+        fixtures, quiet=args.summary_only or args.quiet, limit=args.limit
+    )
+    task4 = run_task4_customer_reclass(
+        fixtures, quiet=args.summary_only or args.quiet, limit=args.limit
+    )
+    task1 = run_task1_timing_diff(
+        fixtures, quiet=args.summary_only or args.quiet, limit=args.limit
+    )
 
     # Single, clean summary
     hr("SUMMARY OF ALL BRIDGES/ADJUSTMENTS")
     print_summary(task2, task4, task1)
 
     print("\n✓ Test completed successfully!\n")
+
 
 if __name__ == "__main__":
     main()
