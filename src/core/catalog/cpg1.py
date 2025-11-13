@@ -261,9 +261,10 @@ On a monthly basis the group head of shared accounting formalizes the outcome of
         status="Completed",
         baseline_required=True,
         cross_reference=None,
-        description="""This query extracts voucher target values, which are a direct input for the "Timing Difference" bridge classification. 
-It retrieves inactive vouchers created before the cutoff date that remain valid at the cutoff date, 
-along with related sales order item information for reconciliation purposes.""",
+        description="""This query extracts voucher issuance data (the 'Issuance' baseline query) with aggregated usage metrics from RPT_SOI. 
+It includes voucher details from V_STORECREDITVOUCHER_CLOSING, template information from StoreCreditVoucher, 
+and aggregated usage amounts (shipping discounts, store credits) calculated via the sd3 subquery. 
+This provides the complete voucher liability picture for reconciliation purposes.""",
         notes=(
             "File '4. All Countries June-25 - IBSAR Other AR related Accounts.xlsx / Tab 18412' "
             "-> All Countries - Jun.25 - Voucher TV Extract.xlsx. GL = 18412. "
@@ -273,6 +274,7 @@ along with related sales order item information for reconciliation purposes.""",
         descriptor_excel="IPE_FILES/IPE_08_test.xlsx",
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING]", system="BOB", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[StoreCreditVoucher]", system="BOB", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
         sql_query=_load_sql("IPE_08"),
