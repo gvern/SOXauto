@@ -147,8 +147,8 @@ def test_activity_signatures():
     
     # Check calculate_timing_difference_bridge_activity signature
     sig2 = inspect.signature(calculate_timing_difference_bridge_activity)
-    assert "jdash_data" in sig2.parameters
-    assert "doc_voucher_usage_data" in sig2.parameters
+    assert "ipe_08_data" in sig2.parameters
+    assert "cutoff_date" in sig2.parameters
     
     # Check calculate_vtc_adjustment_activity signature
     sig3 = inspect.signature(calculate_vtc_adjustment_activity)
