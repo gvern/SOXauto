@@ -224,20 +224,22 @@ class Cpg1Workflow:
                 f"Customer Posting Group Bridge: {cpg_bridge_result['problem_customers_count']} customers"
             )
             
-            # Bridge 2: Timing Difference Bridge (Month N vs N+1 logic)
-            # Identifies vouchers used in Month N but delivered/canceled in Month N+1
-            # Uses IPE_08 data and the cutoff date to determine reconciliation month
+            # Bridge 2: Timing Difference Bridge
+            # Note: This bridge requires Jdash data which is not yet implemented as an activity.
+            # Jdash data is typically exported manually or via a separate process.
+            # Using placeholder empty data for now - this will result in no timing differences found.
+            # TODO: Implement Jdash data loading activity or document manual export process
             timing_bridge_result = await workflow.execute_activity(
                 calculate_timing_difference_bridge_activity,
                 args=[
-                    ipe_08_result["data"],
-                    cutoff_date,
+                    {"data": [], "columns": [], "dtypes": {}},  # Placeholder for Jdash data
+                    doc_voucher_usage_result["data"],
                 ],
                 start_to_close_timeout=timedelta(minutes=10),
             )
             workflow_results["bridge_calculations"]["timing_difference"] = timing_bridge_result
             workflow.logger.info(
-                f"Timing Difference Bridge: ${timing_bridge_result['bridge_amount']:,.2f} ({timing_bridge_result['timing_diff_count']} vouchers)"
+                f"Timing Difference Bridge: {timing_bridge_result['bridge_amount']}"
             )
             
             # Bridge 3: VTC Adjustment

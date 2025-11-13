@@ -234,15 +234,15 @@ async def execute_cr_query_activity(
 
 @activity.defn(name="calculate_timing_difference_bridge")
 async def calculate_timing_difference_bridge_activity(
-    ipe_08_data: Dict[str, Any],
-    cutoff_date: str,
+    jdash_data: Dict[str, Any],
+    doc_voucher_usage_data: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Calculate timing difference bridge for vouchers used in Month N but delivered/canceled in Month N+1.
+    Calculate timing difference bridge between Jdash and DOC_VOUCHER_USAGE.
     
     Args:
-        ipe_08_data: Serialized IPE_08 DataFrame
-        cutoff_date: The cutoff date for the reconciliation (YYYY-MM-DD format)
+        jdash_data: Serialized Jdash DataFrame
+        doc_voucher_usage_data: Serialized DOC_VOUCHER_USAGE DataFrame
         
     Returns:
         Dictionary with bridge_amount and proof data
@@ -250,21 +250,22 @@ async def calculate_timing_difference_bridge_activity(
     activity_logger = activity.logger
     info = activity.info()
     log = enrich(activity_logger, activity_id=info.activity_id, workflow_id=info.workflow_id, run_id=info.workflow_run_id)
-    log.info("Calculating timing difference bridge", cutoff_date=cutoff_date)
+    log.info("Calculating timing difference bridge")
     
     try:
         # Deserialize inputs
-        ipe_08_df = dict_to_dataframe(ipe_08_data)
+        jdash_df = dict_to_dataframe(jdash_data)
+        doc_voucher_usage_df = dict_to_dataframe(doc_voucher_usage_data)
         
         # Call core business logic
         bridge_amount, proof_df = calculate_timing_difference_bridge(
-            ipe_08_df, cutoff_date
+            jdash_df, doc_voucher_usage_df
         )
-        log.info("Timing difference bridge calculated", bridge_amount=float(bridge_amount), timing_diff_count=len(proof_df))
+        log.info("Timing difference bridge calculated", bridge_amount=float(bridge_amount))
         return {
             "bridge_amount": float(bridge_amount),
             "proof_data": dataframe_to_dict(proof_df),
-            "timing_diff_count": len(proof_df),
+            "variance_count": len(proof_df),
         }
         
     except Exception as e:
