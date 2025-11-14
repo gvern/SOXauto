@@ -142,6 +142,14 @@ def load_fixtures(country_code: str):
         print(f"Erreur: {e}")
         sys.exit(1)
 
+    # DATA QUALITY PRE-CHECKS
+    hr(f"DATA QUALITY PRE-CHECKS ({country_code} ONLY)")
+    print(f"✓ CR_03 (NAV): {len(fixtures['CR_03'])} rows. Total Amount: {fixtures['CR_03']['Amount'].sum():,.2f}")
+    print(f"✓ IPE_08 (Issuance): {len(fixtures['IPE_08'])} rows. Total Remaining: {fixtures['IPE_08']['remaining_amount'].sum():,.2f}")
+    print(f"✓ IPE_07 (Customers): {len(fixtures['IPE_07'])} rows.")
+    print(f"✓ DOC_VOUCHER_USAGE (Usage TV): {len(fixtures['DOC_VOUCHER_USAGE'])} rows. Total Usage: {fixtures['DOC_VOUCHER_USAGE']['TotalAmountUsed'].sum():,.2f}")
+    print(f"✓ JDASH (Jdash): {len(fixtures['JDASH'])} rows. Total Amount Used: {fixtures['JDASH']['Amount Used'].sum():,.2f}")
+
     return fixtures
 
 
@@ -163,6 +171,13 @@ def run_task2_vtc(fixtures, quiet=False, limit=10):
         fixtures["IPE_08"], categorized
     )
 
+    # Save evidence
+    evidence_dir = os.path.join(REPO_ROOT, "evidence_output")
+    os.makedirs(evidence_dir, exist_ok=True)
+    evidence_path = os.path.join(evidence_dir, "TASK_2_VTC_PROOF.csv")
+    proof_df.to_csv(evidence_path, index=False)
+    print(f"✓ Evidence saved to 'evidence_output/TASK_2_VTC_PROOF.csv'")
+
     if not quiet:
         print(f"\n✓ VTC Adjustment Amount: ${adjustment_amount:,.2f}")
         print(f"✓ Number of unmatched vouchers: {len(proof_df)}")
@@ -176,6 +191,14 @@ def run_task4_customer_reclass(fixtures, quiet=False, limit=10):
     bridge_amount, proof_df = calculate_customer_posting_group_bridge(
         fixtures["IPE_07"]
     )
+    
+    # Save evidence
+    evidence_dir = os.path.join(REPO_ROOT, "evidence_output")
+    os.makedirs(evidence_dir, exist_ok=True)
+    evidence_path = os.path.join(evidence_dir, "TASK_4_RECLASS_PROOF.csv")
+    proof_df.to_csv(evidence_path, index=False)
+    print(f"✓ Evidence saved to 'evidence_output/TASK_4_RECLASS_PROOF.csv'")
+    
     if not quiet:
         print(
             f"\n✓ Bridge Amount: ${bridge_amount:,.2f} (always 0 for identification tasks)"
@@ -190,6 +213,14 @@ def run_task1_timing_diff(fixtures, quiet=False, limit=10):
     bridge_amount, proof_df = calculate_timing_difference_bridge(
         fixtures["JDASH"], fixtures["DOC_VOUCHER_USAGE"]
     )
+    
+    # Save evidence
+    evidence_dir = os.path.join(REPO_ROOT, "evidence_output")
+    os.makedirs(evidence_dir, exist_ok=True)
+    evidence_path = os.path.join(evidence_dir, "TASK_1_TIMING_DIFF_PROOF.csv")
+    proof_df.to_csv(evidence_path, index=False)
+    print(f"✓ Evidence saved to 'evidence_output/TASK_1_TIMING_DIFF_PROOF.csv'")
+    
     if not quiet:
         print(f"\n✓ Bridge Amount: ${bridge_amount:,.2f}")
         print(f"✓ Number of vouchers with variances: {len(proof_df)}")
