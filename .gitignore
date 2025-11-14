@@ -61,6 +61,7 @@ htmlcov/
 
 # Evidence packages (runtime artifacts)
 evidence/
+evidence_output/
 *.zip
 # Large data files (use Git LFS or external storage)
 Bridge_source/
