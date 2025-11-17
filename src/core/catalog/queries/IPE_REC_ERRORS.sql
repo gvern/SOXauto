@@ -12,6 +12,10 @@
 --   - Integration_Status (Nav_Integration_Status column)
 --
 -- Filter: Only non-integrated records (Status NOT IN ('Posted', 'Integrated'))
+--
+-- NOTE: This query assumes Transaction_ID column exists in all source tables.
+--       If actual table schemas use different column names for the primary key,
+--       update each SELECT statement accordingly (e.g., use ID, PK_ID, etc.).
 -- =====================================================================
 
 -- 1. 3PL Manual Transactions
@@ -201,9 +205,13 @@ WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 -- To add more tables:
 -- 1. Add UNION ALL clause
 -- 2. Map Source_System (descriptive name)
--- 3. Map ID_Company
--- 4. Map Transaction_ID (primary key, cast to NVARCHAR(255))
--- 5. Map Amount (monetary value column)
--- 6. Map Integration_Status (Nav_Integration_Status)
+-- 3. Map ID_Company (use actual column name from table schema)
+-- 4. Map Transaction_ID (primary key, cast to NVARCHAR(255) - use actual PK column)
+-- 5. Map Amount (monetary value column - varies by table, e.g., Amount, Transaction_Amount, etc.)
+-- 6. Map Integration_Status (Nav_Integration_Status column)
 -- 7. Add WHERE clause filtering for non-integrated records
+--
+-- IMPORTANT: Before deploying, verify column names match actual table schemas
+--            in the SQL Server database. The column names used above (especially
+--            Transaction_ID) may need to be adjusted based on actual table structure.
 -- =====================================================================

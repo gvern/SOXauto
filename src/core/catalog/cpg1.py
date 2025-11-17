@@ -562,7 +562,9 @@ records (Nav_Integration_Status NOT IN ('Posted', 'Integrated')).""",
             "Consolidates 36+ FinRec tables with standardized schema: "
             "Source_System, ID_Company, Transaction_ID, Amount, Integration_Status. "
             "Filters for integration errors (non-Posted/non-Integrated records). "
-            "Foundation for Task 3 Integration Errors Bridge analysis."
+            "Foundation for Task 3 Integration Errors Bridge analysis. "
+            "NOTE: Column names (especially Transaction_ID) should be verified against "
+            "actual table schemas before deployment."
         ),
         evidence_ref="IPE_REC_ERRORS",
         descriptor_excel=None,
