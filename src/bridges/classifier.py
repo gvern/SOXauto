@@ -421,7 +421,8 @@ def calculate_integration_error_adjustment(
         tuple: (adjustment_amount, proof_df)
             - adjustment_amount: Total sum of all error amounts
             - proof_df: DataFrame containing error transactions with columns:
-                       ['Source_System', 'Transaction_ID', 'Amount', 'Target_GL']
+                       ['Source_System', 'Amount', 'Target_GL'] and optionally
+                       'Transaction_ID' (if present in input)
     """
     # Define the mapping from Source_System to GL Account
     SOURCE_TO_GL_MAP = {
