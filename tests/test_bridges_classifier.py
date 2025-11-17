@@ -1419,8 +1419,8 @@ def test_calculate_integration_error_adjustment_no_transaction_id():
 
     assert adjustment_amount == 300.0
     assert len(proof_df) == 2
-    assert "Transaction_ID" not in proof_df.columns
-    assert list(proof_df.columns) == ["Source_System", "Amount", "Target_GL"]
+    assert "Transaction_ID" in proof_df.columns
+    assert list(proof_df.columns) == ["Source_System", "Transaction_ID", "Amount", "Target_GL"]
 
 
 def test_calculate_integration_error_adjustment_all_posted():
