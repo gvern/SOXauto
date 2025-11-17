@@ -399,10 +399,100 @@ def calculate_timing_difference_bridge(
     return bridge_amount, proof_df
 
 
+def calculate_integration_error_adjustment(
+    ipe_rec_errors_df: pd.DataFrame,
+) -> tuple[float, pd.DataFrame]:
+    """
+    Calculate integration error adjustments for reconciliation (Task 3).
+
+    This function processes integration errors from the IPE_REC_ERRORS query,
+    which consolidates 36 source tables into a standard format. It filters for
+    actual errors, maps them to the correct GL Account based on business rules,
+    and calculates the total adjustment per account.
+
+    Args:
+        ipe_rec_errors_df: DataFrame from IPE_REC_ERRORS query containing:
+            - Source_System: Name of the source table/system
+            - Amount: Transaction amount
+            - Integration_Status: Status of the integration (Posted, Integrated, Error, etc.)
+            - Transaction_ID: (optional) Unique transaction identifier
+
+    Returns:
+        tuple: (adjustment_amount, proof_df)
+            - adjustment_amount: Total sum of all error amounts
+            - proof_df: DataFrame containing error transactions with columns:
+                       ['Source_System', 'Amount', 'Target_GL'] and optionally
+                       'Transaction_ID' (if present in input)
+    """
+    # Define the mapping from Source_System to GL Account
+    SOURCE_TO_GL_MAP = {
+        # GL 13023 (Accrued MPL Revenue)
+        "SC Account Statement": "13023",
+        "Seller Account Statements": "13023",
+        # GL 18412 (Voucher Accrual)
+        "JForce Payouts": "18412",
+        "Refunds": "18412",
+        # GL 18314 (MPL Vendor Liability)
+        "Prepaid Deliveries": "18314",
+        # GL 13012 (PSP / Collection)
+        "Cash Deposits": "13012",
+        "Cash Deposit Cancel": "13012",
+        "Payment Reconciles": "13012",
+    }
+
+    # Handle empty inputs
+    if ipe_rec_errors_df is None or ipe_rec_errors_df.empty:
+        return 0.0, pd.DataFrame(
+            columns=["Source_System", "Transaction_ID", "Amount", "Target_GL"]
+        )
+
+    # Validate required columns exist
+    required_cols = ["Source_System", "Amount", "Integration_Status"]
+    missing_cols = [
+        col for col in required_cols if col not in ipe_rec_errors_df.columns
+    ]
+    if missing_cols:
+        raise ValueError(f"Missing required columns: {missing_cols}")
+
+    # Filter for actual errors (not Posted or Integrated)
+    errors_df = ipe_rec_errors_df[
+        ~ipe_rec_errors_df["Integration_Status"].isin(["Posted", "Integrated"])
+    ].copy()
+
+    if errors_df.empty:
+        return 0.0, pd.DataFrame(
+            columns=["Source_System", "Transaction_ID", "Amount", "Target_GL"]
+        )
+
+    # Map Source_System to Target_GL
+    errors_df["Target_GL"] = errors_df["Source_System"].map(SOURCE_TO_GL_MAP)
+
+    # Filter out unmapped sources (Unclassified)
+    mapped_errors_df = errors_df[errors_df["Target_GL"].notna()].copy()
+
+    if mapped_errors_df.empty:
+        return 0.0, pd.DataFrame(
+            columns=["Source_System", "Transaction_ID", "Amount", "Target_GL"]
+        )
+
+    # Calculate total adjustment amount
+    adjustment_amount = mapped_errors_df["Amount"].sum()
+
+    # Prepare proof DataFrame
+    proof_columns = ["Source_System", "Amount", "Target_GL"]
+    if "Transaction_ID" in mapped_errors_df.columns:
+        proof_columns.insert(1, "Transaction_ID")
+
+    proof_df = mapped_errors_df[proof_columns].copy()
+
+    return adjustment_amount, proof_df
+
+
 __all__ = [
     "classify_bridges",
     "calculate_customer_posting_group_bridge",
     "calculate_vtc_adjustment",
     "_categorize_nav_vouchers",
     "calculate_timing_difference_bridge",
+    "calculate_integration_error_adjustment",
 ]
