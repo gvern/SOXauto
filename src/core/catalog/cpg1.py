@@ -538,6 +538,56 @@ Given the above, and that the period and date of extraction are validated in eve
     ),
 
     # =================================================================
+    # == IPE_REC_ERRORS: Master Integration Errors Query (Task 3)
+    # =================================================================
+    CatalogItem(
+        item_id="IPE_REC_ERRORS",
+        item_type="IPE",
+        control="C-PG-1",
+        title="Master Integration Errors - Consolidated FinRec Integration Status",
+        change_status="New IPE",
+        last_updated="2025-11-17",
+        output_type="Query",
+        tool="PowerPivot",
+        third_party=False,
+        status="Completed",
+        baseline_required=True,
+        cross_reference="Task 3 - Integration Errors Bridge",
+        description="""Master Integration Errors report consolidating 36 FinRec tables into a 
+standardized view. This query serves as the foundation for Task 3 (Integration Errors Bridge) 
+and satisfies the CFO's request for a standardized 'Data Factory'. It aggregates data from 36 
+source files (SC, JForce, JPay, Cash, etc.) provided by the BI team, filtering for non-integrated 
+records (Nav_Integration_Status NOT IN ('Posted', 'Integrated')).""",
+        notes=(
+            "Consolidates 36+ FinRec tables with standardized schema: "
+            "Source_System, ID_Company, Transaction_ID, Amount, Integration_Status. "
+            "Filters for integration errors (non-Posted/non-Integrated records). "
+            "Foundation for Task 3 Integration Errors Bridge analysis."
+        ),
+        evidence_ref="IPE_REC_ERRORS",
+        descriptor_excel=None,
+        sources=[
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_3PL_MANUAL_TRANSACTIONS]", system="3PL", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHDEPOSIT]", system="Cash", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_COLLECTIONADJ]", system="Collections", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_DELIVERY_FEES]", system="OMS", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_EXC_ACCOUNTSTATEMENTS]", system="Exceptions", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_JFORCE_PAYOUTS]", system="JForce", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_JPAY_APP_TRANSACTION]", system="JPay", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_MARKETPLACE_SHIPPING_FEES]", system="Marketplace", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS]", system="OMS", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PREPAID_DELIVERIES]", system="OMS", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_REFUNDS]", system="OMS", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_TRANSACTIONS_SELLER]", system="Seller Center", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[RING].[RPT_ACCOUNTSTATEMENTS]", system="Ring", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_VENDOR_PAYMENTS]", system="Vendor", domain="FinRec"),
+            # Note: 36 total tables. Additional sources can be added following the same pattern.
+        ],
+        sql_query=_load_sql("IPE_REC_ERRORS"),
+    ),
+
+    # =================================================================
     # == JIRA TICKETS - AUDIT EXTRACTS
     # =================================================================
     # == DS-3900: GL Actuals (Auditor's View)

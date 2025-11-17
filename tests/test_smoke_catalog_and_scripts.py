@@ -405,6 +405,62 @@ def test_catalog_cr_05_aligned_with_baseline():
         "CR_05 should have Dim_Country as a source"
 
 
+def test_catalog_ipe_rec_errors_with_sql_and_sources():
+    """Test IPE_REC_ERRORS query - Master Integration Errors consolidation for Task 3."""
+    from src.core.catalog.cpg1 import get_item_by_id
+
+    item = get_item_by_id("IPE_REC_ERRORS")
+    assert item is not None, "IPE_REC_ERRORS should exist in the catalog"
+    assert isinstance(item.sql_query, str) and item.sql_query.strip(), "IPE_REC_ERRORS should have a non-empty sql_query"
+    
+    # Verify item metadata
+    assert item.item_type == "IPE", "IPE_REC_ERRORS should be an IPE type"
+    assert item.control == "C-PG-1", "IPE_REC_ERRORS should be for control C-PG-1"
+    assert item.change_status == "New IPE", "IPE_REC_ERRORS should be marked as New IPE"
+    assert "Task 3" in item.description or "Task 3" in item.cross_reference, \
+        "IPE_REC_ERRORS should reference Task 3 in description or cross_reference"
+    
+    # Verify UNION ALL structure (consolidates multiple tables)
+    union_count = item.sql_query.count("UNION ALL")
+    assert union_count >= 10, f"IPE_REC_ERRORS should have at least 10 UNION ALL clauses (found {union_count})"
+    
+    # Verify standardized output columns are present in each SELECT
+    required_columns = ["Source_System", "ID_Company", "Transaction_ID", "Amount", "Integration_Status"]
+    for col in required_columns:
+        assert col in item.sql_query, f"IPE_REC_ERRORS should have {col} in standardized schema"
+    
+    # Verify filter for non-integrated records
+    assert "NOT IN ('Posted', 'Integrated')" in item.sql_query, \
+        "IPE_REC_ERRORS should filter for non-integrated records (NOT IN ('Posted', 'Integrated'))"
+    assert "[Nav_Integration_Status]" in item.sql_query, \
+        "IPE_REC_ERRORS should use Nav_Integration_Status column"
+    
+    # Verify key source tables from requirements are in the query
+    key_tables = [
+        "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHDEPOSIT]",
+        "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_JFORCE_PAYOUTS]",
+        "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_JPAY_APP_TRANSACTION]",
+        "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]",
+        "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_REFUNDS]",
+        "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_VENDOR_PAYMENTS]",
+    ]
+    for table in key_tables:
+        assert table in item.sql_query, f"IPE_REC_ERRORS should query from {table}"
+    
+    # Verify source metadata lists multiple tables (15+ as per requirements)
+    assert item.sources is not None and len(item.sources) >= 15, \
+        f"IPE_REC_ERRORS should have at least 15 sources (found {len(item.sources) if item.sources else 0})"
+    
+    # Verify some specific source systems are listed in the metadata
+    source_locations = [src.location for src in item.sources]
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_3PL_MANUAL_TRANSACTIONS]" in source_locations, \
+        "IPE_REC_ERRORS should have RPT_3PL_MANUAL_TRANSACTIONS as a source"
+    assert "[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHDEPOSIT]" in source_locations, \
+        "IPE_REC_ERRORS should have RPT_CASHDEPOSIT as a source"
+    assert "[AIG_Nav_Jumia_Reconciliation].[RING].[RPT_ACCOUNTSTATEMENTS]" in source_locations, \
+        "IPE_REC_ERRORS should have RING.RPT_ACCOUNTSTATEMENTS as a source"
+
+
 @pytest.mark.parametrize(
     "module_name",
     [
