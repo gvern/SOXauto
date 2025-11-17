@@ -11,9 +11,12 @@ Notes
 - Keep IDs stable: use e.g. IPE_07, IPE_08, CR_04, CR_05, and a DOC_* prefix for non-IPE working files.
 """
 
-from dataclasses import dataclass, asdict
-from typing import List, Optional, Dict, Any
+from dataclasses import dataclass, asdict, field
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 import os
+
+if TYPE_CHECKING:
+    from src.core.quality_checker import QualityRule
 
 
 @dataclass
@@ -47,6 +50,8 @@ class CatalogItem:
     # SQL Server support (preferred going forward)
     sql_query: Optional[str] = None
     description: Optional[str] = None
+    # Data quality rules for automated validation
+    quality_rules: List['QualityRule'] = field(default_factory=list)
 
 
 def _src_sql(location: str, system: Optional[str] = None, domain: Optional[str] = None) -> CatalogSource:
