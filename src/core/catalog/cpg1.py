@@ -18,6 +18,8 @@ import os
 if TYPE_CHECKING:
     from src.core.quality_checker import QualityRule
 
+from src.core.quality_checker import RowCountCheck, ColumnExistsCheck, NoNullsCheck
+
 
 @dataclass
 class CatalogSource:
@@ -137,6 +139,11 @@ CPG1_CATALOG: List[CatalogItem] = [
             _src_sql("[AAN_Nav_Jumia_Reconciliation].[dbo].[Customers]", system="NAV", domain="NAVBI"),
         ],
         sql_query=_load_sql("IPE_07"),
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("Customer No_"),
+            ColumnExistsCheck("Customer Posting Group"),
+        ],
     ),
     CatalogItem(
         item_id="CR_05",
@@ -283,6 +290,11 @@ This provides the complete voucher liability picture for reconciliation purposes
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
         sql_query=_load_sql("IPE_08"),
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("remaining_amount"),
+            ColumnExistsCheck("id"),
+        ],
     ),
     # =================================================================
     # == DOC_VOUCHER_USAGE: Data for Timing Difference Bridge
@@ -336,6 +348,10 @@ voucher id, transaction number, voucher type, business use, creation year, and d
             ),
         ],
         sql_query=_load_sql("DOC_VOUCHER_USAGE"),
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("TotalAmountUsed"),
+        ],
     ),
     CatalogItem(
         item_id="IPE_31",
@@ -480,6 +496,11 @@ Given the above, and that the period and date of extraction are validated in eve
             ),
         ],
         sql_query=_load_sql("CR_04"),
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("BALANCE_AT_DATE"),
+            ColumnExistsCheck("GROUP_COA_ACCOUNT_NO"),
+        ],
         
     ),
     # =================================================================
@@ -512,6 +533,11 @@ Given the above, and that the period and date of extraction are validated in eve
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[GDOC_IFRS_Tabular_Mapping]", system="NAV", domain="FinRec"),
         ],
         sql_query=_load_sql("CR_03"),
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("Amount"),
+            ColumnExistsCheck("[Voucher No_]"),
+        ],
     ),
     # =================================================================
     # == 10. IPE-34: Marketplace Refund Liability
@@ -592,6 +618,10 @@ records (Nav_Integration_Status NOT IN ('Posted', 'Integrated')).""",
             # Note: 36 total tables. Additional sources can be added following the same pattern.
         ],
         sql_query=_load_sql("IPE_REC_ERRORS"),
+        quality_rules=[
+            ColumnExistsCheck("Integration_Status"),
+            ColumnExistsCheck("Amount"),
+        ],
     ),
 
     # =================================================================
