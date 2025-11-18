@@ -25,7 +25,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [Transaction_Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_3PL_MANUAL_TRANSACTIONS]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_3PL_MANUAL_TRANSACTIONS_ERRORS]
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
@@ -37,7 +37,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_CASHDEPOSIT]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_CASHDEPOSIT_ERRORS]
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
@@ -49,7 +49,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_COLLECTIONADJ]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_COLLECTIONADJ_ERRORS]
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
@@ -61,7 +61,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_DELIVERY_FEES]
+FROM [dbo].[V_REC_INTERNATIONAL_DELIVERY_FEES_ERRORS]
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
@@ -73,7 +73,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [Total_Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_EXC_ACCOUNTSTATEMENTS]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_EXC_ACCOUNT_STATEMENTS_ERRORS]
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
@@ -85,7 +85,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_JFORCE_PAYOUTS]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_JFORCE_PAYOUTS_ERRORS]
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
@@ -97,7 +97,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [Transaction_Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_JPAY_APP_TRANSACTION]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_JPAYAPP_TRANSACTIONS_ERRORS]
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
@@ -109,7 +109,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_MARKETPLACE_SHIPPING_FEES]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_SC_TRANSACTIONS_CUSTOMER_ERRORS]
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
@@ -121,7 +121,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [OMS_Payment_Reconciled_Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PAYMENTS]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_PAYMENT_RECONCILES_ERRORS]
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
@@ -133,7 +133,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PREPAID_DELIVERIES]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_PREPAID_DELIVERIES_ERRORS]
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
@@ -145,7 +145,7 @@ SELECT
     CAST([COD_OMS_SALES_ORDER_ITEM] AS NVARCHAR(255)) AS Transaction_ID,
     [MTR_PAID_PRICE] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]
+FROM AIG_Nav_Jumia_Reconciliation.dbo.V_REC_CUSTOMER_PRE_PAYMENTS_ERRORS
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
   AND [IS_PREPAYMENT] = 1
 
@@ -158,7 +158,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_REFUNDS]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_CUSTOMER_REFUNDS_ERRORS]
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
@@ -170,7 +170,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [Transaction_Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_TRANSACTIONS_SELLER]
+FROM AIG_Nav_Jumia_Reconciliation.dbo.V_REC_SC_TRANSACTIONS_ERRORS
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
@@ -182,7 +182,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [Statement_Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[RING].[RPT_ACCOUNTSTATEMENTS]
+FROM AIG_Nav_Jumia_Reconciliation.dbo.V_REC_SC_ACCOUNTSTATEMENTS_ERRORS
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
@@ -194,7 +194,7 @@ SELECT
     CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
     [Amount] AS Amount,
     [Nav_Integration_Status] AS Integration_Status
-FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_VENDOR_PAYMENTS]
+FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_VENDOR_PAYMENTS_ERRORS]
 WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 -- =====================================================================
