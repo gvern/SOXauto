@@ -1,217 +1,166 @@
 -- =====================================================================
--- IPE_REC_ERRORS: Master Integration Errors Query
--- =====================================================================
--- Purpose: Consolidate integration errors from 36 FinRec tables into
---          a standardized view for Task 3 (Integration Errors Bridge)
---
--- Output Schema:
---   - Source_System (String: e.g., 'Cash Deposits', 'JForce Payouts')
---   - ID_Company (Company identifier)
---   - Transaction_ID (Primary key from source table)
---   - Amount (Monetary value)
---   - Integration_Status (Nav_Integration_Status column)
---
--- Filter: Only non-integrated records (Status NOT IN ('Posted', 'Integrated'))
---
--- NOTE: This query assumes Transaction_ID column exists in all source tables.
---       If actual table schemas use different column names for the primary key,
---       update each SELECT statement accordingly (e.g., use ID, PK_ID, etc.).
+-- IPE_REC_ERRORS: Master Integration Errors Query (Validated Schema)
 -- =====================================================================
 
 -- 1. 3PL Manual Transactions
-SELECT
+SELECT 
     '3PL Manual Transactions' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [Transaction_Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [country] AS ID_Company,
+    CAST([LPMT_Code] AS NVARCHAR(255)) AS Transaction_ID,
+    [lPmT_Amount] AS Amount,
+    [Nav_Error_Message] AS Integration_Status
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_3PL_MANUAL_TRANSACTIONS_ERRORS]
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
 
 -- 2. Cash Deposits
-SELECT
+SELECT 
     'Cash Deposits' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [country] AS ID_Company,
+    CAST([Oms_Payment_No] AS NVARCHAR(255)) AS Transaction_ID,
+    [OMS Payment Amount] AS Amount,
+    [Nav_Error_Message] AS Integration_Status
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_CASHDEPOSIT_ERRORS]
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
 
 -- 3. Collection Adjustments
-SELECT
+SELECT 
     'Collection Adjustments' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [Id_Company] AS ID_Company,
+    CAST([NUMBER] AS NVARCHAR(255)) AS Transaction_ID,
+    [AMOUNT] AS Amount,
+    [ERROR MESSAGE] AS Integration_Status
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_COLLECTIONADJ_ERRORS]
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
 
 -- 4. Delivery Fees
-SELECT
+SELECT 
     'Delivery Fees' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [country] AS ID_Company,
+    CAST([Transaction_No] AS NVARCHAR(255)) AS Transaction_ID,
+    [OMS_Amount] AS Amount,
+    [Nav_Error_Message] AS Integration_Status
 FROM [dbo].[V_REC_INTERNATIONAL_DELIVERY_FEES_ERRORS]
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
 
 -- 5. Exception Account Statements
-SELECT
+SELECT 
     'Exception Account Statements' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [Total_Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [country] AS ID_Company,
+    CAST([RING_Transaction_Statement_No] AS NVARCHAR(255)) AS Transaction_ID,
+    [RING_Closing_Balance] AS Amount,
+    [Nav_Error_Message] AS Integration_Status
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_EXC_ACCOUNT_STATEMENTS_ERRORS]
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
 
 -- 6. JForce Payouts
-SELECT
+SELECT 
     'JForce Payouts' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [country] AS ID_Company,
+    CAST([Payout_Number] AS NVARCHAR(255)) AS Transaction_ID,
+    [Payout_Amount] AS Amount,
+    [Nav_Error_Message] AS Integration_Status
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_JFORCE_PAYOUTS_ERRORS]
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
 
 -- 7. JPay App Transactions
-SELECT
+SELECT 
     'JPay App Transactions' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [Transaction_Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [country] AS ID_Company,
+    CAST([ring_Transaction_Number] AS NVARCHAR(255)) AS Transaction_ID,
+    [Ring_Amount] AS Amount,
+    [Nav_Error_Message] AS Integration_Status
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_JPAYAPP_TRANSACTIONS_ERRORS]
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
 
 -- 8. Marketplace Shipping Fees
-SELECT
+SELECT 
     'Marketplace Shipping Fees' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [Country] AS ID_Company,
+    CAST([transaction_number] AS NVARCHAR(255)) AS Transaction_ID,
+    [Amount After Discount] AS Amount,
+    [nav_error_message] AS Integration_Status
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_SC_TRANSACTIONS_CUSTOMER_ERRORS]
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
 
 -- 9. Packlist Payments (Payment Reconciles)
-SELECT
+SELECT 
     'Packlist Payments' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [OMS_Payment_Reconciled_Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [country] AS ID_Company,
+    CAST([OMS Pay. Rec N°] AS NVARCHAR(255)) AS Transaction_ID,
+    [OMS reconciled amount] AS Amount,
+    [Nav Error Message] AS Integration_Status
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_PAYMENT_RECONCILES_ERRORS]
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
 
 -- 10. Prepaid Deliveries
-SELECT
+SELECT 
     'Prepaid Deliveries' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [country] AS ID_Company,
+    CAST([OMS Package N°] AS NVARCHAR(255)) AS Transaction_ID,
+    [AR] AS Amount,
+    [Nav Error Message] AS Integration_Status
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_PREPAID_DELIVERIES_ERRORS]
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
 
 -- 11. SOI Prepayments
-SELECT
+SELECT 
     'SOI Prepayments' AS Source_System,
-    ID_Company,
-    CAST([COD_OMS_SALES_ORDER_ITEM] AS NVARCHAR(255)) AS Transaction_ID,
-    [MTR_PAID_PRICE] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [country] AS ID_Company,
+    CAST([OMS_Order_No] AS NVARCHAR(255)) AS Transaction_ID,
+    [OMS_Pre_payment_Amount] AS Amount,
+    [Nav_Error_Message] AS Integration_Status
 FROM AIG_Nav_Jumia_Reconciliation.dbo.V_REC_CUSTOMER_PRE_PAYMENTS_ERRORS
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
-  AND [IS_PREPAYMENT] = 1
 
 UNION ALL
 
 -- 12. Refunds
-SELECT
+SELECT 
     'Refunds' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [country] AS ID_Company,
+    CAST([OMS_refund_no] AS NVARCHAR(255)) AS Transaction_ID,
+    [OMS_Refund_Amount] AS Amount,
+    [Nav_Error_Message] AS Integration_Status
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_CUSTOMER_REFUNDS_ERRORS]
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
 
 -- 13. Seller Transactions
-SELECT
+SELECT 
     'Seller Transactions' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [Transaction_Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [Country] AS ID_Company,
+    CAST([transaction_number] AS NVARCHAR(255)) AS Transaction_ID,
+    [Amount After Discount] AS Amount,
+    [nav_error_message] AS Integration_Status
 FROM AIG_Nav_Jumia_Reconciliation.dbo.V_REC_SC_TRANSACTIONS_ERRORS
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
 
 -- 14. Ring Account Statements
-SELECT
+SELECT 
     'Ring Account Statements' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [Statement_Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [country] AS ID_Company,
+    CAST([statement_number] AS NVARCHAR(255)) AS Transaction_ID,
+    [Total Amount] AS Amount,
+    [nav_error_message] AS Integration_Status
 FROM AIG_Nav_Jumia_Reconciliation.dbo.V_REC_SC_ACCOUNTSTATEMENTS_ERRORS
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
 
 UNION ALL
 
 -- 15. Vendor Payments
-SELECT
+SELECT 
     'Vendor Payments' AS Source_System,
-    ID_Company,
-    CAST([Transaction_ID] AS NVARCHAR(255)) AS Transaction_ID,
-    [Amount] AS Amount,
-    [Nav_Integration_Status] AS Integration_Status
+    [country] AS ID_Company,
+    CAST([Payout_Number] AS NVARCHAR(255)) AS Transaction_ID,
+    [Payout_Amount] AS Amount,
+    [Nav_Error_Message] AS Integration_Status
 FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_VENDOR_PAYMENTS_ERRORS]
-WHERE [Nav_Integration_Status] NOT IN ('Posted', 'Integrated')
-
--- =====================================================================
--- NOTE: Additional tables can be added following the same pattern.
--- The issue indicates 36 total tables. The 15 tables above represent
--- the explicitly mapped tables from the requirements.
--- 
--- To add more tables:
--- 1. Add UNION ALL clause
--- 2. Map Source_System (descriptive name)
--- 3. Map ID_Company (use actual column name from table schema)
--- 4. Map Transaction_ID (primary key, cast to NVARCHAR(255) - use actual PK column)
--- 5. Map Amount (monetary value column - varies by table, e.g., Amount, Transaction_Amount, etc.)
--- 6. Map Integration_Status (Nav_Integration_Status column)
--- 7. Add WHERE clause filtering for non-integrated records
---
--- IMPORTANT: Before deploying, verify column names match actual table schemas
---            in the SQL Server database. The column names used above (especially
---            Transaction_ID) may need to be adjusted based on actual table structure.
--- =====================================================================
