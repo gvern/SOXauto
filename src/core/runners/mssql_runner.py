@@ -344,14 +344,6 @@ class IPERunner:
                 full_params_dict.update(self.full_params)
             
             # Extract common parameters from full_params if available
-            if 'gl_accounts' in self.full_params:
-                full_params_dict['gl_accounts'] = self.full_params['gl_accounts']
-            if 'id_companies_active' in self.full_params:
-                full_params_dict['id_companies_active'] = self.full_params['id_companies_active']
-            if 'year' in self.full_params:
-                full_params_dict['year'] = self.full_params['year']
-            if 'month' in self.full_params:
-                full_params_dict['month'] = self.full_params['month']
             
             # Save exact query with ALL parameters BEFORE execution
             self.evidence_generator.save_executed_query(
