@@ -37,7 +37,6 @@ from src.core.evidence.manager import (
     DigitalEvidenceManager,
     IPEEvidenceGenerator
 )
-from src.core.runners import IPERunnerMSSQL as IPERunner
 
 
 class TestSystemUtils:
