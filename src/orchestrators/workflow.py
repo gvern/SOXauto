@@ -81,12 +81,27 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
             try:
                 logger.info(f"--- Processing IPE: {ipe_id} ---")
                 
+                # Extract country and period from cutoff_date if available
+                country = None
+                period = None
+                if cutoff_date:
+                    try:
+                        dt = datetime.strptime(cutoff_date, '%Y-%m-%d')
+                        period = dt.strftime('%Y%m')
+                    except ValueError:
+                        pass
+                
                 # Create and execute IPE runner with SOX evidence
                 runner = IPERunner(
                     ipe_config=ipe_config,
                     secret_manager=secrets_manager,
                     cutoff_date=cutoff_date,
-                    evidence_manager=evidence_manager
+                    evidence_manager=evidence_manager,
+                    country=country,
+                    period=period,
+                    full_params={
+                        'cutoff_date': cutoff_date
+                    }
                 )
                 
                 # Execute extraction and validation

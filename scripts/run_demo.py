@@ -87,7 +87,22 @@ def main():
         ipe_to_demo = "IPE_07"
         ipe_item = get_item_by_id(ipe_to_demo)
         ipe_config_dict = {'id': ipe_item.item_id, 'description': ipe_item.title, 'secret_name': 'N/A_in_demo_mode'}
-        runner = IPERunner(ipe_config=ipe_config_dict, secret_manager=None)
+        
+        # Extract country code and period from cutoff date or defaults
+        country = COUNTRY_CODE.split('_')[1] if '_' in COUNTRY_CODE else COUNTRY_CODE
+        # For period, use current month in YYYYMM format
+        period = datetime.now().strftime('%Y%m')
+        
+        runner = IPERunner(
+            ipe_config=ipe_config_dict, 
+            secret_manager=None,
+            country=country,
+            period=period,
+            full_params={
+                'country_code': COUNTRY_CODE,
+                'country_name': COUNTRY_NAME
+            }
+        )
         
         print(f"   - Loading historical data for {ipe_to_demo} from Excel file...")
         demo_file_name = "2. All Countries Mar-25 - IBSAR - Customer Accounts.xlsx"
