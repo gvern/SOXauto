@@ -140,6 +140,17 @@ async def execute_ipe_query_activity(
 
         # Initialize evidence manager
         evidence_manager = DigitalEvidenceManager("evidence")
+        
+        # Extract country and period from cutoff_date if available
+        country = None
+        period = None
+        if cutoff_date:
+            try:
+                from datetime import datetime as dt_parser
+                dt = dt_parser.strptime(cutoff_date, '%Y-%m-%d')
+                period = dt.strftime('%Y%m')
+            except ValueError:
+                pass
 
         # Create and run IPE runner
         runner = IPERunner(
@@ -147,6 +158,12 @@ async def execute_ipe_query_activity(
             secret_manager=secrets_manager,
             cutoff_date=cutoff_date,
             evidence_manager=evidence_manager,
+            country=country,
+            period=period,
+            full_params={
+                'cutoff_date': cutoff_date,
+                'ipe_id': ipe_id
+            }
         )
 
         # Execute query
