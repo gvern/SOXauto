@@ -35,7 +35,9 @@ class IPERunner:
     """
     
     def __init__(self, ipe_config: Dict[str, Any], secret_manager: AWSSecretsManager,
-                 cutoff_date: Optional[str] = None, evidence_manager: Optional[DigitalEvidenceManager] = None):
+                 cutoff_date: Optional[str] = None, evidence_manager: Optional[DigitalEvidenceManager] = None,
+                 country: Optional[str] = None, period: Optional[str] = None, 
+                 full_params: Optional[Dict[str, Any]] = None):
         """
         Initialize the runner for a specific IPE.
         
@@ -44,6 +46,9 @@ class IPERunner:
             secret_manager: AWS Secrets Manager instance
             cutoff_date: Cutoff date for extractions (format: YYYY-MM-DD)
             evidence_manager: Digital evidence manager for SOX compliance
+            country: Country code (e.g., 'NG', 'KE') for evidence naming
+            period: Period in YYYYMM format (e.g., '202509') for evidence naming
+            full_params: Full dictionary of all SQL parameters to be logged
         """
         self.config = ipe_config
         self.secret_manager = secret_manager
@@ -65,6 +70,11 @@ class IPERunner:
         # SOX evidence manager
         self.evidence_manager = evidence_manager or DigitalEvidenceManager()
         self.evidence_generator = None
+        
+        # Store metadata for evidence package
+        self.country = country
+        self.period = period
+        self.full_params = full_params or {}
         
         logger.info(f"IPERunner initialized for {self.ipe_id} - Cutoff date: {self.cutoff_date}")
     
@@ -295,18 +305,20 @@ class IPERunner:
         try:
             logger.info(f"[{self.ipe_id}] ==> STARTING IPE EXECUTION")
             
-            # 1. Create SOX evidence package
+            # 1. Create SOX evidence package with enhanced metadata
             execution_metadata = {
                 'ipe_id': self.ipe_id,
                 'description': self.description,
                 'cutoff_date': self.cutoff_date,
                 'execution_start': datetime.now().isoformat(),
                 'secret_name': self.config['secret_name'],
-                'sox_compliance_required': True
+                'sox_compliance_required': True,
+                'country': self.country,
+                'period': self.period
             }
             
             evidence_dir = self.evidence_manager.create_evidence_package(
-                self.ipe_id, execution_metadata
+                self.ipe_id, execution_metadata, country=self.country, period=self.period
             )
             self.evidence_generator = IPEEvidenceGenerator(evidence_dir, self.ipe_id)
             
@@ -321,10 +333,22 @@ class IPERunner:
             placeholder_count = main_query.count('?')
             parameters = [self.cutoff_date] * placeholder_count
             
-            # Save exact query with parameters BEFORE execution
+            # Build full parameters dictionary for logging (ALL parameters)
+            full_params_dict = {
+                'cutoff_date': self.cutoff_date,
+                'parameters': parameters,
+            }
+            
+            # Add any additional parameters passed to the runner
+            if self.full_params:
+                full_params_dict.update(self.full_params)
+            
+            # Extract common parameters from full_params if available
+            
+            # Save exact query with ALL parameters BEFORE execution
             self.evidence_generator.save_executed_query(
                 main_query, 
-                {'cutoff_date': self.cutoff_date, 'parameters': parameters}
+                full_params_dict
             )
             
             # Execute query
@@ -399,18 +423,29 @@ class IPERunner:
                 'execution_start': datetime.now().isoformat(),
                 'sox_compliance_required': False,
                 'mode': 'DEMO',
-                'demo_source': source_name
+                'demo_source': source_name,
+                'country': self.country,
+                'period': self.period
             }
 
             evidence_dir = self.evidence_manager.create_evidence_package(
-                self.ipe_id, execution_metadata
+                self.ipe_id, execution_metadata, country=self.country, period=self.period
             )
             self.evidence_generator = IPEEvidenceGenerator(evidence_dir, self.ipe_id)
 
             pseudo_query = f"-- DEMO MODE --\n-- Data loaded from: {source_name}"
+            
+            # Build full parameters for demo
+            demo_params = {
+                'source': source_name, 
+                'cutoff_date': self.cutoff_date
+            }
+            if self.full_params:
+                demo_params.update(self.full_params)
+            
             self.evidence_generator.save_executed_query(
                 pseudo_query,
-                parameters={'source': source_name, 'cutoff_date': self.cutoff_date}
+                parameters=demo_params
             )
 
             df = demo_dataframe.copy()

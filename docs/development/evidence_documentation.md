@@ -14,12 +14,32 @@ Le système d'évidence digitale de SOXauto PG-01 génère automatiquement des p
 | **Validation** | Vérification manuelle | Tests automatisés + résultats |
 | **Stockage** | Fichiers dispersés | Package structuré |
 | **Vérification** | Impossibilité de re-vérifier | Vérification cryptographique possible |
+| **Versioning** | Aucune version de code | Git commit hash + contexte système |
 
 ---
 
 ## 📦 Composition du Package d'Évidence
 
-Chaque exécution d'IPE génère un dossier horodaté contenant 7 fichiers de preuve :
+Chaque exécution d'IPE génère un dossier horodaté contenant 8 fichiers de preuve :
+
+### Nouveau: Naming Convention
+Format du dossier : `{ipe_id}_{country}_{period}_{timestamp}`
+- Exemple: `IPE_08_NG_202509_20251120_103000`
+- `ipe_id`: Identifiant de l'IPE (ex: IPE_08)
+- `country`: Code pays (ex: NG pour Nigeria, KE pour Kenya)
+- `period`: Période au format YYYYMM (ex: 202509 pour Septembre 2025)
+- `timestamp`: Horodatage au format YYYYMMDD_HHMMSS
+
+### 0. `00_system_context.json` (NOUVEAU)
+**Rôle :** Contexte système pour la traçabilité complète
+```json
+{
+  "git_commit_id": "a1b2c3d",
+  "execution_host": "soxauto-worker-01",
+  "python_version": "3.11.4 (main, Jun  7 2023, 10:13:09) [GCC 9.4.0]",
+  "runner_version": "SOXauto v1.0"
+}
+```
 
 ### 1. `01_executed_query.sql`
 **Rôle :** Preuve de la requête exacte exécutée
@@ -34,22 +54,26 @@ WHERE [Posting Date] < ?
   AND [Document Type] in ('13010','13009'...)
 ```
 
-### 2. `02_query_parameters.json`
-**Rôle :** Paramètres exacts utilisés dans la requête
+### 2. `02_query_parameters.json` (AMÉLIORÉ)
+**Rôle :** TOUS les paramètres utilisés dans la requête (pas seulement cutoff_date)
 ```json
 {
   "cutoff_date": "2024-05-01",
   "parameters": ["2024-05-01", "2024-05-01", "2024-05-01"],
+  "gl_accounts": "13003,13011,18350",
+  "id_companies_active": "BF,CI,DZ,EG,GH,KE,MA,NG,SN,UG",
+  "year": "2024",
+  "month": "05",
   "execution_timestamp": "2024-10-15T14:30:25.123456"
 }
 ```
 
-### 3. `03_data_snapshot.csv`
-**Rôle :** Échantillon des données (équivalent programmatique de la capture d'écran)
+### 3. `03_data_snapshot.csv` (AMÉLIORÉ - TAIL)
+**Rôle :** Échantillon des DERNIÈRES données (tail au lieu de head)
 ```csv
 # IPE Data Snapshot - IPE_07
 # Total Rows: 12547
-# Snapshot Rows: 100
+# Snapshot Rows (TAIL): 1000
 # Extraction Time: 2024-10-15T14:30:27.456789
 # Columns: ['id_company', 'Entry No_', 'Document No_', ...]
 ################################################################################
@@ -57,8 +81,11 @@ id_company,Entry No_,Document No_,Document Type,...
 BF,123456,DOC001,13010,...
 CI,789012,DOC002,13009,...
 ```
+**Note :** 
+- Si le dataset contient > 1000 lignes : les 1000 DERNIÈRES lignes sont sauvegardées (tail)
+- Si le dataset contient ≤ 1000 lignes : toutes les lignes sont sauvegardées
 
-### 4. `04_data_summary.json`
+### 4. `04_data_summary.json` (AMÉLIORÉ)
 **Rôle :** Statistiques descriptives des données extraites
 ```json
 {
@@ -67,6 +94,9 @@ CI,789012,DOC002,13009,...
   "columns": ["id_company", "Entry No_", "Document No_", ...],
   "data_types": {"id_company": "object", "Entry No_": "int64", ...},
   "memory_usage_mb": 15.7,
+  "snapshot_rows": 1000,
+  "snapshot_type": "tail",
+  "extraction_timestamp": "2024-10-15T14:30:28.123456",
   "numeric_statistics": {
     "Entry No_": {"mean": 156789.5, "std": 45123.2, ...}
   }

@@ -83,6 +83,7 @@ def dict_to_dataframe(data_dict: Dict[str, Any]) -> pd.DataFrame:
 async def execute_ipe_query_activity(
     ipe_id: str,
     cutoff_date: Optional[str] = None,
+    country: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Execute an IPE query using the IPERunner.
@@ -90,6 +91,7 @@ async def execute_ipe_query_activity(
     Args:
         ipe_id: IPE identifier (e.g., "IPE_07", "IPE_31")
         cutoff_date: Optional cutoff date for the query (YYYY-MM-DD)
+        country: Optional country code (e.g., 'NG', 'KE') for evidence folder naming
 
     Returns:
         Dictionary containing:
@@ -140,6 +142,19 @@ async def execute_ipe_query_activity(
 
         # Initialize evidence manager
         evidence_manager = DigitalEvidenceManager("evidence")
+        
+        # Extract country and period from cutoff_date if available
+        # Try to get country from parameter, environment variable, or leave as None
+        import os
+        ipe_country = country or os.getenv('COUNTRY_CODE')
+        period = None
+        if cutoff_date:
+            try:
+                from datetime import datetime as dt_parser
+                dt = dt_parser.strptime(cutoff_date, '%Y-%m-%d')
+                period = dt.strftime('%Y%m')
+            except ValueError:
+                logging.warning(f"Failed to parse cutoff_date '{cutoff_date}' with format '%%Y-%%m-%%d'. Leaving 'period' as None.")
 
         # Create and run IPE runner
         runner = IPERunner(
@@ -147,6 +162,12 @@ async def execute_ipe_query_activity(
             secret_manager=secrets_manager,
             cutoff_date=cutoff_date,
             evidence_manager=evidence_manager,
+            country=ipe_country,
+            period=period,
+            full_params={
+                'cutoff_date': cutoff_date,
+                'ipe_id': ipe_id
+            }
         )
 
         # Execute query
