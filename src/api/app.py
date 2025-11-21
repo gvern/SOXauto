@@ -35,9 +35,10 @@ def lambda_handler():
         # Retrieve request parameters
         request_data = request.get_json() or {}
         cutoff_date = request_data.get('cutoff_date')
+        country = request_data.get('country')
         
         # Execute workflow
-        results, status_code = execute_ipe_workflow(cutoff_date)
+        results, status_code = execute_ipe_workflow(cutoff_date, country)
         
         return results, status_code
         

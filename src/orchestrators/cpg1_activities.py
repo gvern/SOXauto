@@ -83,6 +83,7 @@ def dict_to_dataframe(data_dict: Dict[str, Any]) -> pd.DataFrame:
 async def execute_ipe_query_activity(
     ipe_id: str,
     cutoff_date: Optional[str] = None,
+    country: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Execute an IPE query using the IPERunner.
@@ -90,6 +91,7 @@ async def execute_ipe_query_activity(
     Args:
         ipe_id: IPE identifier (e.g., "IPE_07", "IPE_31")
         cutoff_date: Optional cutoff date for the query (YYYY-MM-DD)
+        country: Optional country code (e.g., 'NG', 'KE') for evidence folder naming
 
     Returns:
         Dictionary containing:
@@ -142,7 +144,9 @@ async def execute_ipe_query_activity(
         evidence_manager = DigitalEvidenceManager("evidence")
         
         # Extract country and period from cutoff_date if available
-        country = None
+        # Try to get country from parameter, environment variable, or leave as None
+        import os
+        ipe_country = country or os.getenv('COUNTRY_CODE')
         period = None
         if cutoff_date:
             try:
@@ -158,7 +162,7 @@ async def execute_ipe_query_activity(
             secret_manager=secrets_manager,
             cutoff_date=cutoff_date,
             evidence_manager=evidence_manager,
-            country=country,
+            country=ipe_country,
             period=period,
             full_params={
                 'cutoff_date': cutoff_date,
