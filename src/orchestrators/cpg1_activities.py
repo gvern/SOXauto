@@ -150,7 +150,7 @@ async def execute_ipe_query_activity(
                 dt = dt_parser.strptime(cutoff_date, '%Y-%m-%d')
                 period = dt.strftime('%Y%m')
             except ValueError:
-                pass
+                logging.warning(f"Failed to parse cutoff_date '{cutoff_date}' with format '%%Y-%%m-%%d'. Leaving 'period' as None.")
 
         # Create and run IPE runner
         runner = IPERunner(
