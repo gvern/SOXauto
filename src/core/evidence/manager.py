@@ -134,7 +134,7 @@ class IPEEvidenceGenerator:
         """
         try:
             # Logic: If len(df) > 1000, save tail(1000), otherwise save the tail of available rows
-            if len(dataframe) > 1000:
+            if len(dataframe) >= 1000:
                 snapshot_df = dataframe.tail(1000).copy()
             else:
                 snapshot_df = dataframe.tail(snapshot_rows).copy()
