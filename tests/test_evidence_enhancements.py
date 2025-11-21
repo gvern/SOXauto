@@ -19,7 +19,6 @@ import json
 import tempfile
 import shutil
 from pathlib import Path
-from datetime import datetime
 
 import pandas as pd
 import pytest
