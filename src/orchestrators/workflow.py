@@ -31,12 +31,13 @@ class WorkflowExecutionError(Exception):
     pass
 
 
-def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
+def execute_ipe_workflow(cutoff_date: str = None, country: str = None) -> Tuple[Dict[str, Any], int]:
     """
     Executes the complete IPE extraction and validation workflow.
     
     Args:
         cutoff_date: Optional cutoff date (format YYYY-MM-DD)
+        country: Optional country code (e.g., 'NG', 'KE') for evidence folder naming
         
     Returns:
         Tuple containing (results, HTTP_status_code)
@@ -81,12 +82,28 @@ def execute_ipe_workflow(cutoff_date: str = None) -> Tuple[Dict[str, Any], int]:
             try:
                 logger.info(f"--- Processing IPE: {ipe_id} ---")
                 
+                # Extract country and period from cutoff_date if available
+                # Try to get country from parameter, environment variable, or leave as None
+                ipe_country = country or os.getenv('COUNTRY_CODE')
+                period = None
+                if cutoff_date:
+                    try:
+                        dt = datetime.strptime(cutoff_date, '%Y-%m-%d')
+                        period = dt.strftime('%Y%m')
+                    except ValueError:
+                        logger.warning(f"Invalid cutoff_date format for IPE {ipe_id}: '{cutoff_date}'. Expected 'YYYY-MM-DD'. Setting period to None.")
+                
                 # Create and execute IPE runner with SOX evidence
                 runner = IPERunner(
                     ipe_config=ipe_config,
                     secret_manager=secrets_manager,
                     cutoff_date=cutoff_date,
-                    evidence_manager=evidence_manager
+                    evidence_manager=evidence_manager,
+                    country=ipe_country,
+                    period=period,
+                    full_params={
+                        'cutoff_date': cutoff_date
+                    }
                 )
                 
                 # Execute extraction and validation

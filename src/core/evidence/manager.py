@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional
 import pandas as pd
 import logging
 from pathlib import Path
+from src.utils.system_utils import get_system_context
 
 logger = logging.getLogger(__name__)
 
@@ -33,20 +34,37 @@ class DigitalEvidenceManager:
         self.base_evidence_dir = Path(base_evidence_dir)
         self.base_evidence_dir.mkdir(exist_ok=True)
         
-    def create_evidence_package(self, ipe_id: str, execution_metadata: Dict[str, Any]) -> str:
+    def create_evidence_package(self, ipe_id: str, execution_metadata: Dict[str, Any],
+                               country: Optional[str] = None, period: Optional[str] = None) -> str:
         """
         Creates a timestamped evidence directory for an IPE execution.
         
         Args:
             ipe_id: IPE identifier
             execution_metadata: Execution metadata
+            country: Country code (e.g., 'NG', 'KE')
+            period: Period in YYYYMM format (e.g., '202509')
             
         Returns:
             Path to the created evidence directory
         """
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]  # Include milliseconds
-        evidence_dir = self.base_evidence_dir / ipe_id / timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        # Build folder name with new convention: {ipe_id}_{country}_{period}_{timestamp}
+        if country and period:
+            folder_name = f"{ipe_id}_{country}_{period}_{timestamp}"
+        else:
+            # Fallback to old format if country/period not provided
+            folder_name = f"{ipe_id}_{timestamp}"
+        
+        evidence_dir = self.base_evidence_dir / folder_name
         evidence_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create system context file (00_system_context.json)
+        system_context = get_system_context()
+        context_file = evidence_dir / "00_system_context.json"
+        with open(context_file, 'w', encoding='utf-8') as f:
+            json.dump(system_context, f, indent=2, ensure_ascii=False)
         
         # Create execution metadata file
         metadata_file = evidence_dir / "execution_metadata.json"
@@ -108,14 +126,18 @@ class IPEEvidenceGenerator:
     def save_data_snapshot(self, dataframe: pd.DataFrame, snapshot_rows: int = 100) -> None:
         """
         Saves a snapshot of extracted data (programmatic equivalent of a screenshot).
+        Uses tail (last rows) instead of head for better visibility of recent data.
         
         Args:
             dataframe: DataFrame containing extracted data
             snapshot_rows: Number of rows to include in snapshot
         """
         try:
-            # Snapshot of first rows
-            snapshot_df = dataframe.head(snapshot_rows).copy()
+            # Logic: If len(df) > 1000, save tail(1000), otherwise save the tail of available rows
+            if len(dataframe) >= 1000:
+                snapshot_df = dataframe.tail(1000).copy()
+            else:
+                snapshot_df = dataframe.tail(snapshot_rows).copy()
             
             # Add metadata to snapshot
             snapshot_df.attrs['total_rows'] = len(dataframe)
@@ -127,7 +149,7 @@ class IPEEvidenceGenerator:
             with open(snapshot_file, 'w', encoding='utf-8') as f:
                 f.write(f"# IPE Data Snapshot - {self.ipe_id}\n")
                 f.write(f"# Total Rows: {len(dataframe)}\n")
-                f.write(f"# Snapshot Rows: {len(snapshot_df)}\n")
+                f.write(f"# Snapshot Rows (TAIL): {len(snapshot_df)}\n")
                 f.write(f"# Extraction Time: {datetime.now().isoformat()}\n")
                 f.write(f"# Columns: {list(dataframe.columns)}\n")
                 f.write("#" + "="*80 + "\n")
@@ -144,6 +166,7 @@ class IPEEvidenceGenerator:
                 'data_types': dataframe.dtypes.astype(str).to_dict(),
                 'memory_usage_mb': round(dataframe.memory_usage(deep=True).sum() / 1024 / 1024, 2),
                 'snapshot_rows': len(snapshot_df),
+                'snapshot_type': 'tail',
                 'extraction_timestamp': datetime.now().isoformat()
             }
             
@@ -155,8 +178,8 @@ class IPEEvidenceGenerator:
             with open(summary_file, 'w', encoding='utf-8') as f:
                 json.dump(summary, f, indent=2, ensure_ascii=False, default=str)
             
-            self._log_action("SNAPSHOT_SAVED", f"Snapshot saved: {len(snapshot_df)} rows out of {len(dataframe)}")
-            logger.info(f"[{self.ipe_id}] Data snapshot saved")
+            self._log_action("SNAPSHOT_SAVED", f"Snapshot (tail) saved: {len(snapshot_df)} rows out of {len(dataframe)}")
+            logger.info(f"[{self.ipe_id}] Data snapshot (tail) saved")
             
         except Exception as e:
             self._log_action("ERROR", f"Error saving snapshot: {e}")
