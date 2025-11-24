@@ -126,7 +126,9 @@ def calculate_customer_posting_group_bridge(
 
 
 def calculate_vtc_adjustment(
-    ipe_08_df: Optional[pd.DataFrame], categorized_cr_03_df: Optional[pd.DataFrame]
+    ipe_08_df: Optional[pd.DataFrame], 
+    categorized_cr_03_df: Optional[pd.DataFrame],
+    fx_converter: Optional['FXConverter'] = None
 ) -> tuple[float, pd.DataFrame]:
     """Calculate VTC (Voucher to Cash) refund reconciliation adjustment.
 
@@ -140,14 +142,17 @@ def calculate_vtc_adjustment(
             - is_valid: Validity status
             - is_active: Active status (0 for canceled)
             - Remaining Amount: Amount for the voucher
+            - ID_COMPANY: Company code (required if fx_converter is provided)
         categorized_cr_03_df: DataFrame containing categorized NAV GL entries with columns:
             - [Voucher No_]: Voucher number from NAV
             - bridge_category: Category of the entry (e.g., 'Cancellation', 'VTC Manual')
+        fx_converter: Optional FXConverter instance for USD conversion.
+                     If None, returns amounts in local currency.
 
     Returns:
-        tuple: (adjustment_amount, proof_df) where:
-            - adjustment_amount: Sum of unmatched voucher amounts
-            - proof_df: DataFrame of unmatched vouchers (the adjustment items)
+        tuple: (adjustment_amount_usd, proof_df) where:
+            - adjustment_amount_usd: Sum of unmatched voucher amounts in USD
+            - proof_df: DataFrame of unmatched vouchers with Amount_USD column
     """
     # Handle empty inputs
     if ipe_08_df is None or ipe_08_df.empty:
@@ -162,8 +167,32 @@ def calculate_vtc_adjustment(
 
     if categorized_cr_03_df is None or categorized_cr_03_df.empty:
         # All source vouchers are unmatched
-        adjustment_amount = source_vouchers_df["remaining_amount"].sum()
-        return adjustment_amount, source_vouchers_df
+        unmatched_df = source_vouchers_df.copy()
+        
+        # Calculate USD amounts if FXConverter is provided
+        if fx_converter is not None:
+            # Check if ID_COMPANY column exists
+            company_col = None
+            for col in ['ID_COMPANY', 'id_company', 'Company_Code']:
+                if col in unmatched_df.columns:
+                    company_col = col
+                    break
+            
+            if company_col is not None:
+                # Convert to USD
+                unmatched_df['Amount_USD'] = fx_converter.convert_series_to_usd(
+                    unmatched_df['remaining_amount'],
+                    unmatched_df[company_col]
+                )
+                adjustment_amount = unmatched_df['Amount_USD'].sum()
+            else:
+                # No company column, cannot convert - use LCY
+                adjustment_amount = unmatched_df["remaining_amount"].sum()
+        else:
+            # No FX converter provided - use local currency
+            adjustment_amount = unmatched_df["remaining_amount"].sum()
+        
+        return adjustment_amount, unmatched_df
 
     # Filter target entries (NAV): cancellation categories
     # Include entries where bridge_category starts with 'Cancellation' or equals 'VTC Manual'
@@ -180,8 +209,28 @@ def calculate_vtc_adjustment(
         ~source_vouchers_df["id"].isin(target_entries_df["Voucher No_"])
     ].copy()
 
-    # Calculate adjustment amount
-    adjustment_amount = unmatched_df["remaining_amount"].sum()
+    # Calculate USD amounts if FXConverter is provided
+    if fx_converter is not None:
+        # Check if ID_COMPANY column exists
+        company_col = None
+        for col in ['ID_COMPANY', 'id_company', 'Company_Code']:
+            if col in unmatched_df.columns:
+                company_col = col
+                break
+        
+        if company_col is not None:
+            # Convert to USD
+            unmatched_df['Amount_USD'] = fx_converter.convert_series_to_usd(
+                unmatched_df['remaining_amount'],
+                unmatched_df[company_col]
+            )
+            adjustment_amount = unmatched_df['Amount_USD'].sum()
+        else:
+            # No company column, cannot convert - use LCY
+            adjustment_amount = unmatched_df["remaining_amount"].sum()
+    else:
+        # No FX converter provided - use local currency
+        adjustment_amount = unmatched_df["remaining_amount"].sum()
 
     return adjustment_amount, unmatched_df
 
@@ -324,7 +373,8 @@ def _categorize_nav_vouchers(cr_03_df: pd.DataFrame) -> pd.DataFrame:
 def calculate_timing_difference_bridge(
     jdash_df: pd.DataFrame, 
     ipe_08_df: pd.DataFrame, 
-    cutoff_date: str
+    cutoff_date: str,
+    fx_converter: Optional['FXConverter'] = None
 ) -> Tuple[float, pd.DataFrame]:
     """
     Calculates the Timing Difference Bridge (Task 1) based on the "Issuance vs Jdash" logic.
@@ -339,6 +389,24 @@ def calculate_timing_difference_bridge(
        - Left Join A -> B on Voucher ID.
        - Variance = (A.TotalAmountUsed) - (B.Amount Used).
        - Positive variance means BOB Issuance sees more usage than Jdash report for this period.
+    
+    Args:
+        jdash_df: DataFrame from Jdash export
+        ipe_08_df: DataFrame from IPE_08 with columns:
+            - id: Voucher ID
+            - business_use: Business use type
+            - is_active: Active status
+            - created_at: Creation date
+            - TotalAmountUsed: Total amount used
+            - ID_COMPANY: Company code (required if fx_converter is provided)
+        cutoff_date: Reconciliation cutoff date (YYYY-MM-DD)
+        fx_converter: Optional FXConverter instance for USD conversion.
+                     If None, returns amounts in local currency.
+    
+    Returns:
+        tuple: (bridge_amount_usd, proof_df) where:
+            - bridge_amount_usd: Sum of variances in USD
+            - proof_df: DataFrame with variances and Amount_USD column
     """
     # 1. Define Non-Marketing Types
     NON_MARKETING_USES = [
@@ -393,19 +461,46 @@ def calculate_timing_difference_bridge(
     # Filter for meaningful variances (> 0.01 to handle float precision)
     proof_df = merged_df[abs(merged_df['variance']) > 0.01].copy()
     
+    # Calculate USD amounts if FXConverter is provided
+    if fx_converter is not None:
+        # Check if ID_COMPANY column exists
+        company_col = None
+        for col in ['ID_COMPANY', 'id_company', 'Company_Code']:
+            if col in proof_df.columns:
+                company_col = col
+                break
+        
+        if company_col is not None:
+            # Convert variance to USD
+            proof_df['Amount_USD'] = fx_converter.convert_series_to_usd(
+                proof_df['variance'],
+                proof_df[company_col]
+            )
+            bridge_amount = proof_df['Amount_USD'].sum()
+        else:
+            # No company column, cannot convert - use LCY
+            bridge_amount = proof_df['variance'].sum()
+    else:
+        # No FX converter provided - use local currency
+        bridge_amount = proof_df['variance'].sum()
+    
     # Select relevant columns for evidence output
     cols_to_keep = [
         'id', 'business_use', 'created_at', 'TotalAmountUsed', 'Amount Used', 'variance'
     ]
+    
+    # Add Amount_USD if it exists
+    if 'Amount_USD' in proof_df.columns:
+        cols_to_keep.append('Amount_USD')
+    
     # Keep only columns that exist in the dataframe
     proof_df = proof_df[[c for c in cols_to_keep if c in proof_df.columns]]
-    
-    bridge_amount = proof_df['variance'].sum()
     
     return bridge_amount, proof_df
 
 def calculate_integration_error_adjustment(
     ipe_rec_errors_df: pd.DataFrame,
+    fx_converter: Optional['FXConverter'] = None
 ) -> tuple[float, pd.DataFrame]:
     """
     Calculate integration error adjustments for reconciliation (Task 3).
@@ -421,12 +516,15 @@ def calculate_integration_error_adjustment(
             - Amount: Transaction amount
             - Integration_Status: Status of the integration (Posted, Integrated, Error, etc.)
             - Transaction_ID: (optional) Unique transaction identifier
+            - ID_COMPANY or id_company: Company code (required if fx_converter is provided)
+        fx_converter: Optional FXConverter instance for USD conversion.
+                     If None, returns amounts in local currency.
 
     Returns:
-        tuple: (adjustment_amount, proof_df)
-            - adjustment_amount: Total sum of all error amounts
+        tuple: (adjustment_amount_usd, proof_df)
+            - adjustment_amount_usd: Total sum of all error amounts in USD
             - proof_df: DataFrame containing error transactions with columns:
-                       ['Source_System', 'Amount', 'Target_GL'] and optionally
+                       ['Source_System', 'Amount', 'Target_GL', 'Amount_USD'] and optionally
                        'Transaction_ID' (if present in input)
     """
     # Define the mapping from Source_System to GL Account
@@ -480,13 +578,37 @@ def calculate_integration_error_adjustment(
             columns=["Source_System", "Transaction_ID", "Amount", "Target_GL"]
         )
 
-    # Calculate total adjustment amount
-    adjustment_amount = mapped_errors_df["Amount"].sum()
+    # Calculate USD amounts if FXConverter is provided
+    if fx_converter is not None:
+        # Check if ID_COMPANY column exists
+        company_col = None
+        for col in ['ID_COMPANY', 'id_company', 'Company_Code']:
+            if col in mapped_errors_df.columns:
+                company_col = col
+                break
+        
+        if company_col is not None:
+            # Convert to USD
+            mapped_errors_df['Amount_USD'] = fx_converter.convert_series_to_usd(
+                mapped_errors_df['Amount'],
+                mapped_errors_df[company_col]
+            )
+            adjustment_amount = mapped_errors_df['Amount_USD'].sum()
+        else:
+            # No company column, cannot convert - use LCY
+            adjustment_amount = mapped_errors_df["Amount"].sum()
+    else:
+        # No FX converter provided - use local currency
+        adjustment_amount = mapped_errors_df["Amount"].sum()
 
     # Prepare proof DataFrame
     proof_columns = ["Source_System", "Amount", "Target_GL"]
     if "Transaction_ID" in mapped_errors_df.columns:
         proof_columns.insert(1, "Transaction_ID")
+    
+    # Add Amount_USD if it exists
+    if 'Amount_USD' in mapped_errors_df.columns:
+        proof_columns.append('Amount_USD')
 
     proof_df = mapped_errors_df[proof_columns].copy()
 
