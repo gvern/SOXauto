@@ -59,12 +59,13 @@ LEFT JOIN (
         ,SUM(CASE WHEN [is_marketplace] = 0 THEN ISNULL([MTR_COUPON_MONEY_VALUE],0) ELSE 0 END) AS RTL_storecredit
     FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]
     WHERE [PACKAGE_DELIVERY_DATE] < '{cutoff_date}' 
-        AND YEAR([DELIVERED_DATE]) > 2014
+        AND YEAR([DELIVERED_DATE]) > 2014 
+        AND [ID_Company] IN {id_companies_active}
     GROUP BY
         [ID_Company]
         ,[voucher_code]
         ,[voucher_type]
 ) sd3 ON scv.ID_company = sd3.[ID_Company] AND scv.[code]=sd3.[voucher_code]
-WHERE scv.ID_company IN ('EC_KE','EC_IC','EC_NG','EC_MA','JM_EG','JD_GH','JD_UG','JD_DZ','HF_SN')
-    AND scv.created_at > '2016-12-31'
+WHERE scv.ID_company IN {id_companies_active}
+    AND scv.created_at > '2016-12-31' 
     AND scv.created_at < '{cutoff_date}'

@@ -6,7 +6,7 @@ BridgeRule triggers to produce a standardized classification with GL expectation
 """
 
 from __future__ import annotations
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import pandas as pd
 
 from src.bridges.catalog import BridgeRule
@@ -322,82 +322,87 @@ def _categorize_nav_vouchers(cr_03_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def calculate_timing_difference_bridge(
-    jdash_df: pd.DataFrame, doc_voucher_usage_df: pd.DataFrame
-) -> tuple[float, pd.DataFrame]:
+    jdash_df: pd.DataFrame, 
+    ipe_08_df: pd.DataFrame, 
+    cutoff_date: str
+) -> Tuple[float, pd.DataFrame]:
     """
-    Calculate the timing difference bridge between Jdash and Usage TV Extract.
-
-    This function performs a direct reconciliation of voucher usage amounts between
-    two data sources:
-    1. Jdash export (source A) - aggregated by voucher_id
-    2. Usage TV Extract from DOC_VOUCHER_USAGE (source B) - aggregated by voucher_code
-
-    The bridge value is the sum of unexplained variances between these sources.
-
-    Args:
-        jdash_df: DataFrame from Jdash export containing voucher usage data.
-                  Expected columns: 'Voucher Id', 'Amount Used'
-        doc_voucher_usage_df: DataFrame from DOC_VOUCHER_USAGE catalog item.
-                             Expected columns: 'voucher_code', 'TotalUsageAmount'
-
-    Returns:
-        tuple: (bridge_amount, proof_df)
-            - bridge_amount: Sum of all variances (Amount Used - TotalUsageAmount)
-            - proof_df: DataFrame with columns ['Amount Used', 'TotalUsageAmount', 'variance']
-                       indexed by voucher_id/voucher_code, containing only non-zero variances
+    Calculates the Timing Difference Bridge (Task 1) based on the "Issuance vs Jdash" logic.
+    
+    Logic (Validated Nov 2025):
+    1. Source A (IPE_08 - Issuance): 
+       - Filter for Non-marketing, Inactive, Created in last 12 months.
+       - Represents the "Target" usage according to BOB Issuance history.
+    2. Source B (Jdash - Usage):
+       - Represents the actual usage in the period (filtered at export time).
+    3. Reconciliation:
+       - Left Join A -> B on Voucher ID.
+       - Variance = (A.TotalAmountUsed) - (B.Amount Used).
+       - Positive variance means BOB Issuance sees more usage than Jdash report for this period.
     """
-    # Handle empty inputs
-    if (jdash_df is None or jdash_df.empty) and (
-        doc_voucher_usage_df is None or doc_voucher_usage_df.empty
-    ):
-        return 0.0, pd.DataFrame(
-            columns=["Amount Used", "TotalUsageAmount", "variance"]
-        )
+    # 1. Define Non-Marketing Types
+    NON_MARKETING_USES = [
+        'apology_v2', 'jforce', 'refund', 'store_credit', 'Jpay store_credit'
+    ]
 
-    # Data Preparation (Source A - Jdash)
-    if jdash_df is None or jdash_df.empty:
-        jdash_agg = pd.Series(dtype=float, name="Amount Used")
-    else:
-        # Validate required columns exist
-        if (
-            "Voucher Id" not in jdash_df.columns
-            or "Amount Used" not in jdash_df.columns
-        ):
-            raise ValueError(
-                "jdash_df must contain 'Voucher Id' and 'Amount Used' columns"
-            )
-        jdash_agg = jdash_df.groupby("Voucher Id")["Amount Used"].sum()
+    # 2. Prepare Dates
+    recon_date = pd.to_datetime(cutoff_date)
+    start_date_1yr = recon_date - pd.DateOffset(years=1)
+    
+    # 3. Filter IPE_08 (The "File A" - Issuance)
+    # Ensure dates are datetime
+    ipe_08_df = ipe_08_df.copy() # Avoid SettingWithCopyWarning
+    ipe_08_df['created_at'] = pd.to_datetime(ipe_08_df['created_at'])
+    
+    # Apply filters per business rules:
+    # - Voucher Type: Non-marketing only
+    # - Status: Inactive (fully used/expired)
+    # - Creation Date: Within last 12 months
+    filtered_ipe_08 = ipe_08_df[
+        (ipe_08_df['business_use'].isin(NON_MARKETING_USES)) &
+        (ipe_08_df['is_active'] == 0) &
+        (ipe_08_df['created_at'] >= start_date_1yr) & 
+        (ipe_08_df['created_at'] <= recon_date)
+    ].copy()
 
-    # Data Preparation (Source B - Usage TV)
-    if doc_voucher_usage_df is None or doc_voucher_usage_df.empty:
-        usage_tv_agg = pd.Series(dtype=float, name="TotalUsageAmount")
-    else:
-        # Validate required columns exist
-        if (
-            "voucher_code" not in doc_voucher_usage_df.columns
-            or "TotalUsageAmount" not in doc_voucher_usage_df.columns
-        ):
-            raise ValueError(
-                "doc_voucher_usage_df must contain 'voucher_code' and 'TotalUsageAmount' columns"
-            )
-        usage_tv_agg = doc_voucher_usage_df.groupby("voucher_code")[
-            "TotalUsageAmount"
-        ].sum()
-
-    # Perform Reconciliation (Outer Join)
+    # 4. Prepare Jdash (The "File B" - Usage)
+    # Aggregate by Voucher Id to handle potential multiple usage lines
+    # Note: Jdash export is already filtered for the control period.
+    jdash_agg = jdash_df.groupby('Voucher Id')['Amount Used'].sum().reset_index()
+    
+    # 5. Merge (Left Join: Focus on Issued Vouchers from File A)
+    # ID mapping: IPE_08 'id' == Jdash 'Voucher Id'
+    filtered_ipe_08['id'] = filtered_ipe_08['id'].astype(str)
+    jdash_agg['Voucher Id'] = jdash_agg['Voucher Id'].astype(str)
+    
     merged_df = pd.merge(
-        jdash_agg, usage_tv_agg, left_index=True, right_index=True, how="outer"
-    ).fillna(0)
-
-    # Calculate Variance
-    merged_df["variance"] = merged_df["Amount Used"] - merged_df["TotalUsageAmount"]
-
-    # Calculate Result
-    proof_df = merged_df[merged_df["variance"] != 0].copy()
-    bridge_amount = proof_df["variance"].sum()
-
+        filtered_ipe_08, 
+        jdash_agg, 
+        left_on='id', 
+        right_on='Voucher Id', 
+        how='left'
+    )
+    
+    # Fill NaNs for Jdash amount (if not found in Jdash, usage for this period is 0)
+    merged_df['Amount Used'] = merged_df['Amount Used'].fillna(0.0)
+    
+    # 6. Calculate Variance (Timing Difference)
+    # Logic: Difference between Total Issuance Usage and Jdash Period Usage
+    merged_df['variance'] = merged_df['TotalAmountUsed'] - merged_df['Amount Used']
+    
+    # Filter for meaningful variances (> 0.01 to handle float precision)
+    proof_df = merged_df[abs(merged_df['variance']) > 0.01].copy()
+    
+    # Select relevant columns for evidence output
+    cols_to_keep = [
+        'id', 'business_use', 'created_at', 'TotalAmountUsed', 'Amount Used', 'variance'
+    ]
+    # Keep only columns that exist in the dataframe
+    proof_df = proof_df[[c for c in cols_to_keep if c in proof_df.columns]]
+    
+    bridge_amount = proof_df['variance'].sum()
+    
     return bridge_amount, proof_df
-
 
 def calculate_integration_error_adjustment(
     ipe_rec_errors_df: pd.DataFrame,

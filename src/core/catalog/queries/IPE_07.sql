@@ -1,3 +1,5 @@
+SET NOCOUNT ON;
+
 IF OBJECT_ID('tempdb..##temp') IS NOT NULL DROP TABLE ##temp;
 IF OBJECT_ID('tempdb..##temp2') IS NOT NULL DROP TABLE ##temp2;
 
@@ -73,12 +75,12 @@ LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] comp
     on comp.Company_Code=cle.id_company
 LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Busline] bl
     on bl.[Company_Code]=cle.id_company and bl.[Busline_Code]=cle.[Busline Code]
-LEFT JOIN [AAN_Nav_Jumia_Reconciliation].[dbo].[Customers] cst
+LEFT JOIN [AIG_Nav_DW].[dbo].[Customers] cst
     on cst.[id_company]=cle.id_company and cst.[No_]=cle.[Customer No_]
 WHERE cle.[Posting Date] <= '{cutoff_date}'
 and cle.[Customer Posting Group] in (
     'LOAN-REC-NAT', 'B2B-NG-NAT','B2C-NG-NAT','B2C-NG-INT','NTR-NG-NAT',
-    'B2B-NG-INT','NTR-NG-INT','UE','INL','EXPORT','EU','NATIONAL',
+    'B2B-NG-INT','NTR-NG-INT','UE','INL','EXPORT','EU','NATIONAL', 
     'OM','NAT','AUS','EXCB2B-NAT','EMP-NAT'
 )
 and comp.Flg_In_Conso_Scope = 1;

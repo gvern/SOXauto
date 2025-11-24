@@ -21,8 +21,14 @@ from src.bridges.classifier import (
     calculate_vtc_adjustment,
     calculate_customer_posting_group_bridge,
     calculate_timing_difference_bridge,
+    calculate_integration_error_adjustment,
 )
 
+# === CONFIGURATION ===
+PARAMS = {
+    "cutoff_date": "2025-09-30",
+    "country": "EC_NG"  # Pour le filtrage par défaut
+}
 
 # -------------------------------
 # Console rendering utilities
@@ -185,6 +191,33 @@ def run_task2_vtc(fixtures, quiet=False, limit=10):
 
     return adjustment_amount, proof_df
 
+def run_task3_integration(fixtures, quiet=False, limit=10):
+    hr("TASK 3: INTEGRATION ERRORS ADJUSTMENT")
+    
+    if "IPE_REC_ERRORS" not in fixtures:
+        print("⚠️ Fixture IPE_REC_ERRORS not found. Skipping Task 3.")
+        return 0.0, pd.DataFrame()
+
+    adjustment_amount, proof_df = calculate_integration_error_adjustment(
+        fixtures["IPE_REC_ERRORS"]
+    )
+    
+    # Save evidence
+    evidence_dir = os.path.join(REPO_ROOT, "evidence_output")
+    os.makedirs(evidence_dir, exist_ok=True)
+    proof_df.to_csv(os.path.join(evidence_dir, "TASK_3_INTEGRATION_PROOF.csv"), index=False)
+    print(f"✓ Evidence saved to 'evidence_output/TASK_3_INTEGRATION_PROOF.csv'")
+    
+    if not quiet:
+        print(f"\n✓ Integration Adjustment Amount: ${adjustment_amount:,.2f}")
+        print(f"✓ Number of error transactions: {len(proof_df)}")
+        print_df(proof_df, "Integration Errors (proof_df)", limit)
+        
+        # Show breakdown by GL
+        print("\nBreakdown by Target GL:")
+        print(proof_df.groupby('Target_GL')['Amount'].sum())
+        
+    return adjustment_amount, proof_df
 
 def run_task4_customer_reclass(fixtures, quiet=False, limit=10):
     hr("TASK 4: CUSTOMER POSTING GROUP RECLASSIFICATION")
@@ -208,10 +241,10 @@ def run_task4_customer_reclass(fixtures, quiet=False, limit=10):
     return bridge_amount, proof_df
 
 
-def run_task1_timing_diff(fixtures, quiet=False, limit=10):
+def run_task1_timing_diff(fixtures, cutoff_date=None, quiet=False, limit=10):
     hr("TASK 1: TIMING DIFFERENCE BRIDGE")
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        fixtures["JDASH"], fixtures["DOC_VOUCHER_USAGE"]
+        fixtures["JDASH"], fixtures["IPE_08"], cutoff_date=cutoff_date
     )
     
     # Save evidence
@@ -231,29 +264,37 @@ def run_task1_timing_diff(fixtures, quiet=False, limit=10):
 # -------------------------------
 # Summary
 # -------------------------------
-def print_summary(task2, task4, task1):
-    b1 = Box("Task 2: VTC (Voucher to Cash) Reconciliation")
-    b2 = Box("Task 4: Customer Posting Group Reclassification")
-    b3 = Box("Task 1: Timing Difference Bridge")
+def print_summary(task1, task2, task3, task4):
+    b1 = Box("Task 1: Timing Difference Bridge")
+    b2 = Box("Task 2: VTC (Voucher to Cash) Reconciliation")
+    b3 = Box("Task 3: Integration Errors Adjustment")
+    b4 = Box("Task 4: Customer Posting Group Reclassification")
     bt = Box("TOTAL BRIDGES/ADJUSTMENTS")
 
-    # Task 2
+    # Task 1
     print(b1.header())
-    print(b1.line(f"Adjustment Amount:      ${task2[0]:>16,.2f}"))
-    print(b1.line(f"Unmatched Vouchers:     {len(task2[1]):>6} items"))
+    print(b1.line(f"Bridge Amount:          ${task1[0]:>16,.2f}"))
+    print(b1.line(f"Vouchers w/ Variance:   {len(task1[1]):>6} items"))
     print(b1.footer())
-
-    # Task 4
+    # Task 2
     print(b2.header())
-    print(b2.line(f"Bridge Amount:          ${task4[0]:>16,.2f}"))
-    print(b2.line(f"Problem Customers:      {len(task4[1]):>6} items"))
+    print(b2.line(f"Adjustment Amount:      ${task2[0]:>16,.2f}"))
+    print(b2.line(f"Unmatched Vouchers:     {len(task2[1]):>6} items"))
     print(b2.footer())
 
-    # Task 1
+    #Task 3
     print(b3.header())
-    print(b3.line(f"Bridge Amount:          ${task1[0]:>16,.2f}"))
-    print(b3.line(f"Vouchers w/ Variance:   {len(task1[1]):>6} items"))
-    print(b3.footer())
+    print(b3.line(f"Adjustment Amount:      ${task3[0]:>16,.2f}"))
+    print(b3.line(f"Error Transactions:     {len(task3[1]):>6} items"))
+    print(b3.footer())      
+
+    # Task 4
+    print(b4.header())
+    print(b4.line(f"Bridge Amount:          ${task4[0]:>16,.2f}"))
+    print(b4.line(f"Problem Customers:      {len(task4[1]):>6} items"))
+    print(b4.footer())
+
+    
 
     total = task2[0] + task4[0] + task1[0]
     print(bt.header())
@@ -268,8 +309,13 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument(
         "--country",
-        default="JD_GH",
-        help="ID_COMPANY / id_company code to filter (default: JD_GH)",
+        default="EC_NG",
+        help="ID_COMPANY / id_company code to filter (default: EC_NG)",
+    )
+    p.add_argument(
+        "--cutoff-date",
+        default=None,
+        help="Reconciliation cutoff date (YYYY-MM-DD)",
     )
     p.add_argument(
         "--summary-only",
@@ -290,26 +336,40 @@ def parse_args():
 
 def main():
     args = parse_args()
+    cutoff_date = args.cutoff_date or PARAMS["cutoff_date"]
+    country = args.country or PARAMS["country"]
 
+    print(f"Running analysis for: {country} (Cutoff: {cutoff_date})")
+    
+    fixtures = load_fixtures(country)
     hr("CLASSIFIER TEST SCRIPT")
     print("Testing classification logic offline using local fixtures")
 
-    fixtures = load_fixtures(args.country)
 
-    # Steps
+    # 1. TASK 1: Timing Difference (L'analyse temporelle globale)
+    task1 = run_task1_timing_diff(
+        fixtures, cutoff_date=cutoff_date, quiet=args.summary_only or args.quiet, limit=args.limit
+    )
+
+    # 2. TASK 2: VTC Adjustment (L'analyse spécifique des remboursements)
     task2 = run_task2_vtc(
         fixtures, quiet=args.summary_only or args.quiet, limit=args.limit
     )
-    task4 = run_task4_customer_reclass(
-        fixtures, quiet=args.summary_only or args.quiet, limit=args.limit
-    )
-    task1 = run_task1_timing_diff(
+
+    # 3. TASK 3: Integration Errors (Les erreurs techniques - NOUVEAU)
+    # (Nous allons implémenter cette fonction juste après)
+    task3 = run_task3_integration(
         fixtures, quiet=args.summary_only or args.quiet, limit=args.limit
     )
 
-    # Single, clean summary
+    # 4. TASK 4: Customer Reclass (L'hygiène des tiers)
+    task4 = run_task4_customer_reclass(
+        fixtures, quiet=args.summary_only or args.quiet, limit=args.limit
+    )
+
+    # Résumé
     hr("SUMMARY OF ALL BRIDGES/ADJUSTMENTS")
-    print_summary(task2, task4, task1)
+    print_summary(task1, task2, task3, task4)
 
     print("\n✓ Test completed successfully!\n")
 
