@@ -28,8 +28,8 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 # Import workflow and activities
-from src.orchestrators.cpg1_workflow import Cpg1Workflow
-from src.orchestrators.cpg1_activities import (
+from src.orchestrators.archive_temporal.cpg1_workflow import Cpg1Workflow
+from src.orchestrators.archive_temporal.cpg1_activities import (
     execute_ipe_query_activity,
     execute_cr_query_activity,
     calculate_timing_difference_bridge_activity,

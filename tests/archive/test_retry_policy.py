@@ -13,14 +13,14 @@ from datetime import timedelta
 
 def test_standard_retry_policy_exists():
     """Test that STANDARD_DB_RETRY_POLICY is defined in cpg1_workflow."""
-    from src.orchestrators.cpg1_workflow import STANDARD_DB_RETRY_POLICY
+    from src.orchestrators.archive_temporal.cpg1_workflow import STANDARD_DB_RETRY_POLICY
     
     assert STANDARD_DB_RETRY_POLICY is not None, "STANDARD_DB_RETRY_POLICY should be defined"
 
 
 def test_retry_policy_has_exponential_backoff():
     """Test that retry policy has exponential backoff configured."""
-    from src.orchestrators.cpg1_workflow import STANDARD_DB_RETRY_POLICY
+    from src.orchestrators.archive_temporal.cpg1_workflow import STANDARD_DB_RETRY_POLICY
     
     # Verify backoff_coefficient is set for exponential backoff
     assert STANDARD_DB_RETRY_POLICY.backoff_coefficient == 2.0, \
@@ -29,7 +29,7 @@ def test_retry_policy_has_exponential_backoff():
 
 def test_retry_policy_has_maximum_attempts():
     """Test that retry policy has reasonable maximum attempts."""
-    from src.orchestrators.cpg1_workflow import STANDARD_DB_RETRY_POLICY
+    from src.orchestrators.archive_temporal.cpg1_workflow import STANDARD_DB_RETRY_POLICY
     
     # Should have at least 5 attempts as per requirements
     assert STANDARD_DB_RETRY_POLICY.maximum_attempts >= 5, \
@@ -38,7 +38,7 @@ def test_retry_policy_has_maximum_attempts():
 
 def test_retry_policy_has_maximum_interval():
     """Test that retry policy has maximum interval configured."""
-    from src.orchestrators.cpg1_workflow import STANDARD_DB_RETRY_POLICY
+    from src.orchestrators.archive_temporal.cpg1_workflow import STANDARD_DB_RETRY_POLICY
     
     # Should have a maximum interval to prevent infinite backoff
     assert STANDARD_DB_RETRY_POLICY.maximum_interval is not None, \
@@ -51,7 +51,7 @@ def test_retry_policy_has_maximum_interval():
 
 def test_retry_policy_has_initial_interval():
     """Test that retry policy has initial interval configured."""
-    from src.orchestrators.cpg1_workflow import STANDARD_DB_RETRY_POLICY
+    from src.orchestrators.archive_temporal.cpg1_workflow import STANDARD_DB_RETRY_POLICY
     
     # Should have an initial interval
     assert STANDARD_DB_RETRY_POLICY.initial_interval is not None, \
@@ -64,7 +64,7 @@ def test_retry_policy_has_initial_interval():
 
 def test_retry_policy_excludes_validation_errors():
     """Test that retry policy excludes IPEValidationError from retries."""
-    from src.orchestrators.cpg1_workflow import STANDARD_DB_RETRY_POLICY
+    from src.orchestrators.archive_temporal.cpg1_workflow import STANDARD_DB_RETRY_POLICY
     
     # IPEValidationError should not be retried
     assert "IPEValidationError" in STANDARD_DB_RETRY_POLICY.non_retryable_error_types, \
@@ -73,7 +73,7 @@ def test_retry_policy_excludes_validation_errors():
 
 def test_retry_policy_excludes_value_errors():
     """Test that retry policy excludes ValueError from retries."""
-    from src.orchestrators.cpg1_workflow import STANDARD_DB_RETRY_POLICY
+    from src.orchestrators.archive_temporal.cpg1_workflow import STANDARD_DB_RETRY_POLICY
     
     # ValueError indicates a code/data bug, not a transient failure
     assert "ValueError" in STANDARD_DB_RETRY_POLICY.non_retryable_error_types, \
@@ -82,7 +82,7 @@ def test_retry_policy_excludes_value_errors():
 
 def test_retry_policy_excludes_key_errors():
     """Test that retry policy excludes KeyError from retries."""
-    from src.orchestrators.cpg1_workflow import STANDARD_DB_RETRY_POLICY
+    from src.orchestrators.archive_temporal.cpg1_workflow import STANDARD_DB_RETRY_POLICY
     
     # KeyError indicates a code/data bug, not a transient failure
     assert "KeyError" in STANDARD_DB_RETRY_POLICY.non_retryable_error_types, \
@@ -91,7 +91,7 @@ def test_retry_policy_excludes_key_errors():
 
 def test_retry_policy_excludes_type_errors():
     """Test that retry policy excludes TypeError from retries."""
-    from src.orchestrators.cpg1_workflow import STANDARD_DB_RETRY_POLICY
+    from src.orchestrators.archive_temporal.cpg1_workflow import STANDARD_DB_RETRY_POLICY
     
     # TypeError indicates a code bug, not a transient failure
     assert "TypeError" in STANDARD_DB_RETRY_POLICY.non_retryable_error_types, \
@@ -100,7 +100,7 @@ def test_retry_policy_excludes_type_errors():
 
 def test_workflow_imports():
     """Test that workflow and retry policy can be imported together."""
-    from src.orchestrators.cpg1_workflow import Cpg1Workflow, STANDARD_DB_RETRY_POLICY
+    from src.orchestrators.archive_temporal.cpg1_workflow import Cpg1Workflow, STANDARD_DB_RETRY_POLICY
     
     assert Cpg1Workflow is not None
     assert STANDARD_DB_RETRY_POLICY is not None
@@ -109,7 +109,7 @@ def test_workflow_imports():
 def test_retry_policy_is_workflow_retry_policy_type():
     """Test that STANDARD_DB_RETRY_POLICY is of the correct type."""
     from temporalio.common import RetryPolicy
-    from src.orchestrators.cpg1_workflow import STANDARD_DB_RETRY_POLICY
+    from src.orchestrators.archive_temporal.cpg1_workflow import STANDARD_DB_RETRY_POLICY
     
     # Should be a RetryPolicy instance
     assert isinstance(STANDARD_DB_RETRY_POLICY, RetryPolicy), \
@@ -118,7 +118,7 @@ def test_retry_policy_is_workflow_retry_policy_type():
 
 def test_retry_backoff_progression():
     """Test that retry backoff progression is as expected."""
-    from src.orchestrators.cpg1_workflow import STANDARD_DB_RETRY_POLICY
+    from src.orchestrators.archive_temporal.cpg1_workflow import STANDARD_DB_RETRY_POLICY
     
     # With initial_interval=10s, backoff_coefficient=2.0, maximum_interval=60s
     # The progression should be: 10s, 20s, 40s, 60s (capped), 60s (capped)

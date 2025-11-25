@@ -16,7 +16,7 @@ from typing import Dict, Any
 def test_imports():
     """Test that all Temporal components can be imported."""
     # Test activity imports
-    from src.orchestrators.cpg1_activities import (
+    from src.orchestrators.archive_temporal.cpg1_activities import (
         execute_ipe_query_activity,
         execute_cr_query_activity,
         calculate_timing_difference_bridge_activity,
@@ -29,7 +29,7 @@ def test_imports():
     )
 
     # Test workflow imports
-    from src.orchestrators.cpg1_workflow import Cpg1Workflow
+    from src.orchestrators.archive_temporal.cpg1_workflow import Cpg1Workflow
 
     # Verify all imports succeeded
     assert execute_ipe_query_activity is not None
@@ -46,7 +46,7 @@ def test_imports():
 
 def test_dataframe_serialization():
     """Test DataFrame serialization and deserialization."""
-    from src.orchestrators.cpg1_activities import dataframe_to_dict, dict_to_dataframe
+    from src.orchestrators.archive_temporal.cpg1_activities import dataframe_to_dict, dict_to_dataframe
 
     # Create a test DataFrame
     test_data = pd.DataFrame(
@@ -82,7 +82,7 @@ def test_dataframe_serialization():
 
 def test_empty_dataframe_serialization():
     """Test serialization of empty DataFrames."""
-    from src.orchestrators.cpg1_activities import dataframe_to_dict, dict_to_dataframe
+    from src.orchestrators.archive_temporal.cpg1_activities import dataframe_to_dict, dict_to_dataframe
 
     # Empty DataFrame
     empty_df = pd.DataFrame()
@@ -103,7 +103,7 @@ def test_empty_dataframe_serialization():
 def test_activity_decorators():
     """Test that activities have correct Temporal decorators."""
     from temporalio import activity
-    from src.orchestrators.cpg1_activities import (
+    from src.orchestrators.archive_temporal.cpg1_activities import (
         execute_ipe_query_activity,
         calculate_timing_difference_bridge_activity,
     )
@@ -119,7 +119,7 @@ def test_activity_decorators():
 def test_workflow_decorator():
     """Test that workflow has correct Temporal decorator."""
     from temporalio import workflow
-    from src.orchestrators.cpg1_workflow import Cpg1Workflow
+    from src.orchestrators.archive_temporal.cpg1_workflow import Cpg1Workflow
 
     # Check that workflow class is properly decorated
     # The @workflow.defn decorator adds a __temporal_workflow_definition attribute
@@ -128,7 +128,7 @@ def test_workflow_decorator():
 
 def test_workflow_run_method():
     """Test that workflow has a run method."""
-    from src.orchestrators.cpg1_workflow import Cpg1Workflow
+    from src.orchestrators.archive_temporal.cpg1_workflow import Cpg1Workflow
 
     # Verify run method exists
     assert hasattr(Cpg1Workflow, "run")
@@ -138,7 +138,7 @@ def test_workflow_run_method():
 def test_activity_signatures():
     """Test that activity functions have expected signatures."""
     import inspect
-    from src.orchestrators.cpg1_activities import (
+    from src.orchestrators.archive_temporal.cpg1_activities import (
         execute_ipe_query_activity,
         calculate_timing_difference_bridge_activity,
         calculate_vtc_adjustment_activity,
@@ -199,14 +199,14 @@ def test_worker_script_imports():
     import os
 
     # Add repo root to path (same as worker script does)
-    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
     if repo_root not in sys.path:
         sys.path.insert(0, repo_root)
 
     # Import what the worker needs
     from temporalio.client import Client
     from temporalio.worker import Worker
-    from src.orchestrators.cpg1_workflow import Cpg1Workflow
+    from src.orchestrators.archive_temporal.cpg1_workflow import Cpg1Workflow
 
     assert Client is not None
     assert Worker is not None
