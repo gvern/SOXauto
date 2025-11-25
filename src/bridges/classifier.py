@@ -329,29 +329,17 @@ def _categorize_nav_vouchers(
     voucher_no_col = col_map.get("voucher_no")
     comment_col = col_map.get("comment")
 
-    # Integration user IDs (batch service accounts)
-    INTEGRATION_USER_IDS = [
-        "JUMIA/NAV31AFR.BATCH.SRVC",
-        "NAV31AFR.BATCH.SRVC",
-        "NAV13AFR.BATCH.SRVC",
-        "JUMIA/NAV13AFR.BATCH.SRVC",
-        "NAV/13",
-        "NAV/31",
-    ]
-
     # Country codes for Store Credit issuance detection
     COUNTRY_CODES = ["NG", "EG", "KE", "GH", "CI", "MA", "TN", "ZA", "UG", "SN"]
 
     # Step 1: Determine Integration_Type for all rows
+    # Relaxed logic: If User ID contains "NAV" AND ("BATCH" OR "SRVC"), treat as Integration
     for idx, row in out.iterrows():
         user_id = (
             str(row[user_col]).strip().upper() if user_col and pd.notna(row[user_col]) else ""
         )
-        # Check if user_id matches any integration pattern
-        is_integration = any(
-            uid.upper() in user_id or user_id in uid.upper()
-            for uid in INTEGRATION_USER_IDS
-        )
+        # Check if user_id matches integration pattern: contains NAV AND (BATCH OR SRVC)
+        is_integration = "NAV" in user_id and ("BATCH" in user_id or "SRVC" in user_id)
         out.at[idx, "Integration_Type"] = "Integration" if is_integration else "Manual"
 
     # Apply categorization rules in order for each row
@@ -389,6 +377,20 @@ def _categorize_nav_vouchers(
             if comment_col and pd.notna(row[comment_col])
             else ""
         )
+        bal_account_type = (
+            str(row[bal_type_col]).upper().strip()
+            if bal_type_col and pd.notna(row[bal_type_col])
+            else ""
+        )
+
+        # =====================================================
+        # Step 2 (Priority): VTC Manual via Bank Account
+        # Manual payments to customers (VTC) appear as negative amounts
+        # =====================================================
+        if integration_type == "Manual" and amount != 0 and bal_account_type == "BANK ACCOUNT":
+            out.at[idx, "bridge_category"] = "VTC"
+            out.at[idx, "voucher_type"] = "Refund"
+            continue
 
         # =====================================================
         # Step 2: Issuance (Negative Amounts)
@@ -396,14 +398,14 @@ def _categorize_nav_vouchers(
         if amount < 0:
             if integration_type == "Integration":
                 # Integrated Issuance rules
-                # Check for Refund with order number pattern
-                if "REFUND" in description:
+                # Check for Refund: match "REFUND", "RF_", or "RF " patterns
+                if "REFUND" in description or "RF_" in description or "RF " in description:
                     out.at[idx, "bridge_category"] = "Issuance - Refund"
                     out.at[idx, "voucher_type"] = "Refund"
                 elif "COMMERCIAL GESTURE" in description:
                     out.at[idx, "bridge_category"] = "Issuance - Apology"
                     out.at[idx, "voucher_type"] = "Apology"
-                elif "PYT_PF" in description:
+                elif "PYT_PF" in description or "PYT_" in description:
                     out.at[idx, "bridge_category"] = "Issuance - JForce"
                     out.at[idx, "voucher_type"] = "JForce"
                 else:
@@ -416,13 +418,13 @@ def _categorize_nav_vouchers(
                 if is_store_credit:
                     out.at[idx, "bridge_category"] = "Issuance - Store Credit"
                     out.at[idx, "voucher_type"] = "Store Credit"
-                elif "REFUND" in description or "RFN" in description:
+                elif "REFUND" in description or "RFN" in description or "RF_" in description or "RF " in description:
                     out.at[idx, "bridge_category"] = "Issuance - Refund"
                     out.at[idx, "voucher_type"] = "Refund"
                 elif "COMMERCIAL" in description or "CXP" in description or "APOLOGY" in description:
                     out.at[idx, "bridge_category"] = "Issuance - Apology"
                     out.at[idx, "voucher_type"] = "Apology"
-                elif "PYT_PF" in description:
+                elif "PYT_PF" in description or "PYT_" in description:
                     out.at[idx, "bridge_category"] = "Issuance - JForce"
                     out.at[idx, "voucher_type"] = "JForce"
                 else:
