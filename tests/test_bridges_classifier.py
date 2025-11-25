@@ -323,6 +323,41 @@ def test_calculate_vtc_adjustment_vtc_manual():
     assert proof.iloc[0]["id"] == "V002"
 
 
+def test_calculate_vtc_adjustment_vtc_category():
+    """Test VTC adjustment recognizes 'VTC' category (new categorization)."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "Remaining Amount": 150.0,
+            },
+            {
+                "id": "V002",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "Remaining Amount": 250.0,
+            },
+        ]
+    )
+
+    cr_03_df = pd.DataFrame(
+        [
+            {"[Voucher No_]": "V001", "bridge_category": "VTC"},
+        ]
+    )
+
+    adjustment, proof = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
+
+    # Only V002 should be unmatched
+    assert adjustment == 250.0
+    assert len(proof) == 1
+    assert proof.iloc[0]["id"] == "V002"
+
+
 def test_calculate_vtc_adjustment_empty_nav():
     """Test VTC adjustment with empty NAV data (all vouchers unmatched)."""
     ipe_08_df = pd.DataFrame(
@@ -469,6 +504,8 @@ def test_categorize_nav_vouchers_empty_df():
     empty_df = pd.DataFrame()
     result = _categorize_nav_vouchers(empty_df)
     assert "bridge_category" in result.columns
+    assert "voucher_type" in result.columns
+    assert "Integration_Type" in result.columns
     assert len(result) == 0
 
 
@@ -477,189 +514,406 @@ def test_categorize_nav_vouchers_none_df():
     result = _categorize_nav_vouchers(None)
     assert result is not None
     assert "bridge_category" in result.columns
+    assert "voucher_type" in result.columns
+    assert "Integration_Type" in result.columns
     assert len(result) == 0
 
 
-def test_categorize_nav_vouchers_rule1_vtc_manual():
-    """Test Rule 1: VTC Manual - manual bank account transactions."""
+# ========================================================================
+# Step 1: Integration_Type Tests
+# ========================================================================
+
+
+def test_categorize_nav_vouchers_step1_integration_type():
+    """Test Step 1: Integration_Type detection (Manual vs Integration)."""
     df = pd.DataFrame(
         [
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 100.0,
-                "Bal_ Account Type": "Bank Account",
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
+                "Document Description": "Test entry",
+            },
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 100.0,
+                "User ID": "NAV/13",
+                "Document Description": "Test entry",
+            },
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 100.0,
                 "User ID": "USER/01",
-                "Document Description": "Manual voucher entry",
-                "Document Type": "Payment",
+                "Document Description": "Test entry",
             },
-            {
-                "Chart of Accounts No_": "18412",
-                "Amount": 50.0,
-                "Bal_ Account Type": "Bank Account",
-                "User ID": "ADMIN/05",
-                "Document Description": "Another manual entry",
-                "Document Type": "Payment",
-            },
-        ]
-    )
-    result = _categorize_nav_vouchers(df)
-    assert result.loc[0, "bridge_category"] == "VTC Manual"
-    assert result.loc[1, "bridge_category"] == "VTC Manual"
-
-
-def test_categorize_nav_vouchers_rule1_not_vtc_manual_nav13():
-    """Test Rule 1: Should NOT be VTC Manual when user is NAV/13."""
-    df = pd.DataFrame(
-        [
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 100.0,
-                "Bal_ Account Type": "Bank Account",
-                "User ID": "NAV/13",
-                "Document Description": "Automated entry",
-                "Document Type": "Payment",
-            }
-        ]
-    )
-    result = _categorize_nav_vouchers(df)
-    # Should not be VTC Manual since user is NAV/13
-    assert result.loc[0, "bridge_category"] != "VTC Manual"
-
-
-def test_categorize_nav_vouchers_rule2_usage():
-    """Test Rule 2: Usage - voucher application by NAV/13."""
-    df = pd.DataFrame(
-        [
-            {
-                "Chart of Accounts No_": "18412",
-                "Amount": 75.0,
-                "Bal_ Account Type": "Customer",
-                "User ID": "NAV/13",
-                "Document Description": "Item price credit applied",
-                "Document Type": "Sales",
-            },
-            {
-                "Chart of Accounts No_": "18412",
-                "Amount": 50.0,
-                "Bal_ Account Type": "Customer",
-                "User ID": "NAV/13",
-                "Document Description": "Voucher application for order",
-                "Document Type": "Sales",
-            },
-            {
-                "Chart of Accounts No_": "18412",
-                "Amount": 25.0,
-                "Bal_ Account Type": "Customer",
-                "User ID": "NAV/13",
-                "Document Description": "Item shipping fees discount",
-                "Document Type": "Sales",
+                "User ID": "NAV13AFR.BATCH.SRVC",
+                "Document Description": "Test entry",
             },
         ]
     )
     result = _categorize_nav_vouchers(df)
-    assert result.loc[0, "bridge_category"] == "Usage"
-    assert result.loc[1, "bridge_category"] == "Usage"
-    assert result.loc[2, "bridge_category"] == "Usage"
+    assert result.loc[0, "Integration_Type"] == "Integration"
+    assert result.loc[1, "Integration_Type"] == "Integration"
+    assert result.loc[2, "Integration_Type"] == "Manual"
+    assert result.loc[3, "Integration_Type"] == "Integration"
 
 
-def test_categorize_nav_vouchers_rule3_issuance_refund():
-    """Test Rule 3.b.1: Issuance - Refund."""
+# ========================================================================
+# Step 2: Issuance (Negative Amounts) Tests
+# ========================================================================
+
+
+def test_categorize_nav_vouchers_step2_issuance_integrated_refund():
+    """Test Step 2: Integrated Issuance - Refund (description contains 'Refund')."""
     df = pd.DataFrame(
         [
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -100.0,
-                "Bal_ Account Type": "Customer",
                 "User ID": "NAV/13",
-                "Document Description": "Refund voucher issued",
-                "Document Type": "Credit Memo",
-            },
-            {
-                "Chart of Accounts No_": "18412",
-                "Amount": -50.0,
-                "Bal_ Account Type": "Customer",
-                "User ID": "USER/01",
-                "Document Description": "RFN voucher for customer",
-                "Document Type": "Credit Memo",
+                "Document Description": "Refund voucher issued for order 12345",
             },
         ]
     )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - Refund"
-    assert result.loc[1, "bridge_category"] == "Issuance - Refund"
+    assert result.loc[0, "voucher_type"] == "Refund"
+    assert result.loc[0, "Integration_Type"] == "Integration"
 
 
-def test_categorize_nav_vouchers_rule3_issuance_apology():
-    """Test Rule 3.b.2: Issuance - Apology."""
+def test_categorize_nav_vouchers_step2_issuance_integrated_apology():
+    """Test Step 2: Integrated Issuance - Apology (COMMERCIAL GESTURE)."""
     df = pd.DataFrame(
         [
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -75.0,
-                "Bal_ Account Type": "Customer",
-                "User ID": "NAV/13",
-                "Document Description": "Commercial register voucher",
-                "Document Type": "Credit Memo",
-            },
-            {
-                "Chart of Accounts No_": "18412",
-                "Amount": -60.0,
-                "Bal_ Account Type": "Customer",
-                "User ID": "USER/02",
-                "Document Description": "CXP apology voucher",
-                "Document Type": "Credit Memo",
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
+                "Document Description": "COMMERCIAL GESTURE voucher for customer",
             },
         ]
     )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - Apology"
-    assert result.loc[1, "bridge_category"] == "Issuance - Apology"
+    assert result.loc[0, "voucher_type"] == "Apology"
+    assert result.loc[0, "Integration_Type"] == "Integration"
 
 
-def test_categorize_nav_vouchers_rule3_issuance_jforce():
-    """Test Rule 3.b.3: Issuance - JForce."""
+def test_categorize_nav_vouchers_step2_issuance_integrated_jforce():
+    """Test Step 2: Integrated Issuance - JForce (PYT_PF)."""
     df = pd.DataFrame(
         [
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -200.0,
-                "Bal_ Account Type": "Customer",
                 "User ID": "NAV/13",
                 "Document Description": "PYT_PF JForce payout voucher",
-                "Document Type": "Payment",
             }
         ]
     )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - JForce"
+    assert result.loc[0, "voucher_type"] == "JForce"
 
 
-def test_categorize_nav_vouchers_rule3_generic_issuance():
-    """Test Rule 3: Generic Issuance when no sub-category matches."""
+def test_categorize_nav_vouchers_step2_issuance_manual_store_credit():
+    """Test Step 2: Manual Issuance - Store Credit (Doc No starts with country code)."""
     df = pd.DataFrame(
         [
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -150.0,
-                "Bal_ Account Type": "Customer",
+                "User ID": "USER/03",
+                "Document Description": "Store credit issued",
+                "Document No": "NG-SC-2024-001",
+            },
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": -100.0,
+                "User ID": "ADMIN/01",
+                "Document Description": "Store credit issued",
+                "Document No": "EG-SC-2024-002",
+            },
+        ]
+    )
+    result = _categorize_nav_vouchers(df)
+    assert result.loc[0, "bridge_category"] == "Issuance - Store Credit"
+    assert result.loc[0, "voucher_type"] == "Store Credit"
+    assert result.loc[0, "Integration_Type"] == "Manual"
+    assert result.loc[1, "bridge_category"] == "Issuance - Store Credit"
+    assert result.loc[1, "voucher_type"] == "Store Credit"
+
+
+def test_categorize_nav_vouchers_step2_issuance_manual_refund():
+    """Test Step 2: Manual Issuance - Refund."""
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": -50.0,
+                "User ID": "USER/01",
+                "Document Description": "RFN voucher for customer",
+                "Document No": "INV-001",  # Does not start with country code
+            },
+        ]
+    )
+    result = _categorize_nav_vouchers(df)
+    assert result.loc[0, "bridge_category"] == "Issuance - Refund"
+    assert result.loc[0, "voucher_type"] == "Refund"
+    assert result.loc[0, "Integration_Type"] == "Manual"
+
+
+def test_categorize_nav_vouchers_step2_issuance_generic():
+    """Test Step 2: Generic Issuance when no sub-category matches."""
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": -150.0,
                 "User ID": "USER/03",
                 "Document Description": "Some other voucher issuance",
-                "Document Type": "Credit Memo",
+                "Document No": "INV-002",
             }
         ]
     )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance"
+    assert result.loc[0, "Integration_Type"] == "Manual"
 
 
-def test_categorize_nav_vouchers_rule4_cancellation_store_credit():
-    """Test Rule 4.a: Cancellation - Store Credit."""
+# ========================================================================
+# Step 3: Usage (Positive Amounts + Integrated) Tests
+# ========================================================================
+
+
+def test_categorize_nav_vouchers_step3_usage_integrated():
+    """Test Step 3: Usage - Integrated transactions."""
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 75.0,
+                "User ID": "NAV/13",
+                "Document Description": "Item price credit applied",
+            },
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 50.0,
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
+                "Document Description": "Voucher application for order",
+            },
+        ]
+    )
+    result = _categorize_nav_vouchers(df)
+    assert result.loc[0, "bridge_category"] == "Usage"
+    assert result.loc[0, "Integration_Type"] == "Integration"
+    assert result.loc[1, "bridge_category"] == "Usage"
+    assert result.loc[1, "Integration_Type"] == "Integration"
+
+
+def test_categorize_nav_vouchers_step3_cancellation_apology_voucher_accrual():
+    """Test Step 3: Cancellation - Apology (Voucher Accrual description)."""
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 45.0,
+                "User ID": "NAV/13",
+                "Document Description": "Voucher Accrual reversal",
+            }
+        ]
+    )
+    result = _categorize_nav_vouchers(df)
+    assert result.loc[0, "bridge_category"] == "Cancellation - Apology"
+    assert result.loc[0, "voucher_type"] == "Apology"
+
+
+def test_categorize_nav_vouchers_step3_usage_with_voucher_lookup():
+    """Test Step 3: Usage with voucher type lookup from IPE_08."""
+    cr_03_df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 75.0,
+                "User ID": "NAV/13",
+                "Document Description": "Item price credit applied",
+                "[Voucher No_]": "V001",
+            },
+        ]
+    )
+    ipe_08_df = pd.DataFrame(
+        [
+            {"id": "V001", "business_use": "refund"},
+            {"id": "V002", "business_use": "apology"},
+        ]
+    )
+    result = _categorize_nav_vouchers(cr_03_df, ipe_08_df=ipe_08_df)
+    assert result.loc[0, "bridge_category"] == "Usage"
+    assert result.loc[0, "voucher_type"] == "refund"
+
+
+def test_categorize_nav_vouchers_step3_usage_fallback_doc_no():
+    """Test Step 3: Usage with fallback lookup via Document No to Transaction_No."""
+    cr_03_df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 75.0,
+                "User ID": "NAV/13",
+                "Document Description": "Item price credit applied",
+                "[Voucher No_]": "",  # Empty voucher no
+                "Document No": "TXN001",
+            },
+        ]
+    )
+    doc_voucher_usage_df = pd.DataFrame(
+        [
+            {"id": "V001", "business_use": "store_credit", "Transaction_No": "TXN001"},
+        ]
+    )
+    result = _categorize_nav_vouchers(
+        cr_03_df, doc_voucher_usage_df=doc_voucher_usage_df
+    )
+    assert result.loc[0, "bridge_category"] == "Usage"
+    assert result.loc[0, "voucher_type"] == "store_credit"
+
+
+# ========================================================================
+# Step 4: Expired (Manual + Positive + 'EXPR') Tests
+# ========================================================================
+
+
+def test_categorize_nav_vouchers_step4_expired_apology():
+    """Test Step 4: Expired - Apology (EXPR_APLGY)."""
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 30.0,
+                "User ID": "USER/05",
+                "Document Description": "EXPR_APLGY voucher cleanup",
+            },
+        ]
+    )
+    result = _categorize_nav_vouchers(df)
+    assert result.loc[0, "bridge_category"] == "Expired - Apology"
+    assert result.loc[0, "voucher_type"] == "Apology"
+    assert result.loc[0, "Integration_Type"] == "Manual"
+
+
+def test_categorize_nav_vouchers_step4_expired_refund():
+    """Test Step 4: Expired - Refund (EXPR_JFORCE)."""
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 25.0,
+                "User ID": "ADMIN/02",
+                "Document Description": "EXPR_JFORCE voucher expiry",
+            },
+        ]
+    )
+    result = _categorize_nav_vouchers(df)
+    assert result.loc[0, "bridge_category"] == "Expired - Refund"
+    assert result.loc[0, "voucher_type"] == "Refund"
+
+
+def test_categorize_nav_vouchers_step4_expired_store_credit():
+    """Test Step 4: Expired - Store Credit (EXPR_STR CRDT)."""
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 20.0,
+                "User ID": "USER/06",
+                "Document Description": "EXPR_STR CRDT voucher",
+            },
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 15.0,
+                "User ID": "USER/06",
+                "Document Description": "EXPR_STR_CRDT voucher",
+            },
+        ]
+    )
+    result = _categorize_nav_vouchers(df)
+    assert result.loc[0, "bridge_category"] == "Expired - Store Credit"
+    assert result.loc[0, "voucher_type"] == "Store Credit"
+    assert result.loc[1, "bridge_category"] == "Expired - Store Credit"
+
+
+def test_categorize_nav_vouchers_step4_expired_generic():
+    """Test Step 4: Generic Expired (EXPR without sub-type)."""
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 35.0,
+                "User ID": "USER/07",
+                "Document Description": "EXPR-2024-001 cleanup",
+            },
+        ]
+    )
+    result = _categorize_nav_vouchers(df)
+    assert result.loc[0, "bridge_category"] == "Expired"
+
+
+# ========================================================================
+# Step 5: VTC (Manual + Positive + 'RND'/'PYT') Tests
+# ========================================================================
+
+
+def test_categorize_nav_vouchers_step5_vtc_manual_rnd():
+    """Test Step 5: VTC - Manual RND."""
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 100.0,
+                "User ID": "USER/01",
+                "Document Description": "Manual RND voucher entry",
+            },
+        ]
+    )
+    result = _categorize_nav_vouchers(df)
+    assert result.loc[0, "bridge_category"] == "VTC"
+    assert result.loc[0, "voucher_type"] == "Refund"
+    assert result.loc[0, "Integration_Type"] == "Manual"
+
+
+def test_categorize_nav_vouchers_step5_vtc_pyt_gtb():
+    """Test Step 5: VTC - PYT_ with GTB in Comment."""
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 150.0,
+                "User ID": "USER/02",
+                "Document Description": "PYT_123 voucher",
+                "Comment": "GTB bank transfer",
+            },
+        ]
+    )
+    result = _categorize_nav_vouchers(df)
+    assert result.loc[0, "bridge_category"] == "VTC"
+    assert result.loc[0, "voucher_type"] == "Refund"
+
+
+# ========================================================================
+# Step 6: Manual Cancellation (Manual + Positive + Credit Memo) Tests
+# ========================================================================
+
+
+def test_categorize_nav_vouchers_step6_manual_cancellation():
+    """Test Step 6: Manual Cancellation - Store Credit via Credit Memo."""
     df = pd.DataFrame(
         [
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 85.0,
-                "Bal_ Account Type": "Customer",
                 "User ID": "USER/04",
                 "Document Description": "Store credit cancellation",
                 "Document Type": "Credit Memo",
@@ -668,51 +922,58 @@ def test_categorize_nav_vouchers_rule4_cancellation_store_credit():
     )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Cancellation - Store Credit"
+    assert result.loc[0, "voucher_type"] == "Store Credit"
+    assert result.loc[0, "Integration_Type"] == "Manual"
 
 
-def test_categorize_nav_vouchers_rule4_cancellation_apology():
-    """Test Rule 4.b: Cancellation - Apology."""
+# ========================================================================
+# Step 7: Manual Usage (Nigeria Exception) Tests
+# ========================================================================
+
+
+def test_categorize_nav_vouchers_step7_manual_usage_itempricecredit():
+    """Test Step 7: Manual Usage - ITEMPRICECREDIT (Nigeria exception)."""
     df = pd.DataFrame(
         [
             {
                 "Chart of Accounts No_": "18412",
-                "Amount": 45.0,
-                "Bal_ Account Type": "Customer",
-                "User ID": "NAV/13",
-                "Document Description": "Voucher occur",
-                "Document Type": "Payment",
-            }
+                "Amount": 60.0,
+                "User ID": "USER/08",
+                "Document Description": "ITEMPRICECREDIT adjustment",
+            },
         ]
     )
     result = _categorize_nav_vouchers(df)
-    assert result.loc[0, "bridge_category"] == "Cancellation - Apology"
+    assert result.loc[0, "bridge_category"] == "Usage"
+    assert result.loc[0, "Integration_Type"] == "Manual"
 
 
-def test_categorize_nav_vouchers_rule5_expired():
-    """Test Rule 5: Expired vouchers."""
-    df = pd.DataFrame(
+def test_categorize_nav_vouchers_step7_manual_usage_with_voucher_lookup():
+    """Test Step 7: Manual Usage with voucher type lookup."""
+    cr_03_df = pd.DataFrame(
         [
             {
                 "Chart of Accounts No_": "18412",
-                "Amount": 30.0,
-                "Bal_ Account Type": "G/L Account",
-                "User ID": "USER/05",
-                "Document Description": "EXP-2024-001",
-                "Document Type": "General Journal",
-            },
-            {
-                "Chart of Accounts No_": "18412",
-                "Amount": 20.0,
-                "Bal_ Account Type": "G/L Account",
-                "User ID": "ADMIN/02",
-                "Document Description": "Expired voucher cleanup",
-                "Document Type": "General Journal",
+                "Amount": 60.0,
+                "User ID": "USER/08",
+                "Document Description": "ITEMPRICECREDIT adjustment",
+                "[Voucher No_]": "V003",
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
-    assert result.loc[0, "bridge_category"] == "Expired"
-    assert result.loc[1, "bridge_category"] == "Expired"
+    ipe_08_df = pd.DataFrame(
+        [
+            {"id": "V003", "business_use": "store_credit"},
+        ]
+    )
+    result = _categorize_nav_vouchers(cr_03_df, ipe_08_df=ipe_08_df)
+    assert result.loc[0, "bridge_category"] == "Usage"
+    assert result.loc[0, "voucher_type"] == "store_credit"
+
+
+# ========================================================================
+# General Tests
+# ========================================================================
 
 
 def test_categorize_nav_vouchers_non_18412_account():
@@ -722,10 +983,8 @@ def test_categorize_nav_vouchers_non_18412_account():
             {
                 "Chart of Accounts No_": "18410",
                 "Amount": 100.0,
-                "Bal_ Account Type": "Bank Account",
                 "User ID": "USER/01",
                 "Document Description": "Different account",
-                "Document Type": "Payment",
             }
         ]
     )
@@ -734,64 +993,56 @@ def test_categorize_nav_vouchers_non_18412_account():
         pd.isna(result.loc[0, "bridge_category"])
         or result.loc[0, "bridge_category"] is None
     )
+    # Integration_Type should still be set
+    assert result.loc[0, "Integration_Type"] == "Manual"
 
 
 def test_categorize_nav_vouchers_mixed_scenarios():
     """Test a mix of different categorization rules."""
     df = pd.DataFrame(
         [
-            # VTC Manual
-            {
-                "Chart of Accounts No_": "18412",
-                "Amount": 100.0,
-                "Bal_ Account Type": "Bank Account",
-                "User ID": "USER/01",
-                "Document Description": "Manual entry",
-                "Document Type": "Payment",
-            },
-            # Usage
-            {
-                "Chart of Accounts No_": "18412",
-                "Amount": 50.0,
-                "Bal_ Account Type": "Customer",
-                "User ID": "NAV/13",
-                "Document Description": "Item price credit",
-                "Document Type": "Sales",
-            },
-            # Issuance - Refund
+            # Issuance - Refund (Integrated)
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -75.0,
-                "Bal_ Account Type": "Customer",
                 "User ID": "NAV/13",
                 "Document Description": "Refund voucher",
-                "Document Type": "Credit Memo",
             },
-            # Expired
+            # Usage (Integrated)
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 50.0,
+                "User ID": "NAV/13",
+                "Document Description": "Item price credit",
+            },
+            # VTC (Manual + RND)
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 100.0,
+                "User ID": "USER/01",
+                "Document Description": "Manual RND entry",
+            },
+            # Expired (Manual + EXPR)
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 25.0,
-                "Bal_ Account Type": "G/L Account",
                 "User ID": "USER/02",
-                "Document Description": "EXP-2024-123",
-                "Document Type": "General Journal",
+                "Document Description": "EXPR_APLGY-2024-123",
             },
             # Non-18412 (should not be categorized)
             {
                 "Chart of Accounts No_": "13011",
                 "Amount": 200.0,
-                "Bal_ Account Type": "Bank Account",
                 "User ID": "USER/03",
                 "Document Description": "Different account",
-                "Document Type": "Payment",
             },
         ]
     )
     result = _categorize_nav_vouchers(df)
-    assert result.loc[0, "bridge_category"] == "VTC Manual"
+    assert result.loc[0, "bridge_category"] == "Issuance - Refund"
     assert result.loc[1, "bridge_category"] == "Usage"
-    assert result.loc[2, "bridge_category"] == "Issuance - Refund"
-    assert result.loc[3, "bridge_category"] == "Expired"
+    assert result.loc[2, "bridge_category"] == "VTC"
+    assert result.loc[3, "bridge_category"] == "Expired - Apology"
     assert (
         pd.isna(result.loc[4, "bridge_category"])
         or result.loc[4, "bridge_category"] is None
@@ -805,24 +1056,38 @@ def test_categorize_nav_vouchers_case_insensitivity():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 50.0,
-                "Bal_ Account Type": "BANK ACCOUNT",
                 "User ID": "user/01",
-                "Document Description": "MANUAL ENTRY",
-                "Document Type": "PAYMENT",
+                "Document Description": "manual rnd ENTRY",
             },
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -100.0,
-                "Bal_ Account Type": "Customer",
-                "User ID": "NAV/13",
-                "Document Description": "REFUND VOUCHER ISSUED",
-                "Document Type": "CREDIT MEMO",
+                "User ID": "nav/13",
+                "Document Description": "refund voucher issued",
             },
         ]
     )
     result = _categorize_nav_vouchers(df)
-    assert result.loc[0, "bridge_category"] == "VTC Manual"
+    assert result.loc[0, "bridge_category"] == "VTC"
     assert result.loc[1, "bridge_category"] == "Issuance - Refund"
+
+
+def test_categorize_nav_vouchers_returns_enriched_columns():
+    """Test that the function returns all three required columns."""
+    df = pd.DataFrame(
+        [
+            {
+                "Chart of Accounts No_": "18412",
+                "Amount": 100.0,
+                "User ID": "NAV/13",
+                "Document Description": "Test",
+            },
+        ]
+    )
+    result = _categorize_nav_vouchers(df)
+    assert "bridge_category" in result.columns
+    assert "voucher_type" in result.columns
+    assert "Integration_Type" in result.columns
 
 
 # ========================================================================
