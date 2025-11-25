@@ -14,7 +14,7 @@ from temporalio.common import RetryPolicy
 
 # Import activity definitions (for type hints)
 with workflow.unsafe.imports_passed_through():
-    from src.orchestrators.cpg1_activities import (
+    from src.orchestrators.archive_temporal.cpg1_activities import (
         execute_ipe_query_activity,
         execute_cr_query_activity,
         calculate_timing_difference_bridge_activity,
