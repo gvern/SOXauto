@@ -22,7 +22,6 @@ from src.bridges.classifier import (
     calculate_vtc_adjustment,
     calculate_customer_posting_group_bridge,
     calculate_timing_difference_bridge,
-    calculate_integration_error_adjustment
 )
 from src.utils.fx_utils import FXConverter
 
@@ -139,7 +138,7 @@ async def run_extraction_with_evidence(item_id, params, country_code, period_str
 
 def load_all_data(params):
     """Orchestrates loading and evidence collection with context."""
-    REQUIRED_IPES = ["CR_04", "CR_03", "CR_05", "IPE_07", "IPE_08", "DOC_VOUCHER_USAGE", "IPE_REC_ERRORS"]
+    REQUIRED_IPES = ["CR_04", "CR_03", "CR_05", "IPE_07", "IPE_08", "DOC_VOUCHER_USAGE"]
     data_store = {}
     evidence_store = {}
     
@@ -252,7 +251,7 @@ def main():
             st.warning(f"⚠️ Could not initialize FX Converter: {e}. Using local currency.")
             fx_converter = None
         
-        tabs = st.tabs(["Task 1: Timing Diff", "Task 2: VTC", "Task 3: Integration", "Task 4: Reclass"])
+        tabs = st.tabs(["Task 1: Timing Diff", "Task 2: VTC", "Task 4: Reclass"])
 
         with tabs[0]:
             bridge_amt, proof_df = calculate_timing_difference_bridge(
@@ -273,13 +272,6 @@ def main():
             c2.dataframe(proof_df_vtc.head(50), use_container_width=True)
 
         with tabs[2]:
-            adj_amt_int, proof_df_int = calculate_integration_error_adjustment(data['IPE_REC_ERRORS'], fx_converter=fx_converter)
-            c1, c2 = st.columns([1, 3])
-            c1.metric("Integration Errors", f"${adj_amt_int:,.2f}")
-            c1.download_button("📥 Download Bridge Calculation", proof_df_int.to_csv(index=False), f"Bridge_Integration_{target_country}.csv")
-            c2.dataframe(proof_df_int.head(50), use_container_width=True)
-
-        with tabs[3]:
             _, proof_df_reclass = calculate_customer_posting_group_bridge(data['IPE_07'])
             if len(proof_df_reclass) == 0:
                 st.success("✅ PASS: Data Quality Clean")
@@ -291,7 +283,7 @@ def main():
         st.markdown("---")
         st.header("3. Final Reconciliation Status")
         
-        total_explained = bridge_amt + adj_amt + adj_amt_int
+        total_explained = bridge_amt + adj_amt
         
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Explained Variance", f"${total_explained:,.2f}", delta="Automated Bridges")
