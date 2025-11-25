@@ -540,6 +540,50 @@ Given the above, and that the period and date of extraction are validated in eve
         ],
     ),
     # =================================================================
+    # == CR_05: FX Rates (Monthly Closing Rates for USD Conversion)
+    # =================================================================
+    CatalogItem(
+        item_id="CR_05",
+        item_type="CR",
+        control="C-PG-1",
+        title="FX Rates - Monthly Closing Rates",
+        change_status="No changes",
+        last_updated="2025-11-24",
+        output_type="Query",
+        tool="PowerPivot",
+        third_party=False,
+        status="Completed",
+        baseline_required=True,
+        cross_reference=None,
+        description="""Monthly FX closing rates for converting local currency amounts to USD.
+        
+This control report provides the exchange rates used for financial reporting and reconciliation.
+The rates are extracted from RPT_FX_RATES for the specified month and year, filtered for 
+'Closing' rate type with USD as the base currency.
+
+The query handles special cases:
+- USD-based companies (e.g., Germany USD entities) automatically get rate = 1
+- Joins with Dim_Company and Dim_Country for complete company context""",
+        notes=(
+            "Provides monthly closing FX rates for USD conversion. "
+            "Rate logic: Amount_USD = Amount_LCY / FX_rate. "
+            "Used by bridge classification functions to report all variances in USD."
+        ),
+        evidence_ref="CR_05",
+        descriptor_excel=None,
+        sources=[
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]", system="NAV", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]", system="NAV", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Country]", system="NAV", domain="FinRec"),
+        ],
+        sql_query=_load_sql("CR_05"),
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("Company_Code"),
+            ColumnExistsCheck("FX_rate"),
+        ],
+    ),
+    # =================================================================
     # == 10. IPE-34: Marketplace Refund Liability
     # =================================================================
     CatalogItem(

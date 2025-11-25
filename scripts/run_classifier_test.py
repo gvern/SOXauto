@@ -23,6 +23,7 @@ from src.bridges.classifier import (
     calculate_timing_difference_bridge,
     calculate_integration_error_adjustment,
 )
+from src.utils.fx_utils import FXConverter
 
 # === CONFIGURATION ===
 PARAMS = {
@@ -88,6 +89,7 @@ def load_fixtures(country_code: str):
     fixtures_dir = os.path.join(REPO_ROOT, "tests", "fixtures")
     fixture_files = {
         "CR_03": "fixture_CR_03.csv",
+        "CR_05": "fixture_CR_05.csv",
         "IPE_08": "fixture_IPE_08.csv",
         "IPE_07": "fixture_IPE_07.csv",
         "JDASH": "fixture_JDASH.csv",
@@ -162,7 +164,7 @@ def load_fixtures(country_code: str):
 # -------------------------------
 # Tasks
 # -------------------------------
-def run_task2_vtc(fixtures, quiet=False, limit=10):
+def run_task2_vtc(fixtures, fx_converter=None, quiet=False, limit=10):
     hr("TASK 2: VTC (VOUCHER TO CASH) RECONCILIATION")
     if not quiet:
         print("\n[Step 1] Categorizing NAV vouchers from CR_03...")
@@ -174,7 +176,7 @@ def run_task2_vtc(fixtures, quiet=False, limit=10):
     if not quiet:
         print("\n[Step 2] Calculating VTC adjustment...")
     adjustment_amount, proof_df = calculate_vtc_adjustment(
-        fixtures["IPE_08"], categorized
+        fixtures["IPE_08"], categorized, fx_converter=fx_converter
     )
 
     # Save evidence
@@ -191,7 +193,7 @@ def run_task2_vtc(fixtures, quiet=False, limit=10):
 
     return adjustment_amount, proof_df
 
-def run_task3_integration(fixtures, quiet=False, limit=10):
+def run_task3_integration(fixtures, fx_converter=None, quiet=False, limit=10):
     hr("TASK 3: INTEGRATION ERRORS ADJUSTMENT")
     
     if "IPE_REC_ERRORS" not in fixtures:
@@ -199,7 +201,7 @@ def run_task3_integration(fixtures, quiet=False, limit=10):
         return 0.0, pd.DataFrame()
 
     adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        fixtures["IPE_REC_ERRORS"]
+        fixtures["IPE_REC_ERRORS"], fx_converter=fx_converter
     )
     
     # Save evidence
@@ -241,10 +243,10 @@ def run_task4_customer_reclass(fixtures, quiet=False, limit=10):
     return bridge_amount, proof_df
 
 
-def run_task1_timing_diff(fixtures, cutoff_date=None, quiet=False, limit=10):
+def run_task1_timing_diff(fixtures, cutoff_date=None, fx_converter=None, quiet=False, limit=10):
     hr("TASK 1: TIMING DIFFERENCE BRIDGE")
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        fixtures["JDASH"], fixtures["IPE_08"], cutoff_date=cutoff_date
+        fixtures["JDASH"], fixtures["IPE_08"], cutoff_date=cutoff_date, fx_converter=fx_converter
     )
     
     # Save evidence
@@ -345,21 +347,33 @@ def main():
     hr("CLASSIFIER TEST SCRIPT")
     print("Testing classification logic offline using local fixtures")
 
+    # Initialize FX Converter
+    hr("INITIALIZING FX CONVERTER")
+    try:
+        fx_converter = FXConverter(fixtures["CR_05"])
+        print(f"✓ FX Converter initialized with {len(fx_converter.rates_dict)} exchange rates")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not initialize FX Converter: {e}")
+        print("   Continuing with local currency calculations...")
+        fx_converter = None
 
     # 1. TASK 1: Timing Difference (L'analyse temporelle globale)
     task1 = run_task1_timing_diff(
-        fixtures, cutoff_date=cutoff_date, quiet=args.summary_only or args.quiet, limit=args.limit
+        fixtures, cutoff_date=cutoff_date, fx_converter=fx_converter, 
+        quiet=args.summary_only or args.quiet, limit=args.limit
     )
 
     # 2. TASK 2: VTC Adjustment (L'analyse spécifique des remboursements)
     task2 = run_task2_vtc(
-        fixtures, quiet=args.summary_only or args.quiet, limit=args.limit
+        fixtures, fx_converter=fx_converter,
+        quiet=args.summary_only or args.quiet, limit=args.limit
     )
 
     # 3. TASK 3: Integration Errors (Les erreurs techniques - NOUVEAU)
     # (Nous allons implémenter cette fonction juste après)
     task3 = run_task3_integration(
-        fixtures, quiet=args.summary_only or args.quiet, limit=args.limit
+        fixtures, fx_converter=fx_converter,
+        quiet=args.summary_only or args.quiet, limit=args.limit
     )
 
     # 4. TASK 4: Customer Reclass (L'hygiène des tiers)

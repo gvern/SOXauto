@@ -16,6 +16,7 @@ from src.bridges.classifier import (
     calculate_timing_difference_bridge,
     calculate_integration_error_adjustment,
 )
+from src.utils.fx_utils import FXConverter
 
 
 def test_rules_loading():
