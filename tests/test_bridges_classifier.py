@@ -323,6 +323,41 @@ def test_calculate_vtc_adjustment_vtc_manual():
     assert proof.iloc[0]["id"] == "V002"
 
 
+def test_calculate_vtc_adjustment_vtc_category():
+    """Test VTC adjustment recognizes 'VTC' category (new categorization)."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "Remaining Amount": 150.0,
+            },
+            {
+                "id": "V002",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "Remaining Amount": 250.0,
+            },
+        ]
+    )
+
+    cr_03_df = pd.DataFrame(
+        [
+            {"[Voucher No_]": "V001", "bridge_category": "VTC"},
+        ]
+    )
+
+    adjustment, proof = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
+
+    # Only V002 should be unmatched
+    assert adjustment == 250.0
+    assert len(proof) == 1
+    assert proof.iloc[0]["id"] == "V002"
+
+
 def test_calculate_vtc_adjustment_empty_nav():
     """Test VTC adjustment with empty NAV data (all vouchers unmatched)."""
     ipe_08_df = pd.DataFrame(

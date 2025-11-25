@@ -195,12 +195,13 @@ def calculate_vtc_adjustment(
         return adjustment_amount, unmatched_df
 
     # Filter target entries (NAV): cancellation categories
-    # Include entries where bridge_category starts with 'Cancellation' or equals 'VTC Manual'
+    # Include entries where bridge_category starts with 'Cancellation' or equals 'VTC'/'VTC Manual'
     # Convert to string once for efficiency
     bridge_categories = categorized_cr_03_df["bridge_category"].astype(str)
     target_entries_df = categorized_cr_03_df[
         bridge_categories.str.startswith("Cancellation")
         | (bridge_categories == "VTC Manual")
+        | (bridge_categories == "VTC")
     ].copy()
 
     # Perform left anti-join: find vouchers in source that are NOT in target
