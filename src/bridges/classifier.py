@@ -806,6 +806,7 @@ __all__ = [
     "calculate_customer_posting_group_bridge",
     "calculate_vtc_adjustment",
     "_categorize_nav_vouchers",
+    "_lookup_voucher_type",
     "calculate_timing_difference_bridge",
     "calculate_integration_error_adjustment",
 ]
