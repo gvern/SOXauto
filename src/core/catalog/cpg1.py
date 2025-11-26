@@ -266,27 +266,28 @@ On a monthly basis the group head of shared accounting formalizes the outcome of
         control="C-PG-1",
         title="TV - Voucher liabilities",
         change_status="No changes",
-        last_updated="2025-09-15",
+        last_updated="2025-11-26",
         output_type="Query",
         tool="PowerPivot",
         third_party=False,
         status="Completed",
         baseline_required=True,
         cross_reference=None,
-        description="""This query extracts voucher issuance data (the 'Issuance' baseline query) with aggregated usage metrics from RPT_SOI. 
-It includes voucher details from V_STORECREDITVOUCHER_CLOSING, template information from StoreCreditVoucher, 
-and aggregated usage amounts (shipping discounts, store credits) calculated via the sd3 subquery. 
+        description="""This query extracts voucher issuance data with row-level order dates from RPT_SOI. 
+It includes voucher details from V_STORECREDITVOUCHER_CLOSING joined with RPT_SOI to obtain critical 
+timing information: Order_Creation_Date, Order_Delivery_Date, Order_Cancellation_Date, and Order_Item_Status.
+These dates enable timing difference bridge analysis to identify vouchers used in Month N but finalized in Month N+1.
 This provides the complete voucher liability picture for reconciliation purposes.""",
         notes=(
             "File '4. All Countries June-25 - IBSAR Other AR related Accounts.xlsx / Tab 18412' "
             "-> All Countries - Jun.25 - Voucher TV Extract.xlsx. GL = 18412. "
-            "Test data: IPE_08_test.xlsx"
+            "Test data: IPE_08_test.xlsx. "
+            "Updated 2025-11-26 to include row-level order dates for Timing Bridge analysis."
         ),
         evidence_ref="IPE_08",
         descriptor_excel="IPE_FILES/IPE_08_test.xlsx",
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING]", system="BOB", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[StoreCreditVoucher]", system="BOB", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
         sql_query=_load_sql("IPE_08"),
@@ -294,6 +295,8 @@ This provides the complete voucher liability picture for reconciliation purposes
             RowCountCheck(min_rows=1),
             ColumnExistsCheck("remaining_amount"),
             ColumnExistsCheck("id"),
+            ColumnExistsCheck("Order_Creation_Date"),
+            ColumnExistsCheck("Order_Delivery_Date"),
         ],
     ),
     # =================================================================
