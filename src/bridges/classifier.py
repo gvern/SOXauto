@@ -126,9 +126,9 @@ def calculate_customer_posting_group_bridge(
 
 
 def calculate_vtc_adjustment(
-    ipe_08_df: Optional[pd.DataFrame], 
+    ipe_08_df: Optional[pd.DataFrame],
     categorized_cr_03_df: Optional[pd.DataFrame],
-    fx_converter: Optional['FXConverter'] = None
+    fx_converter: Optional["FXConverter"] = None,
 ) -> tuple[float, pd.DataFrame]:
     """Calculate VTC (Voucher to Cash) refund reconciliation adjustment.
 
@@ -168,30 +168,29 @@ def calculate_vtc_adjustment(
     if categorized_cr_03_df is None or categorized_cr_03_df.empty:
         # All source vouchers are unmatched
         unmatched_df = source_vouchers_df.copy()
-        
+
         # Calculate USD amounts if FXConverter is provided
         if fx_converter is not None:
             # Check if ID_COMPANY column exists
             company_col = None
-            for col in ['ID_COMPANY', 'id_company', 'Company_Code']:
+            for col in ["ID_COMPANY", "id_company", "Company_Code"]:
                 if col in unmatched_df.columns:
                     company_col = col
                     break
-            
+
             if company_col is not None:
                 # Convert to USD
-                unmatched_df['Amount_USD'] = fx_converter.convert_series_to_usd(
-                    unmatched_df['remaining_amount'],
-                    unmatched_df[company_col]
+                unmatched_df["Amount_USD"] = fx_converter.convert_series_to_usd(
+                    unmatched_df["remaining_amount"], unmatched_df[company_col]
                 )
-                adjustment_amount = unmatched_df['Amount_USD'].sum()
+                adjustment_amount = unmatched_df["Amount_USD"].sum()
             else:
                 # No company column, cannot convert - use LCY
                 adjustment_amount = unmatched_df["remaining_amount"].sum()
         else:
             # No FX converter provided - use local currency
             adjustment_amount = unmatched_df["remaining_amount"].sum()
-        
+
         return adjustment_amount, unmatched_df
 
     # Filter target entries (NAV): cancellation categories
@@ -214,18 +213,17 @@ def calculate_vtc_adjustment(
     if fx_converter is not None:
         # Check if ID_COMPANY column exists
         company_col = None
-        for col in ['ID_COMPANY', 'id_company', 'Company_Code']:
+        for col in ["ID_COMPANY", "id_company", "Company_Code"]:
             if col in unmatched_df.columns:
                 company_col = col
                 break
-        
+
         if company_col is not None:
             # Convert to USD
-            unmatched_df['Amount_USD'] = fx_converter.convert_series_to_usd(
-                unmatched_df['remaining_amount'],
-                unmatched_df[company_col]
+            unmatched_df["Amount_USD"] = fx_converter.convert_series_to_usd(
+                unmatched_df["remaining_amount"], unmatched_df[company_col]
             )
-            adjustment_amount = unmatched_df['Amount_USD'].sum()
+            adjustment_amount = unmatched_df["Amount_USD"].sum()
         else:
             # No company column, cannot convert - use LCY
             adjustment_amount = unmatched_df["remaining_amount"].sum()
@@ -336,7 +334,9 @@ def _categorize_nav_vouchers(
     # Relaxed logic: If User ID contains "NAV" AND ("BATCH" OR "SRVC"), treat as Integration
     for idx, row in out.iterrows():
         user_id = (
-            str(row[user_col]).strip().upper() if user_col and pd.notna(row[user_col]) else ""
+            str(row[user_col]).strip().upper()
+            if user_col and pd.notna(row[user_col])
+            else ""
         )
         # Check if user_id matches integration pattern: contains NAV AND (BATCH OR SRVC)
         is_integration = "NAV" in user_id and ("BATCH" in user_id or "SRVC" in user_id)
@@ -387,7 +387,11 @@ def _categorize_nav_vouchers(
         # Step 2 (Priority): VTC Manual via Bank Account
         # Manual payments to customers (VTC) appear as negative amounts
         # =====================================================
-        if integration_type == "Manual" and amount != 0 and bal_account_type == "BANK ACCOUNT":
+        if (
+            integration_type == "Manual"
+            and amount != 0
+            and bal_account_type == "BANK ACCOUNT"
+        ):
             out.at[idx, "bridge_category"] = "VTC"
             out.at[idx, "voucher_type"] = "Refund"
             continue
@@ -399,7 +403,11 @@ def _categorize_nav_vouchers(
             if integration_type == "Integration":
                 # Integrated Issuance rules
                 # Check for Refund: match "REFUND", "RF_", or "RF " patterns
-                if "REFUND" in description or "RF_" in description or "RF " in description:
+                if (
+                    "REFUND" in description
+                    or "RF_" in description
+                    or "RF " in description
+                ):
                     out.at[idx, "bridge_category"] = "Issuance - Refund"
                     out.at[idx, "voucher_type"] = "Refund"
                 elif "COMMERCIAL GESTURE" in description:
@@ -418,10 +426,19 @@ def _categorize_nav_vouchers(
                 if is_store_credit:
                     out.at[idx, "bridge_category"] = "Issuance - Store Credit"
                     out.at[idx, "voucher_type"] = "Store Credit"
-                elif "REFUND" in description or "RFN" in description or "RF_" in description or "RF " in description:
+                elif (
+                    "REFUND" in description
+                    or "RFN" in description
+                    or "RF_" in description
+                    or "RF " in description
+                ):
                     out.at[idx, "bridge_category"] = "Issuance - Refund"
                     out.at[idx, "voucher_type"] = "Refund"
-                elif "COMMERCIAL" in description or "CXP" in description or "APOLOGY" in description:
+                elif (
+                    "COMMERCIAL" in description
+                    or "CXP" in description
+                    or "APOLOGY" in description
+                ):
                     out.at[idx, "bridge_category"] = "Issuance - Apology"
                     out.at[idx, "voucher_type"] = "Apology"
                 elif "PYT_PF" in description or "PYT_" in description:
@@ -477,7 +494,7 @@ def _categorize_nav_vouchers(
                 is_vtc = True
             elif "PYT_" in description and "GTB" in comment:
                 is_vtc = True
-            
+
             if is_vtc:
                 out.at[idx, "bridge_category"] = "VTC"
                 out.at[idx, "voucher_type"] = "Refund"
@@ -559,248 +576,149 @@ def _lookup_voucher_type(
 
 
 def calculate_timing_difference_bridge(
-    jdash_df: pd.DataFrame, 
-    ipe_08_df: pd.DataFrame, 
+    ipe_08_df: pd.DataFrame,
     cutoff_date: str,
-    fx_converter: Optional['FXConverter'] = None
+    fx_converter: Optional["FXConverter"] = None,
 ) -> Tuple[float, pd.DataFrame]:
     """
-    Calculates the Timing Difference Bridge (Task 1) based on the "Issuance vs Jdash" logic.
-    
-    Logic (Validated Nov 2025):
-    1. Source A (IPE_08 - Issuance): 
-       - Filter for Non-marketing, Inactive, Created in last 12 months.
-       - Represents the "Target" usage according to BOB Issuance history.
-    2. Source B (Jdash - Usage):
-       - Represents the actual usage in the period (filtered at export time).
-    3. Reconciliation:
-       - Left Join A -> B on Voucher ID.
-       - Variance = (A.TotalAmountUsed) - (B.Amount Used).
-       - Positive variance means BOB Issuance sees more usage than Jdash report for this period.
-    
+    Calculates the Timing Difference Bridge using "Month N vs N+1" cut-off logic.
+
+    Logic (Validated Oct 2025):
+    Identifies vouchers that were ordered in the reconciliation month (N) but not
+    finalized (delivered or canceled) by the cutoff date, meaning they remain pending
+    or late in the following month (N+1).
+
+    Business Rules:
+    1. Filter Scope: business_use in NON_MARKETING_USES
+    2. Filter "Used in N": Order_Creation_Date within reconciliation month
+    3. Filter "Pending/Late in N+1":
+       - Order_Delivery_Date > cutoff_date OR Order_Delivery_Date is NaT (Null)
+       - AND Order_Cancellation_Date > cutoff_date OR Order_Cancellation_Date is NaT (Null)
+       (The order was placed in time, but not finalized by the closing date)
+
     Args:
-        jdash_df: DataFrame from Jdash export
         ipe_08_df: DataFrame from IPE_08 with columns:
             - id: Voucher ID
             - business_use: Business use type
-            - is_active: Active status
-            - created_at: Creation date
-            - TotalAmountUsed: Total amount used
+            - Order_Creation_Date: Date when order was created
+            - Order_Delivery_Date: Date when order was delivered (or NaT if not delivered)
+            - Order_Cancellation_Date: Date when order was canceled (or NaT if not canceled)
+            - remaining_amount: Amount for the voucher
             - ID_COMPANY: Company code (required if fx_converter is provided)
-        cutoff_date: Reconciliation cutoff date (YYYY-MM-DD)
+        cutoff_date: Reconciliation cutoff date (YYYY-MM-DD), typically last day of month N
         fx_converter: Optional FXConverter instance for USD conversion.
                      If None, returns amounts in local currency.
-    
+
     Returns:
-        tuple: (bridge_amount_usd, proof_df) where:
-            - bridge_amount_usd: Sum of variances in USD
-            - proof_df: DataFrame with variances and Amount_USD column
+        tuple: (bridge_amount, proof_df) where:
+            - bridge_amount: Sum of remaining_amount (in USD if fx_converter provided)
+            - proof_df: DataFrame with vouchers meeting the criteria and Amount_USD column
     """
+    # Handle empty or None input
+    if ipe_08_df is None or ipe_08_df.empty:
+        return 0.0, pd.DataFrame()
+
     # 1. Define Non-Marketing Types
     NON_MARKETING_USES = [
-        'apology_v2', 'jforce', 'refund', 'store_credit', 'Jpay store_credit'
+        "apology_v2",
+        "jforce",
+        "refund",
+        "store_credit",
+        "Jpay store_credit",
     ]
 
-    # 2. Prepare Dates
-    recon_date = pd.to_datetime(cutoff_date)
-    start_date_1yr = recon_date - pd.DateOffset(years=1)
-    
-    # 3. Filter IPE_08 (The "File A" - Issuance)
-    # Ensure dates are datetime
-    ipe_08_df = ipe_08_df.copy() # Avoid SettingWithCopyWarning
-    ipe_08_df['created_at'] = pd.to_datetime(ipe_08_df['created_at'])
-    
-    # Apply filters per business rules:
-    # - Voucher Type: Non-marketing only
-    # - Status: Inactive (fully used/expired)
-    # - Creation Date: Within last 12 months
-    filtered_ipe_08 = ipe_08_df[
-        (ipe_08_df['business_use'].isin(NON_MARKETING_USES)) &
-        (ipe_08_df['is_active'] == 0) &
-        (ipe_08_df['created_at'] >= start_date_1yr) & 
-        (ipe_08_df['created_at'] <= recon_date)
-    ].copy()
+    # 2. Prepare cutoff date and reconciliation month boundaries
+    cutoff_dt = pd.to_datetime(cutoff_date)
+    # Start of reconciliation month
+    recon_month_start = cutoff_dt.replace(day=1)
+    # End of reconciliation month (should be cutoff_date in most cases)
+    recon_month_end = cutoff_dt
 
-    # 4. Prepare Jdash (The "File B" - Usage)
-    # Aggregate by Voucher Id to handle potential multiple usage lines
-    # Note: Jdash export is already filtered for the control period.
-    jdash_agg = jdash_df.groupby('Voucher Id')['Amount Used'].sum().reset_index()
-    
-    # 5. Merge (Left Join: Focus on Issued Vouchers from File A)
-    # ID mapping: IPE_08 'id' == Jdash 'Voucher Id'
-    filtered_ipe_08['id'] = filtered_ipe_08['id'].astype(str)
-    jdash_agg['Voucher Id'] = jdash_agg['Voucher Id'].astype(str)
-    
-    merged_df = pd.merge(
-        filtered_ipe_08, 
-        jdash_agg, 
-        left_on='id', 
-        right_on='Voucher Id', 
-        how='left'
+    # 3. Work with a copy and convert date columns to datetime
+    df = ipe_08_df.copy()
+    df["Order_Creation_Date"] = pd.to_datetime(
+        df["Order_Creation_Date"], errors="coerce"
     )
-    
-    # Fill NaNs for Jdash amount (if not found in Jdash, usage for this period is 0)
-    merged_df['Amount Used'] = merged_df['Amount Used'].fillna(0.0)
-    
-    # 6. Calculate Variance (Timing Difference)
-    # Logic: Difference between Total Issuance Usage and Jdash Period Usage
-    merged_df['variance'] = merged_df['TotalAmountUsed'] - merged_df['Amount Used']
-    
-    # Filter for meaningful variances (> 0.01 to handle float precision)
-    proof_df = merged_df[abs(merged_df['variance']) > 0.01].copy()
-    
-    # Calculate USD amounts if FXConverter is provided
-    if fx_converter is not None:
-        # Check if ID_COMPANY column exists
-        company_col = None
-        for col in ['ID_COMPANY', 'id_company', 'Company_Code']:
-            if col in proof_df.columns:
-                company_col = col
-                break
-        
-        if company_col is not None:
-            # Convert variance to USD
-            proof_df['Amount_USD'] = fx_converter.convert_series_to_usd(
-                proof_df['variance'],
-                proof_df[company_col]
-            )
-            bridge_amount = proof_df['Amount_USD'].sum()
-        else:
-            # No company column, cannot convert - use LCY
-            bridge_amount = proof_df['variance'].sum()
-    else:
-        # No FX converter provided - use local currency
-        bridge_amount = proof_df['variance'].sum()
-    
-    # Select relevant columns for evidence output
-    cols_to_keep = [
-        'id', 'business_use', 'created_at', 'TotalAmountUsed', 'Amount Used', 'variance'
-    ]
-    
-    # Add Amount_USD if it exists
-    if 'Amount_USD' in proof_df.columns:
-        cols_to_keep.append('Amount_USD')
-    
-    # Keep only columns that exist in the dataframe
-    proof_df = proof_df[[c for c in cols_to_keep if c in proof_df.columns]]
-    
-    return bridge_amount, proof_df
+    df["Order_Delivery_Date"] = pd.to_datetime(
+        df["Order_Delivery_Date"], errors="coerce"
+    )
+    df["Order_Cancellation_Date"] = pd.to_datetime(
+        df["Order_Cancellation_Date"], errors="coerce"
+    )
 
-def calculate_integration_error_adjustment(
-    ipe_rec_errors_df: pd.DataFrame,
-    fx_converter: Optional['FXConverter'] = None
-) -> tuple[float, pd.DataFrame]:
-    """
-    Calculate integration error adjustments for reconciliation (Task 3).
+    # 4. Apply filters per business rules
 
-    This function processes integration errors from the IPE_REC_ERRORS query,
-    which consolidates 36 source tables into a standard format. It filters for
-    actual errors, maps them to the correct GL Account based on business rules,
-    and calculates the total adjustment per account.
+    # Filter Scope: Non-marketing uses only
+    filter_scope = df["business_use"].isin(NON_MARKETING_USES)
 
-    Args:
-        ipe_rec_errors_df: DataFrame from IPE_REC_ERRORS query containing:
-            - Source_System: Name of the source table/system
-            - Amount: Transaction amount
-            - Integration_Status: Status of the integration (Posted, Integrated, Error, etc.)
-            - Transaction_ID: (optional) Unique transaction identifier
-            - ID_COMPANY or id_company: Company code (required if fx_converter is provided)
-        fx_converter: Optional FXConverter instance for USD conversion.
-                     If None, returns amounts in local currency.
+    # Filter "Used in N": Order created within the reconciliation month
+    filter_used_in_n = (df["Order_Creation_Date"] >= recon_month_start) & (
+        df["Order_Creation_Date"] <= recon_month_end
+    )
 
-    Returns:
-        tuple: (adjustment_amount_usd, proof_df)
-            - adjustment_amount_usd: Total sum of all error amounts in USD
-            - proof_df: DataFrame containing error transactions with columns:
-                       ['Source_System', 'Amount', 'Target_GL', 'Amount_USD'] and optionally
-                       'Transaction_ID' (if present in input)
-    """
-    # Define the mapping from Source_System to GL Account
-    SOURCE_TO_GL_MAP = {
-        # GL 13023 (Accrued MPL Revenue)
-        "SC Account Statement": "13023",
-        "Seller Account Statements": "13023",
-        # GL 18412 (Voucher Accrual)
-        "JForce Payouts": "18412",
-        "Refunds": "18412",
-        # GL 18314 (MPL Vendor Liability)
-        "Prepaid Deliveries": "18314",
-        # GL 13012 (PSP / Collection)
-        "Cash Deposits": "13012",
-        "Cash Deposit Cancel": "13012",
-        "Payment Reconciles": "13012",
-    }
+    # Filter "Pending/Late in N+1": Order not finalized by cutoff date
+    # Delivery date is after cutoff OR null (not delivered)
+    delivery_pending = (df["Order_Delivery_Date"] > cutoff_dt) | (
+        df["Order_Delivery_Date"].isna()
+    )
 
-    # Handle empty inputs
-    if ipe_rec_errors_df is None or ipe_rec_errors_df.empty:
-        return 0.0, pd.DataFrame(
-            columns=["Source_System", "Transaction_ID", "Amount", "Target_GL"]
-        )
+    # Cancellation date is after cutoff OR null (not canceled)
+    cancellation_pending = (df["Order_Cancellation_Date"] > cutoff_dt) | (
+        df["Order_Cancellation_Date"].isna()
+    )
 
-    # Validate required columns exist
-    required_cols = ["Source_System", "Amount", "Integration_Status"]
-    missing_cols = [
-        col for col in required_cols if col not in ipe_rec_errors_df.columns
-    ]
-    if missing_cols:
-        raise ValueError(f"Missing required columns: {missing_cols}")
+    # Both delivery and cancellation must be pending
+    filter_pending_in_n_plus_1 = delivery_pending & cancellation_pending
 
-    # Filter for actual errors (not Posted or Integrated)
-    errors_df = ipe_rec_errors_df[
-        ~ipe_rec_errors_df["Integration_Status"].isin(["Posted", "Integrated"])
+    # Combine all filters
+    filtered_df = df[
+        filter_scope & filter_used_in_n & filter_pending_in_n_plus_1
     ].copy()
 
-    if errors_df.empty:
-        return 0.0, pd.DataFrame(
-            columns=["Source_System", "Transaction_ID", "Amount", "Target_GL"]
-        )
-
-    # Map Source_System to Target_GL
-    errors_df["Target_GL"] = errors_df["Source_System"].map(SOURCE_TO_GL_MAP)
-
-    # Filter out unmapped sources (Unclassified)
-    mapped_errors_df = errors_df[errors_df["Target_GL"].notna()].copy()
-
-    if mapped_errors_df.empty:
-        return 0.0, pd.DataFrame(
-            columns=["Source_System", "Transaction_ID", "Amount", "Target_GL"]
-        )
+    # 5. Calculate bridge amount
+    if filtered_df.empty:
+        return 0.0, pd.DataFrame()
 
     # Calculate USD amounts if FXConverter is provided
     if fx_converter is not None:
         # Check if ID_COMPANY column exists
         company_col = None
-        for col in ['ID_COMPANY', 'id_company', 'Company_Code']:
-            if col in mapped_errors_df.columns:
+        for col in ["ID_COMPANY", "id_company", "Company_Code"]:
+            if col in filtered_df.columns:
                 company_col = col
                 break
-        
+
         if company_col is not None:
             # Convert to USD
-            mapped_errors_df['Amount_USD'] = fx_converter.convert_series_to_usd(
-                mapped_errors_df['Amount'],
-                mapped_errors_df[company_col]
+            filtered_df["Amount_USD"] = fx_converter.convert_series_to_usd(
+                filtered_df["remaining_amount"], filtered_df[company_col]
             )
-            adjustment_amount = mapped_errors_df['Amount_USD'].sum()
+            bridge_amount = filtered_df["Amount_USD"].sum()
         else:
             # No company column, cannot convert - use LCY
-            adjustment_amount = mapped_errors_df["Amount"].sum()
+            bridge_amount = filtered_df["remaining_amount"].sum()
     else:
         # No FX converter provided - use local currency
-        adjustment_amount = mapped_errors_df["Amount"].sum()
+        bridge_amount = filtered_df["remaining_amount"].sum()
 
-    # Prepare proof DataFrame
-    proof_columns = ["Source_System", "Amount", "Target_GL"]
-    if "Transaction_ID" in mapped_errors_df.columns:
-        proof_columns.insert(1, "Transaction_ID")
-    
+    # 6. Prepare proof DataFrame with relevant columns
+    cols_to_keep = [
+        "id",
+        "business_use",
+        "Order_Creation_Date",
+        "Order_Delivery_Date",
+        "Order_Cancellation_Date",
+        "remaining_amount",
+    ]
+
     # Add Amount_USD if it exists
-    if 'Amount_USD' in mapped_errors_df.columns:
-        proof_columns.append('Amount_USD')
+    if "Amount_USD" in filtered_df.columns:
+        cols_to_keep.append("Amount_USD")
 
-    proof_df = mapped_errors_df[proof_columns].copy()
+    # Keep only columns that exist in the dataframe
+    proof_df = filtered_df[[c for c in cols_to_keep if c in filtered_df.columns]]
 
-    return adjustment_amount, proof_df
+    return bridge_amount, proof_df
 
 
 __all__ = [
@@ -810,5 +728,4 @@ __all__ = [
     "_categorize_nav_vouchers",
     "_lookup_voucher_type",
     "calculate_timing_difference_bridge",
-    "calculate_integration_error_adjustment",
 ]

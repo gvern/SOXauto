@@ -14,7 +14,6 @@ from src.bridges.classifier import (
     _categorize_nav_vouchers,
     calculate_customer_posting_group_bridge,
     calculate_timing_difference_bridge,
-    calculate_integration_error_adjustment,
 )
 from src.utils.fx_utils import FXConverter
 
@@ -526,7 +525,7 @@ def test_categorize_nav_vouchers_none_df():
 
 def test_categorize_nav_vouchers_step1_integration_type():
     """Test Step 1: Integration_Type detection (Manual vs Integration).
-    
+
     New logic: If User ID contains "NAV" AND ("BATCH" OR "SRVC"), treat as Integration.
     """
     df = pd.DataFrame(
@@ -559,7 +558,9 @@ def test_categorize_nav_vouchers_step1_integration_type():
     )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "Integration_Type"] == "Integration"
-    assert result.loc[1, "Integration_Type"] == "Manual"  # Updated: NAV/13 without BATCH/SRVC is now Manual
+    assert (
+        result.loc[1, "Integration_Type"] == "Manual"
+    )  # Updated: NAV/13 without BATCH/SRVC is now Manual
     assert result.loc[2, "Integration_Type"] == "Manual"
     assert result.loc[3, "Integration_Type"] == "Integration"
 
@@ -1094,779 +1095,437 @@ def test_categorize_nav_vouchers_returns_enriched_columns():
 
 
 # ========================================================================
-# Tests for calculate_timing_difference_bridge
+# Tests for calculate_timing_difference_bridge (Cut-off Logic)
 # ========================================================================
 
 
 def test_calculate_timing_difference_bridge_basic():
-    """Test basic timing difference bridge calculation with simple variance."""
-    # Create Jdash data
-    jdash_df = pd.DataFrame(
+    """Test basic timing difference bridge with orders in month, pending after cutoff."""
+    # Create IPE_08 data with vouchers
+    # Cutoff date: 2024-10-31
+    ipe_08_df = pd.DataFrame(
         [
-            {"Voucher Id": "V001", "Amount Used": 100.0},
-            {"Voucher Id": "V002", "Amount Used": 200.0},
-            {"Voucher Id": "V003", "Amount Used": 150.0},
-        ]
-    )
-
-    # Create Usage TV data
-    doc_voucher_usage_df = pd.DataFrame(
-        [
-            {"voucher_code": "V001", "TotalUsageAmount": 100.0},  # Matches exactly
-            {"voucher_code": "V002", "TotalUsageAmount": 180.0},  # Variance of 20
-            {"voucher_code": "V003", "TotalUsageAmount": 150.0},  # Matches exactly
-        ]
-    )
-
-    bridge_amount, proof_df = calculate_timing_difference_bridge(
-        jdash_df, doc_voucher_usage_df
-    )
-
-    # Only V002 should have a variance
-    assert bridge_amount == 20.0
-    assert len(proof_df) == 1
-    assert proof_df.loc["V002", "variance"] == 20.0
-    assert proof_df.loc["V002", "Amount Used"] == 200.0
-    assert proof_df.loc["V002", "TotalUsageAmount"] == 180.0
-
-
-def test_calculate_timing_difference_bridge_empty_inputs():
-    """Test with both empty DataFrames."""
-    jdash_df = pd.DataFrame()
-    doc_voucher_usage_df = pd.DataFrame()
-
-    bridge_amount, proof_df = calculate_timing_difference_bridge(
-        jdash_df, doc_voucher_usage_df
-    )
-
-    assert bridge_amount == 0.0
-    assert proof_df.empty
-    assert list(proof_df.columns) == ["Amount Used", "TotalUsageAmount", "variance"]
-
-
-def test_calculate_timing_difference_bridge_none_inputs():
-    """Test with None inputs."""
-    bridge_amount, proof_df = calculate_timing_difference_bridge(None, None)
-
-    assert bridge_amount == 0.0
-    assert proof_df.empty
-    assert list(proof_df.columns) == ["Amount Used", "TotalUsageAmount", "variance"]
-
-
-def test_calculate_timing_difference_bridge_empty_jdash():
-    """Test with empty Jdash data but populated Usage TV data."""
-    jdash_df = pd.DataFrame()
-    doc_voucher_usage_df = pd.DataFrame(
-        [
-            {"voucher_code": "V001", "TotalUsageAmount": 100.0},
-            {"voucher_code": "V002", "TotalUsageAmount": 200.0},
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": "2024-11-05",  # After cutoff
+                "Order_Cancellation_Date": pd.NaT,  # Not canceled
+                "remaining_amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use": "apology_v2",
+                "Order_Creation_Date": "2024-10-20",
+                "Order_Delivery_Date": pd.NaT,  # Not delivered
+                "Order_Cancellation_Date": pd.NaT,  # Not canceled
+                "remaining_amount": 200.0,
+            },
+            {
+                "id": "V003",
+                "business_use": "store_credit",
+                "Order_Creation_Date": "2024-10-25",
+                "Order_Delivery_Date": "2024-10-28",  # Before cutoff - should be excluded
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 150.0,
+            },
         ]
     )
 
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        jdash_df, doc_voucher_usage_df
+        ipe_08_df, "2024-10-31"
     )
 
-    # All Usage TV amounts should appear as negative variances
-    assert bridge_amount == -300.0
-    assert len(proof_df) == 2
-    assert proof_df.loc["V001", "variance"] == -100.0
-    assert proof_df.loc["V002", "variance"] == -200.0
-
-
-def test_calculate_timing_difference_bridge_empty_usage_tv():
-    """Test with populated Jdash data but empty Usage TV data."""
-    jdash_df = pd.DataFrame(
-        [
-            {"Voucher Id": "V001", "Amount Used": 100.0},
-            {"Voucher Id": "V002", "Amount Used": 200.0},
-        ]
-    )
-    doc_voucher_usage_df = pd.DataFrame()
-
-    bridge_amount, proof_df = calculate_timing_difference_bridge(
-        jdash_df, doc_voucher_usage_df
-    )
-
-    # All Jdash amounts should appear as positive variances
+    # V001 and V002 should be included (pending/late)
+    # V003 should be excluded (delivered before cutoff)
     assert bridge_amount == 300.0
     assert len(proof_df) == 2
-    assert proof_df.loc["V001", "variance"] == 100.0
-    assert proof_df.loc["V002", "variance"] == 200.0
+    assert "V001" in proof_df["id"].values
+    assert "V002" in proof_df["id"].values
+    assert "V003" not in proof_df["id"].values
 
 
-def test_calculate_timing_difference_bridge_unmatched_vouchers():
-    """Test with vouchers appearing in only one source."""
-    jdash_df = pd.DataFrame(
-        [
-            {"Voucher Id": "V001", "Amount Used": 100.0},
-            {"Voucher Id": "V002", "Amount Used": 200.0},
-            {"Voucher Id": "V003", "Amount Used": 150.0},
-        ]
+def test_calculate_timing_difference_bridge_empty_input():
+    """Test with empty DataFrame."""
+    ipe_08_df = pd.DataFrame()
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        ipe_08_df, "2024-10-31"
     )
 
-    doc_voucher_usage_df = pd.DataFrame(
+    assert bridge_amount == 0.0
+    assert proof_df.empty
+
+
+def test_calculate_timing_difference_bridge_none_input():
+    """Test with None input."""
+    bridge_amount, proof_df = calculate_timing_difference_bridge(None, "2024-10-31")
+
+    assert bridge_amount == 0.0
+    assert proof_df.empty
+
+
+def test_calculate_timing_difference_bridge_filter_non_marketing():
+    """Test that only non-marketing vouchers are included."""
+    ipe_08_df = pd.DataFrame(
         [
-            {"voucher_code": "V002", "TotalUsageAmount": 200.0},  # Matches
-            {"voucher_code": "V004", "TotalUsageAmount": 300.0},  # Only in Usage TV
-            {"voucher_code": "V005", "TotalUsageAmount": 250.0},  # Only in Usage TV
+            {
+                "id": "V001",
+                "business_use": "refund",  # Non-marketing
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use": "marketing",  # Marketing - should be excluded
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 200.0,
+            },
+            {
+                "id": "V003",
+                "business_use": "jforce",  # Non-marketing
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 150.0,
+            },
         ]
     )
 
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        jdash_df, doc_voucher_usage_df
+        ipe_08_df, "2024-10-31"
     )
 
-    # V001: +100 (in Jdash only)
-    # V002: 0 (matched)
-    # V003: +150 (in Jdash only)
-    # V004: -300 (in Usage TV only)
-    # V005: -250 (in Usage TV only)
-    # Total: 100 + 150 - 300 - 250 = -300
-    assert bridge_amount == -300.0
-    assert len(proof_df) == 4  # V002 matched, so not in proof
-    assert "V002" not in proof_df.index
+    # Only V001 and V003 should be included
+    assert bridge_amount == 250.0
+    assert len(proof_df) == 2
+    assert "V002" not in proof_df["id"].values
 
 
-def test_calculate_timing_difference_bridge_aggregation():
-    """Test that duplicate voucher IDs are properly aggregated."""
-    jdash_df = pd.DataFrame(
+def test_calculate_timing_difference_bridge_filter_creation_date():
+    """Test that only orders created in reconciliation month are included."""
+    ipe_08_df = pd.DataFrame(
         [
-            {"Voucher Id": "V001", "Amount Used": 50.0},
-            {"Voucher Id": "V001", "Amount Used": 50.0},  # Duplicate
-            {"Voucher Id": "V002", "Amount Used": 100.0},
-        ]
-    )
-
-    doc_voucher_usage_df = pd.DataFrame(
-        [
-            {"voucher_code": "V001", "TotalUsageAmount": 80.0},
-            {"voucher_code": "V001", "TotalUsageAmount": 20.0},  # Duplicate
-            {"voucher_code": "V002", "TotalUsageAmount": 100.0},
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",  # In month
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-09-30",  # Before month - excluded
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 200.0,
+            },
+            {
+                "id": "V003",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-11-01",  # After month - excluded
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 150.0,
+            },
         ]
     )
 
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        jdash_df, doc_voucher_usage_df
+        ipe_08_df, "2024-10-31"
     )
 
-    # V001: (50+50) - (80+20) = 100 - 100 = 0 (matched after aggregation)
-    # V002: 100 - 100 = 0 (matched)
+    # Only V001 should be included
+    assert bridge_amount == 100.0
+    assert len(proof_df) == 1
+    assert proof_df.iloc[0]["id"] == "V001"
+
+
+def test_calculate_timing_difference_bridge_delivered_before_cutoff():
+    """Test that orders delivered before cutoff are excluded."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": "2024-10-28",  # Before cutoff - excluded
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": "2024-11-05",  # After cutoff - included
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 200.0,
+            },
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        ipe_08_df, "2024-10-31"
+    )
+
+    # Only V002 should be included
+    assert bridge_amount == 200.0
+    assert len(proof_df) == 1
+    assert proof_df.iloc[0]["id"] == "V002"
+
+
+def test_calculate_timing_difference_bridge_canceled_before_cutoff():
+    """Test that orders canceled before cutoff are excluded."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": "2024-10-28",  # Before cutoff - excluded
+                "remaining_amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": "2024-11-05",  # After cutoff - included
+                "remaining_amount": 200.0,
+            },
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        ipe_08_df, "2024-10-31"
+    )
+
+    # Only V002 should be included
+    assert bridge_amount == 200.0
+    assert len(proof_df) == 1
+    assert proof_df.iloc[0]["id"] == "V002"
+
+
+def test_calculate_timing_difference_bridge_both_dates_null():
+    """Test that orders with both delivery and cancellation null are included."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": pd.NaT,  # Null - included
+                "Order_Cancellation_Date": pd.NaT,  # Null - included
+                "remaining_amount": 100.0,
+            },
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        ipe_08_df, "2024-10-31"
+    )
+
+    assert bridge_amount == 100.0
+    assert len(proof_df) == 1
+
+
+def test_calculate_timing_difference_bridge_both_dates_after_cutoff():
+    """Test that orders with both dates after cutoff are included."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": "2024-11-05",  # After cutoff
+                "Order_Cancellation_Date": "2024-11-10",  # After cutoff
+                "remaining_amount": 100.0,
+            },
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        ipe_08_df, "2024-10-31"
+    )
+
+    assert bridge_amount == 100.0
+    assert len(proof_df) == 1
+
+
+def test_calculate_timing_difference_bridge_one_date_before_one_after():
+    """Test that if either date is before cutoff, the order is excluded."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": "2024-10-28",  # Before cutoff
+                "Order_Cancellation_Date": "2024-11-05",  # After cutoff
+                "remaining_amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": "2024-11-05",  # After cutoff
+                "Order_Cancellation_Date": "2024-10-28",  # Before cutoff
+                "remaining_amount": 200.0,
+            },
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        ipe_08_df, "2024-10-31"
+    )
+
+    # Both should be excluded
     assert bridge_amount == 0.0
     assert len(proof_df) == 0
 
 
-def test_calculate_timing_difference_bridge_negative_variance():
-    """Test with Usage TV amounts exceeding Jdash amounts."""
-    jdash_df = pd.DataFrame(
+def test_calculate_timing_difference_bridge_all_non_marketing_types():
+    """Test that all non-marketing types are included."""
+    ipe_08_df = pd.DataFrame(
         [
-            {"Voucher Id": "V001", "Amount Used": 100.0},
-            {"Voucher Id": "V002", "Amount Used": 50.0},
-        ]
-    )
-
-    doc_voucher_usage_df = pd.DataFrame(
-        [
-            {"voucher_code": "V001", "TotalUsageAmount": 150.0},
-            {"voucher_code": "V002", "TotalUsageAmount": 100.0},
-        ]
-    )
-
-    bridge_amount, proof_df = calculate_timing_difference_bridge(
-        jdash_df, doc_voucher_usage_df
-    )
-
-    # V001: 100 - 150 = -50
-    # V002: 50 - 100 = -50
-    # Total: -100
-    assert bridge_amount == -100.0
-    assert len(proof_df) == 2
-    assert proof_df.loc["V001", "variance"] == -50.0
-    assert proof_df.loc["V002", "variance"] == -50.0
-
-
-def test_calculate_timing_difference_bridge_positive_variance():
-    """Test with Jdash amounts exceeding Usage TV amounts."""
-    jdash_df = pd.DataFrame(
-        [
-            {"Voucher Id": "V001", "Amount Used": 200.0},
-            {"Voucher Id": "V002", "Amount Used": 150.0},
-        ]
-    )
-
-    doc_voucher_usage_df = pd.DataFrame(
-        [
-            {"voucher_code": "V001", "TotalUsageAmount": 100.0},
-            {"voucher_code": "V002", "TotalUsageAmount": 50.0},
-        ]
-    )
-
-    bridge_amount, proof_df = calculate_timing_difference_bridge(
-        jdash_df, doc_voucher_usage_df
-    )
-
-    # V001: 200 - 100 = 100
-    # V002: 150 - 50 = 100
-    # Total: 200
-    assert bridge_amount == 200.0
-    assert len(proof_df) == 2
-    assert proof_df.loc["V001", "variance"] == 100.0
-    assert proof_df.loc["V002", "variance"] == 100.0
-
-
-def test_calculate_timing_difference_bridge_mixed_variances():
-    """Test with a mix of positive and negative variances."""
-    jdash_df = pd.DataFrame(
-        [
-            {"Voucher Id": "V001", "Amount Used": 100.0},  # Positive variance
-            {"Voucher Id": "V002", "Amount Used": 50.0},  # Negative variance
-            {"Voucher Id": "V003", "Amount Used": 200.0},  # Exact match
-        ]
-    )
-
-    doc_voucher_usage_df = pd.DataFrame(
-        [
-            {"voucher_code": "V001", "TotalUsageAmount": 80.0},
-            {"voucher_code": "V002", "TotalUsageAmount": 100.0},
-            {"voucher_code": "V003", "TotalUsageAmount": 200.0},
+            {
+                "id": "V001",
+                "business_use": "apology_v2",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use": "jforce",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 200.0,
+            },
+            {
+                "id": "V003",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 150.0,
+            },
+            {
+                "id": "V004",
+                "business_use": "store_credit",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 50.0,
+            },
+            {
+                "id": "V005",
+                "business_use": "Jpay store_credit",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 75.0,
+            },
         ]
     )
 
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        jdash_df, doc_voucher_usage_df
+        ipe_08_df, "2024-10-31"
     )
 
-    # V001: 100 - 80 = +20
-    # V002: 50 - 100 = -50
-    # V003: 200 - 200 = 0 (excluded from proof)
-    # Total: 20 - 50 = -30
-    assert bridge_amount == -30.0
-    assert len(proof_df) == 2
-    assert proof_df.loc["V001", "variance"] == 20.0
-    assert proof_df.loc["V002", "variance"] == -50.0
-    assert "V003" not in proof_df.index
-
-
-def test_calculate_timing_difference_bridge_missing_jdash_columns():
-    """Test that missing required columns in jdash_df raise ValueError."""
-    jdash_df = pd.DataFrame(
-        [
-            {"Voucher Id": "V001"},  # Missing Amount Used
-        ]
-    )
-    doc_voucher_usage_df = pd.DataFrame(
-        [
-            {"voucher_code": "V001", "TotalUsageAmount": 100.0},
-        ]
-    )
-
-    with pytest.raises(ValueError, match="jdash_df must contain"):
-        calculate_timing_difference_bridge(jdash_df, doc_voucher_usage_df)
-
-
-def test_calculate_timing_difference_bridge_missing_usage_tv_columns():
-    """Test that missing required columns in doc_voucher_usage_df raise ValueError."""
-    jdash_df = pd.DataFrame(
-        [
-            {"Voucher Id": "V001", "Amount Used": 100.0},
-        ]
-    )
-    doc_voucher_usage_df = pd.DataFrame(
-        [
-            {"voucher_code": "V001"},  # Missing TotalUsageAmount
-        ]
-    )
-
-    with pytest.raises(ValueError, match="doc_voucher_usage_df must contain"):
-        calculate_timing_difference_bridge(jdash_df, doc_voucher_usage_df)
+    # All should be included
+    assert bridge_amount == 575.0
+    assert len(proof_df) == 5
 
 
 def test_calculate_timing_difference_bridge_output_format():
-    """Test that output DataFrame has the correct format and columns."""
-    jdash_df = pd.DataFrame(
+    """Test that output DataFrame has the correct columns."""
+    ipe_08_df = pd.DataFrame(
         [
-            {"Voucher Id": "V001", "Amount Used": 100.0},
-        ]
-    )
-    doc_voucher_usage_df = pd.DataFrame(
-        [
-            {"voucher_code": "V001", "TotalUsageAmount": 80.0},
-        ]
-    )
-
-    bridge_amount, proof_df = calculate_timing_difference_bridge(
-        jdash_df, doc_voucher_usage_df
-    )
-
-    assert bridge_amount == 20.0
-    assert list(proof_df.columns) == ["Amount Used", "TotalUsageAmount", "variance"]
-    assert proof_df.index.name in [
-        None,
-        "Voucher Id",
-        "voucher_code",
-    ]  # Index from merge
-    assert len(proof_df) == 1
-
-
-def test_calculate_timing_difference_bridge_zero_amounts():
-    """Test handling of zero amounts."""
-    jdash_df = pd.DataFrame(
-        [
-            {"Voucher Id": "V001", "Amount Used": 0.0},
-            {"Voucher Id": "V002", "Amount Used": 100.0},
-        ]
-    )
-    doc_voucher_usage_df = pd.DataFrame(
-        [
-            {"voucher_code": "V001", "TotalUsageAmount": 0.0},
-            {"voucher_code": "V002", "TotalUsageAmount": 0.0},
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 100.0,
+            },
         ]
     )
 
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        jdash_df, doc_voucher_usage_df
+        ipe_08_df, "2024-10-31"
     )
 
-    # V001: 0 - 0 = 0 (excluded)
-    # V002: 100 - 0 = 100
     assert bridge_amount == 100.0
-    assert len(proof_df) == 1
-    assert proof_df.loc["V002", "variance"] == 100.0
-
-
-# ========================================================================
-# Tests for calculate_integration_error_adjustment
-# ========================================================================
-
-
-def test_calculate_integration_error_adjustment_basic():
-    """Test basic integration error adjustment with simple error data."""
-    ipe_rec_errors_df = pd.DataFrame(
-        [
-            {
-                "Source_System": "Cash Deposits",
-                "Amount": 100.0,
-                "Integration_Status": "Error",
-                "Transaction_ID": "T001",
-            },
-            {
-                "Source_System": "Refunds",
-                "Amount": 200.0,
-                "Integration_Status": "Failed",
-                "Transaction_ID": "T002",
-            },
-            {
-                "Source_System": "JForce Payouts",
-                "Amount": 150.0,
-                "Integration_Status": "Pending",
-                "Transaction_ID": "T003",
-            },
-        ]
-    )
-
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df
-    )
-
-    # All three errors should be included
-    assert adjustment_amount == 450.0
-    assert len(proof_df) == 3
-    assert "Target_GL" in proof_df.columns
-    assert proof_df[proof_df["Source_System"] == "Cash Deposits"]["Target_GL"].iloc[
-        0
-    ] == "13012"
-    assert proof_df[proof_df["Source_System"] == "Refunds"]["Target_GL"].iloc[
-        0
-    ] == "18412"
-    assert proof_df[proof_df["Source_System"] == "JForce Payouts"]["Target_GL"].iloc[
-        0
-    ] == "18412"
-
-
-def test_calculate_integration_error_adjustment_filters_posted():
-    """Test that Posted and Integrated statuses are filtered out."""
-    ipe_rec_errors_df = pd.DataFrame(
-        [
-            {
-                "Source_System": "Cash Deposits",
-                "Amount": 100.0,
-                "Integration_Status": "Posted",
-                "Transaction_ID": "T001",
-            },
-            {
-                "Source_System": "Refunds",
-                "Amount": 200.0,
-                "Integration_Status": "Integrated",
-                "Transaction_ID": "T002",
-            },
-            {
-                "Source_System": "JForce Payouts",
-                "Amount": 150.0,
-                "Integration_Status": "Error",
-                "Transaction_ID": "T003",
-            },
-        ]
-    )
-
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df
-    )
-
-    # Only T003 should be included (Error status)
-    assert adjustment_amount == 150.0
-    assert len(proof_df) == 1
-    assert proof_df.iloc[0]["Transaction_ID"] == "T003"
-
-
-def test_calculate_integration_error_adjustment_unmapped_sources():
-    """Test that unmapped source systems are excluded."""
-    ipe_rec_errors_df = pd.DataFrame(
-        [
-            {
-                "Source_System": "Cash Deposits",
-                "Amount": 100.0,
-                "Integration_Status": "Error",
-                "Transaction_ID": "T001",
-            },
-            {
-                "Source_System": "Unknown System",
-                "Amount": 200.0,
-                "Integration_Status": "Error",
-                "Transaction_ID": "T002",
-            },
-            {
-                "Source_System": "Another Unknown",
-                "Amount": 300.0,
-                "Integration_Status": "Failed",
-                "Transaction_ID": "T003",
-            },
-        ]
-    )
-
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df
-    )
-
-    # Only Cash Deposits should be included (mapped source)
-    assert adjustment_amount == 100.0
-    assert len(proof_df) == 1
-    assert proof_df.iloc[0]["Source_System"] == "Cash Deposits"
-
-
-def test_calculate_integration_error_adjustment_gl_mapping():
-    """Test that all GL mappings are correct."""
-    ipe_rec_errors_df = pd.DataFrame(
-        [
-            # GL 13023 (Accrued MPL Revenue)
-            {
-                "Source_System": "SC Account Statement",
-                "Amount": 100.0,
-                "Integration_Status": "Error",
-            },
-            {
-                "Source_System": "Seller Account Statements",
-                "Amount": 200.0,
-                "Integration_Status": "Error",
-            },
-            # GL 18412 (Voucher Accrual)
-            {
-                "Source_System": "JForce Payouts",
-                "Amount": 300.0,
-                "Integration_Status": "Error",
-            },
-            {"Source_System": "Refunds", "Amount": 400.0, "Integration_Status": "Error"},
-            # GL 18314 (MPL Vendor Liability)
-            {
-                "Source_System": "Prepaid Deliveries",
-                "Amount": 500.0,
-                "Integration_Status": "Error",
-            },
-            # GL 13012 (PSP / Collection)
-            {
-                "Source_System": "Cash Deposits",
-                "Amount": 600.0,
-                "Integration_Status": "Error",
-            },
-            {
-                "Source_System": "Cash Deposit Cancel",
-                "Amount": 700.0,
-                "Integration_Status": "Error",
-            },
-            {
-                "Source_System": "Payment Reconciles",
-                "Amount": 800.0,
-                "Integration_Status": "Error",
-            },
-        ]
-    )
-
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df
-    )
-
-    # All errors should be included
-    assert adjustment_amount == 3600.0
-    assert len(proof_df) == 8
-
-    # Verify GL mappings
-    gl_13023_sources = proof_df[proof_df["Target_GL"] == "13023"]["Source_System"]
-    assert set(gl_13023_sources) == {"SC Account Statement", "Seller Account Statements"}
-
-    gl_18412_sources = proof_df[proof_df["Target_GL"] == "18412"]["Source_System"]
-    assert set(gl_18412_sources) == {"JForce Payouts", "Refunds"}
-
-    gl_18314_sources = proof_df[proof_df["Target_GL"] == "18314"]["Source_System"]
-    assert set(gl_18314_sources) == {"Prepaid Deliveries"}
-
-    gl_13012_sources = proof_df[proof_df["Target_GL"] == "13012"]["Source_System"]
-    assert set(gl_13012_sources) == {
-        "Cash Deposits",
-        "Cash Deposit Cancel",
-        "Payment Reconciles",
-    }
-
-
-def test_calculate_integration_error_adjustment_empty_input():
-    """Test with empty DataFrame."""
-    empty_df = pd.DataFrame()
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(empty_df)
-
-    assert adjustment_amount == 0.0
-    assert proof_df.empty
-    assert list(proof_df.columns) == [
-        "Source_System",
-        "Transaction_ID",
-        "Amount",
-        "Target_GL",
+    expected_cols = [
+        "id",
+        "business_use",
+        "Order_Creation_Date",
+        "Order_Delivery_Date",
+        "Order_Cancellation_Date",
+        "remaining_amount",
     ]
+    assert list(proof_df.columns) == expected_cols
+    assert len(proof_df) == 1
 
 
-def test_calculate_integration_error_adjustment_none_input():
-    """Test with None input."""
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(None)
-
-    assert adjustment_amount == 0.0
-    assert proof_df.empty
-    assert list(proof_df.columns) == [
-        "Source_System",
-        "Transaction_ID",
-        "Amount",
-        "Target_GL",
-    ]
-
-
-def test_calculate_integration_error_adjustment_missing_columns():
-    """Test that missing required columns raise ValueError."""
-    df = pd.DataFrame(
-        {
-            "Source_System": ["Cash Deposits"],
-            "Amount": [100.0],
-            # Missing 'Integration_Status'
-        }
-    )
-
-    with pytest.raises(ValueError, match="Missing required columns"):
-        calculate_integration_error_adjustment(df)
-
-
-def test_calculate_integration_error_adjustment_no_transaction_id():
-    """Test that function works without Transaction_ID column."""
-    ipe_rec_errors_df = pd.DataFrame(
+def test_calculate_timing_difference_bridge_month_boundaries():
+    """Test that month boundaries are correctly identified."""
+    ipe_08_df = pd.DataFrame(
         [
             {
-                "Source_System": "Cash Deposits",
-                "Amount": 100.0,
-                "Integration_Status": "Error",
+                "id": "V001",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-01",  # First day of month
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 100.0,
             },
-            {"Source_System": "Refunds", "Amount": 200.0, "Integration_Status": "Error"},
+            {
+                "id": "V002",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-31",  # Last day of month (cutoff)
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 200.0,
+            },
+            {
+                "id": "V003",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-09-30",  # Day before month
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 150.0,
+            },
+            {
+                "id": "V004",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-11-01",  # Day after cutoff
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 50.0,
+            },
         ]
     )
 
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        ipe_08_df, "2024-10-31"
     )
 
-    assert adjustment_amount == 300.0
+    # Only V001 and V002 should be included (created in October)
+    assert bridge_amount == 300.0
     assert len(proof_df) == 2
-    assert "Transaction_ID" in proof_df.columns
-    assert list(proof_df.columns) == ["Source_System", "Transaction_ID", "Amount", "Target_GL"]
-
-
-def test_calculate_integration_error_adjustment_all_posted():
-    """Test that returns empty when all statuses are Posted/Integrated."""
-    ipe_rec_errors_df = pd.DataFrame(
-        [
-            {
-                "Source_System": "Cash Deposits",
-                "Amount": 100.0,
-                "Integration_Status": "Posted",
-            },
-            {
-                "Source_System": "Refunds",
-                "Amount": 200.0,
-                "Integration_Status": "Integrated",
-            },
-        ]
-    )
-
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df
-    )
-
-    assert adjustment_amount == 0.0
-    assert proof_df.empty
-
-
-def test_calculate_integration_error_adjustment_all_unmapped():
-    """Test that returns empty when all sources are unmapped."""
-    ipe_rec_errors_df = pd.DataFrame(
-        [
-            {
-                "Source_System": "Unknown Source 1",
-                "Amount": 100.0,
-                "Integration_Status": "Error",
-            },
-            {
-                "Source_System": "Unknown Source 2",
-                "Amount": 200.0,
-                "Integration_Status": "Failed",
-            },
-        ]
-    )
-
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df
-    )
-
-    assert adjustment_amount == 0.0
-    assert proof_df.empty
-
-
-def test_calculate_integration_error_adjustment_mixed_statuses():
-    """Test with a mix of different integration statuses."""
-    ipe_rec_errors_df = pd.DataFrame(
-        [
-            {
-                "Source_System": "Cash Deposits",
-                "Amount": 100.0,
-                "Integration_Status": "Error",
-                "Transaction_ID": "T001",
-            },
-            {
-                "Source_System": "Refunds",
-                "Amount": 200.0,
-                "Integration_Status": "Posted",
-                "Transaction_ID": "T002",
-            },
-            {
-                "Source_System": "JForce Payouts",
-                "Amount": 150.0,
-                "Integration_Status": "Failed",
-                "Transaction_ID": "T003",
-            },
-            {
-                "Source_System": "Prepaid Deliveries",
-                "Amount": 250.0,
-                "Integration_Status": "Integrated",
-                "Transaction_ID": "T004",
-            },
-            {
-                "Source_System": "Payment Reconciles",
-                "Amount": 300.0,
-                "Integration_Status": "Pending",
-                "Transaction_ID": "T005",
-            },
-        ]
-    )
-
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df
-    )
-
-    # Only T001, T003, and T005 should be included (not Posted/Integrated)
-    assert adjustment_amount == 550.0
-    assert len(proof_df) == 3
-    assert set(proof_df["Transaction_ID"]) == {"T001", "T003", "T005"}
-
-
-def test_calculate_integration_error_adjustment_negative_amounts():
-    """Test handling of negative amounts."""
-    ipe_rec_errors_df = pd.DataFrame(
-        [
-            {
-                "Source_System": "Cash Deposits",
-                "Amount": -100.0,
-                "Integration_Status": "Error",
-            },
-            {"Source_System": "Refunds", "Amount": 200.0, "Integration_Status": "Error"},
-            {
-                "Source_System": "JForce Payouts",
-                "Amount": -50.0,
-                "Integration_Status": "Failed",
-            },
-        ]
-    )
-
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df
-    )
-
-    # Total: -100 + 200 - 50 = 50
-    assert adjustment_amount == 50.0
-    assert len(proof_df) == 3
-
-
-def test_calculate_integration_error_adjustment_output_format():
-    """Test that output DataFrame has the correct format and columns."""
-    ipe_rec_errors_df = pd.DataFrame(
-        [
-            {
-                "Source_System": "Cash Deposits",
-                "Amount": 100.0,
-                "Integration_Status": "Error",
-                "Transaction_ID": "T001",
-            }
-        ]
-    )
-
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df
-    )
-
-    assert adjustment_amount == 100.0
-    assert list(proof_df.columns) == [
-        "Source_System",
-        "Transaction_ID",
-        "Amount",
-        "Target_GL",
-    ]
-    assert len(proof_df) == 1
-    assert proof_df.iloc[0]["Source_System"] == "Cash Deposits"
-    assert proof_df.iloc[0]["Transaction_ID"] == "T001"
-    assert proof_df.iloc[0]["Amount"] == 100.0
-    assert proof_df.iloc[0]["Target_GL"] == "13012"
-
-
-def test_calculate_integration_error_adjustment_zero_amount():
-    """Test handling of zero amounts."""
-    ipe_rec_errors_df = pd.DataFrame(
-        [
-            {
-                "Source_System": "Cash Deposits",
-                "Amount": 0.0,
-                "Integration_Status": "Error",
-            },
-            {"Source_System": "Refunds", "Amount": 100.0, "Integration_Status": "Error"},
-        ]
-    )
-
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df
-    )
-
-    # Both should be included (even zero amount)
-    assert adjustment_amount == 100.0
-    assert len(proof_df) == 2
+    assert set(proof_df["id"].values) == {"V001", "V002"}
 
 
 # ========================================================================
@@ -2017,19 +1676,19 @@ def test_categorize_nav_vouchers_production_combined_scenario():
         ]
     )
     result = _categorize_nav_vouchers(df)
-    
+
     # Row 0: Integration + RF_ = Issuance - Refund
     assert result.loc[0, "Integration_Type"] == "Integration"
     assert result.loc[0, "bridge_category"] == "Issuance - Refund"
-    
+
     # Row 1: Manual + Bank Account = VTC
     assert result.loc[1, "Integration_Type"] == "Manual"
     assert result.loc[1, "bridge_category"] == "VTC"
-    
+
     # Row 2: Integration + PYT_ = Issuance - JForce
     assert result.loc[2, "Integration_Type"] == "Integration"
     assert result.loc[2, "bridge_category"] == "Issuance - JForce"
-    
+
     # Row 3: Manual without Bank Account = generic Issuance
     assert result.loc[3, "Integration_Type"] == "Manual"
     assert result.loc[3, "bridge_category"] == "Issuance"
