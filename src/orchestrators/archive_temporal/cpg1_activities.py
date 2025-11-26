@@ -142,19 +142,23 @@ async def execute_ipe_query_activity(
 
         # Initialize evidence manager
         evidence_manager = DigitalEvidenceManager("evidence")
-        
+
         # Extract country and period from cutoff_date if available
         # Try to get country from parameter, environment variable, or leave as None
         import os
-        ipe_country = country or os.getenv('COUNTRY_CODE')
+
+        ipe_country = country or os.getenv("COUNTRY_CODE")
         period = None
         if cutoff_date:
             try:
                 from datetime import datetime as dt_parser
-                dt = dt_parser.strptime(cutoff_date, '%Y-%m-%d')
-                period = dt.strftime('%Y%m')
+
+                dt = dt_parser.strptime(cutoff_date, "%Y-%m-%d")
+                period = dt.strftime("%Y%m")
             except ValueError:
-                logging.warning(f"Failed to parse cutoff_date '{cutoff_date}' with format '%%Y-%%m-%%d'. Leaving 'period' as None.")
+                logging.warning(
+                    f"Failed to parse cutoff_date '{cutoff_date}' with format '%%Y-%%m-%%d'. Leaving 'period' as None."
+                )
 
         # Create and run IPE runner
         runner = IPERunner(
@@ -164,10 +168,7 @@ async def execute_ipe_query_activity(
             evidence_manager=evidence_manager,
             country=ipe_country,
             period=period,
-            full_params={
-                'cutoff_date': cutoff_date,
-                'ipe_id': ipe_id
-            }
+            full_params={"cutoff_date": cutoff_date, "ipe_id": ipe_id},
         )
 
         # Execute query
@@ -255,15 +256,15 @@ async def execute_cr_query_activity(
 
 @activity.defn(name="calculate_timing_difference_bridge")
 async def calculate_timing_difference_bridge_activity(
-    jdash_data: Dict[str, Any],
-    doc_voucher_usage_data: Dict[str, Any],
+    ipe_08_data: Dict[str, Any],
+    cutoff_date: str,
 ) -> Dict[str, Any]:
     """
-    Calculate timing difference bridge between Jdash and DOC_VOUCHER_USAGE.
+    Calculate timing difference bridge using cut-off logic.
 
     Args:
-        jdash_data: Serialized Jdash DataFrame
-        doc_voucher_usage_data: Serialized DOC_VOUCHER_USAGE DataFrame
+        ipe_08_data: Serialized IPE_08 DataFrame
+        cutoff_date: Reconciliation cutoff date (YYYY-MM-DD)
 
     Returns:
         Dictionary with bridge_amount and proof data
@@ -280,12 +281,11 @@ async def calculate_timing_difference_bridge_activity(
 
     try:
         # Deserialize inputs
-        jdash_df = dict_to_dataframe(jdash_data)
-        doc_voucher_usage_df = dict_to_dataframe(doc_voucher_usage_data)
+        ipe_08_df = dict_to_dataframe(ipe_08_data)
 
         # Call core business logic
         bridge_amount, proof_df = calculate_timing_difference_bridge(
-            jdash_df, doc_voucher_usage_df
+            ipe_08_df, cutoff_date
         )
         log.info(
             "Timing difference bridge calculated", bridge_amount=float(bridge_amount)
