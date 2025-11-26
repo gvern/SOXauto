@@ -44,14 +44,15 @@ TIMING_DIFF_LOGIC = """
 VTC_LOGIC = """
 **VTC (Voucher to Cash) Adjustment - Business Logic:**
 
-1. **Filter IPE_08 (BOB):** Select canceled refund vouchers
+1. **Filter Non-Marketing:** Select only Non-Marketing vouchers (apology_v2, jforce, refund, store_credit, Jpay store_credit)
+2. **Filter IPE_08 (BOB):** Select canceled refund vouchers from Non-Marketing set
    - `business_use` = "refund"
    - `is_valid` = "valid"  
    - `is_active` = 0 (canceled)
-2. **Filter CR_03 (NAV):** Identify cancellation entries
+3. **Filter CR_03 (NAV):** Identify cancellation entries
    - `bridge_category` starts with "Cancellation" OR equals "VTC"/"VTC Manual"
-3. **Anti-Join:** Find IPE_08 vouchers NOT present in CR_03 cancellations
-4. **Calculate:** Sum of unmatched voucher amounts
+4. **Anti-Join:** Find IPE_08 vouchers NOT present in CR_03 cancellations
+5. **Calculate:** Sum of unmatched voucher amounts
 
 *These are canceled refund vouchers in BOB without corresponding NAV cancellation entries.*
 """
