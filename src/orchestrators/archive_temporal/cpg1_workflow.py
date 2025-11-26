@@ -243,19 +243,12 @@ class Cpg1Workflow:
             )
 
             # Bridge 2: Timing Difference Bridge
-            # Note: This bridge requires Jdash data which is not yet implemented as an activity.
-            # Jdash data is typically exported manually or via a separate process.
-            # Using placeholder empty data for now - this will result in no timing differences found.
-            # TODO: Implement Jdash data loading activity or document manual export process
+            # Uses IPE_08 with order dates and cut-off date logic
             timing_bridge_result = await workflow.execute_activity(
                 calculate_timing_difference_bridge_activity,
                 args=[
-                    {
-                        "data": [],
-                        "columns": [],
-                        "dtypes": {},
-                    },  # Placeholder for Jdash data
-                    doc_voucher_usage_result["data"],
+                    ipe_08_result["data"],
+                    inputs.cutoff_date,
                 ],
                 start_to_close_timeout=timedelta(minutes=10),
             )

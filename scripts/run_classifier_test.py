@@ -28,8 +28,9 @@ from src.utils.fx_utils import FXConverter
 # === CONFIGURATION ===
 PARAMS = {
     "cutoff_date": "2025-09-30",
-    "country": "EC_NG"  # Pour le filtrage par défaut
+    "country": "EC_NG",  # Pour le filtrage par défaut
 }
+
 
 # -------------------------------
 # Console rendering utilities
@@ -152,11 +153,19 @@ def load_fixtures(country_code: str):
 
     # DATA QUALITY PRE-CHECKS
     hr(f"DATA QUALITY PRE-CHECKS ({country_code} ONLY)")
-    print(f"✓ CR_03 (NAV): {len(fixtures['CR_03'])} rows. Total Amount: {fixtures['CR_03']['Amount'].sum():,.2f}")
-    print(f"✓ IPE_08 (Issuance): {len(fixtures['IPE_08'])} rows. Total Remaining: {fixtures['IPE_08']['remaining_amount'].sum():,.2f}")
+    print(
+        f"✓ CR_03 (NAV): {len(fixtures['CR_03'])} rows. Total Amount: {fixtures['CR_03']['Amount'].sum():,.2f}"
+    )
+    print(
+        f"✓ IPE_08 (Issuance): {len(fixtures['IPE_08'])} rows. Total Remaining: {fixtures['IPE_08']['remaining_amount'].sum():,.2f}"
+    )
     print(f"✓ IPE_07 (Customers): {len(fixtures['IPE_07'])} rows.")
-    print(f"✓ DOC_VOUCHER_USAGE (Usage TV): {len(fixtures['DOC_VOUCHER_USAGE'])} rows. Total Usage: {fixtures['DOC_VOUCHER_USAGE']['TotalAmountUsed'].sum():,.2f}")
-    print(f"✓ JDASH (Jdash): {len(fixtures['JDASH'])} rows. Total Amount Used: {fixtures['JDASH']['Amount Used'].sum():,.2f}")
+    print(
+        f"✓ DOC_VOUCHER_USAGE (Usage TV): {len(fixtures['DOC_VOUCHER_USAGE'])} rows. Total Usage: {fixtures['DOC_VOUCHER_USAGE']['TotalAmountUsed'].sum():,.2f}"
+    )
+    print(
+        f"✓ JDASH (Jdash): {len(fixtures['JDASH'])} rows. Total Amount Used: {fixtures['JDASH']['Amount Used'].sum():,.2f}"
+    )
 
     return fixtures
 
@@ -193,9 +202,10 @@ def run_task2_vtc(fixtures, fx_converter=None, quiet=False, limit=10):
 
     return adjustment_amount, proof_df
 
+
 def run_task3_integration(fixtures, fx_converter=None, quiet=False, limit=10):
     hr("TASK 3: INTEGRATION ERRORS ADJUSTMENT")
-    
+
     if "IPE_REC_ERRORS" not in fixtures:
         print("⚠️ Fixture IPE_REC_ERRORS not found. Skipping Task 3.")
         return 0.0, pd.DataFrame()
@@ -203,37 +213,40 @@ def run_task3_integration(fixtures, fx_converter=None, quiet=False, limit=10):
     adjustment_amount, proof_df = calculate_integration_error_adjustment(
         fixtures["IPE_REC_ERRORS"], fx_converter=fx_converter
     )
-    
+
     # Save evidence
     evidence_dir = os.path.join(REPO_ROOT, "evidence_output")
     os.makedirs(evidence_dir, exist_ok=True)
-    proof_df.to_csv(os.path.join(evidence_dir, "TASK_3_INTEGRATION_PROOF.csv"), index=False)
+    proof_df.to_csv(
+        os.path.join(evidence_dir, "TASK_3_INTEGRATION_PROOF.csv"), index=False
+    )
     print(f"✓ Evidence saved to 'evidence_output/TASK_3_INTEGRATION_PROOF.csv'")
-    
+
     if not quiet:
         print(f"\n✓ Integration Adjustment Amount: ${adjustment_amount:,.2f}")
         print(f"✓ Number of error transactions: {len(proof_df)}")
         print_df(proof_df, "Integration Errors (proof_df)", limit)
-        
+
         # Show breakdown by GL
         print("\nBreakdown by Target GL:")
-        print(proof_df.groupby('Target_GL')['Amount'].sum())
-        
+        print(proof_df.groupby("Target_GL")["Amount"].sum())
+
     return adjustment_amount, proof_df
+
 
 def run_task4_customer_reclass(fixtures, quiet=False, limit=10):
     hr("TASK 4: CUSTOMER POSTING GROUP RECLASSIFICATION")
     bridge_amount, proof_df = calculate_customer_posting_group_bridge(
         fixtures["IPE_07"]
     )
-    
+
     # Save evidence
     evidence_dir = os.path.join(REPO_ROOT, "evidence_output")
     os.makedirs(evidence_dir, exist_ok=True)
     evidence_path = os.path.join(evidence_dir, "TASK_4_RECLASS_PROOF.csv")
     proof_df.to_csv(evidence_path, index=False)
     print(f"✓ Evidence saved to 'evidence_output/TASK_4_RECLASS_PROOF.csv'")
-    
+
     if not quiet:
         print(
             f"\n✓ Bridge Amount: ${bridge_amount:,.2f} (always 0 for identification tasks)"
@@ -243,19 +256,21 @@ def run_task4_customer_reclass(fixtures, quiet=False, limit=10):
     return bridge_amount, proof_df
 
 
-def run_task1_timing_diff(fixtures, cutoff_date=None, fx_converter=None, quiet=False, limit=10):
+def run_task1_timing_diff(
+    fixtures, cutoff_date=None, fx_converter=None, quiet=False, limit=10
+):
     hr("TASK 1: TIMING DIFFERENCE BRIDGE")
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        fixtures["JDASH"], fixtures["IPE_08"], cutoff_date=cutoff_date, fx_converter=fx_converter
+        fixtures["IPE_08"], cutoff_date=cutoff_date, fx_converter=fx_converter
     )
-    
+
     # Save evidence
     evidence_dir = os.path.join(REPO_ROOT, "evidence_output")
     os.makedirs(evidence_dir, exist_ok=True)
     evidence_path = os.path.join(evidence_dir, "TASK_1_TIMING_DIFF_PROOF.csv")
     proof_df.to_csv(evidence_path, index=False)
     print(f"✓ Evidence saved to 'evidence_output/TASK_1_TIMING_DIFF_PROOF.csv'")
-    
+
     if not quiet:
         print(f"\n✓ Bridge Amount: ${bridge_amount:,.2f}")
         print(f"✓ Number of vouchers with variances: {len(proof_df)}")
@@ -284,19 +299,17 @@ def print_summary(task1, task2, task3, task4):
     print(b2.line(f"Unmatched Vouchers:     {len(task2[1]):>6} items"))
     print(b2.footer())
 
-    #Task 3
+    # Task 3
     print(b3.header())
     print(b3.line(f"Adjustment Amount:      ${task3[0]:>16,.2f}"))
     print(b3.line(f"Error Transactions:     {len(task3[1]):>6} items"))
-    print(b3.footer())      
+    print(b3.footer())
 
     # Task 4
     print(b4.header())
     print(b4.line(f"Bridge Amount:          ${task4[0]:>16,.2f}"))
     print(b4.line(f"Problem Customers:      {len(task4[1]):>6} items"))
     print(b4.footer())
-
-    
 
     total = task2[0] + task4[0] + task1[0]
     print(bt.header())
@@ -342,7 +355,7 @@ def main():
     country = args.country or PARAMS["country"]
 
     print(f"Running analysis for: {country} (Cutoff: {cutoff_date})")
-    
+
     fixtures = load_fixtures(country)
     hr("CLASSIFIER TEST SCRIPT")
     print("Testing classification logic offline using local fixtures")
@@ -351,7 +364,9 @@ def main():
     hr("INITIALIZING FX CONVERTER")
     try:
         fx_converter = FXConverter(fixtures["CR_05"])
-        print(f"✓ FX Converter initialized with {len(fx_converter.rates_dict)} exchange rates")
+        print(
+            f"✓ FX Converter initialized with {len(fx_converter.rates_dict)} exchange rates"
+        )
     except Exception as e:
         print(f"⚠️ Warning: Could not initialize FX Converter: {e}")
         print("   Continuing with local currency calculations...")
@@ -359,21 +374,28 @@ def main():
 
     # 1. TASK 1: Timing Difference (L'analyse temporelle globale)
     task1 = run_task1_timing_diff(
-        fixtures, cutoff_date=cutoff_date, fx_converter=fx_converter, 
-        quiet=args.summary_only or args.quiet, limit=args.limit
+        fixtures,
+        cutoff_date=cutoff_date,
+        fx_converter=fx_converter,
+        quiet=args.summary_only or args.quiet,
+        limit=args.limit,
     )
 
     # 2. TASK 2: VTC Adjustment (L'analyse spécifique des remboursements)
     task2 = run_task2_vtc(
-        fixtures, fx_converter=fx_converter,
-        quiet=args.summary_only or args.quiet, limit=args.limit
+        fixtures,
+        fx_converter=fx_converter,
+        quiet=args.summary_only or args.quiet,
+        limit=args.limit,
     )
 
     # 3. TASK 3: Integration Errors (Les erreurs techniques - NOUVEAU)
     # (Nous allons implémenter cette fonction juste après)
     task3 = run_task3_integration(
-        fixtures, fx_converter=fx_converter,
-        quiet=args.summary_only or args.quiet, limit=args.limit
+        fixtures,
+        fx_converter=fx_converter,
+        quiet=args.summary_only or args.quiet,
+        limit=args.limit,
     )
 
     # 4. TASK 4: Customer Reclass (L'hygiène des tiers)
