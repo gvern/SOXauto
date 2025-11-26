@@ -247,6 +247,17 @@ def calculate_vtc_adjustment(
     
     source_vouchers_df = filtered_ipe_08[filter_condition].copy()
 
+    # Find the amount column (handle various naming conventions)
+    amount_col = None
+    for col in ["remaining_amount", "Remaining Amount", "Remaining_Amount"]:
+        if col in source_vouchers_df.columns:
+            amount_col = col
+            break
+    
+    if amount_col is None:
+        # No amount column found, return empty result
+        return 0.0, pd.DataFrame()
+
     if categorized_cr_03_df is None or categorized_cr_03_df.empty:
         # All source vouchers are unmatched
         unmatched_df = source_vouchers_df.copy()
@@ -263,15 +274,15 @@ def calculate_vtc_adjustment(
             if company_col is not None:
                 # Convert to USD
                 unmatched_df["Amount_USD"] = fx_converter.convert_series_to_usd(
-                    unmatched_df["remaining_amount"], unmatched_df[company_col]
+                    unmatched_df[amount_col], unmatched_df[company_col]
                 )
                 adjustment_amount = unmatched_df["Amount_USD"].sum()
             else:
                 # No company column, cannot convert - use LCY
-                adjustment_amount = unmatched_df["remaining_amount"].sum()
+                adjustment_amount = unmatched_df[amount_col].sum()
         else:
             # No FX converter provided - use local currency
-            adjustment_amount = unmatched_df["remaining_amount"].sum()
+            adjustment_amount = unmatched_df[amount_col].sum()
 
         return adjustment_amount, unmatched_df
 
@@ -303,15 +314,15 @@ def calculate_vtc_adjustment(
         if company_col is not None:
             # Convert to USD
             unmatched_df["Amount_USD"] = fx_converter.convert_series_to_usd(
-                unmatched_df["remaining_amount"], unmatched_df[company_col]
+                unmatched_df[amount_col], unmatched_df[company_col]
             )
             adjustment_amount = unmatched_df["Amount_USD"].sum()
         else:
             # No company column, cannot convert - use LCY
-            adjustment_amount = unmatched_df["remaining_amount"].sum()
+            adjustment_amount = unmatched_df[amount_col].sum()
     else:
         # No FX converter provided - use local currency
-        adjustment_amount = unmatched_df["remaining_amount"].sum()
+        adjustment_amount = unmatched_df[amount_col].sum()
 
     return adjustment_amount, unmatched_df
 
@@ -741,6 +752,17 @@ def calculate_timing_difference_bridge(
     if filtered_df.empty:
         return 0.0, pd.DataFrame()
 
+    # Find the amount column (handle various naming conventions)
+    amount_col = None
+    for col in ["remaining_amount", "Remaining Amount", "Remaining_Amount"]:
+        if col in filtered_df.columns:
+            amount_col = col
+            break
+    
+    if amount_col is None:
+        # No amount column found, return empty result
+        return 0.0, pd.DataFrame()
+
     # Calculate USD amounts if FXConverter is provided
     if fx_converter is not None:
         # Check if ID_COMPANY column exists
@@ -753,25 +775,37 @@ def calculate_timing_difference_bridge(
         if company_col is not None:
             # Convert to USD
             filtered_df["Amount_USD"] = fx_converter.convert_series_to_usd(
-                filtered_df["remaining_amount"], filtered_df[company_col]
+                filtered_df[amount_col], filtered_df[company_col]
             )
             bridge_amount = filtered_df["Amount_USD"].sum()
         else:
             # No company column, cannot convert - use LCY
-            bridge_amount = filtered_df["remaining_amount"].sum()
+            bridge_amount = filtered_df[amount_col].sum()
     else:
         # No FX converter provided - use local currency
-        bridge_amount = filtered_df["remaining_amount"].sum()
+        bridge_amount = filtered_df[amount_col].sum()
 
     # Step 5: Prepare proof DataFrame with relevant columns
+    # Find the business_use column name
+    business_use_col = None
+    for col in ["business_use", "business_use_formatted"]:
+        if col in filtered_df.columns:
+            business_use_col = col
+            break
+    
     cols_to_keep = [
         "id",
-        "business_use",
+    ]
+    
+    if business_use_col:
+        cols_to_keep.append(business_use_col)
+    
+    cols_to_keep.extend([
         "Order_Creation_Date",
         "Order_Delivery_Date",
         "Order_Cancellation_Date",
-        "remaining_amount",
-    ]
+        amount_col,  # Use the actual column name found
+    ])
 
     # Add Amount_USD if it exists
     if "Amount_USD" in filtered_df.columns:
