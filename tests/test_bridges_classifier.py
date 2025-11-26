@@ -1314,7 +1314,7 @@ def test_calculate_timing_difference_bridge_filter_one_year():
                 "business_use": "refund",
                 "is_active": 0,
                 "TotalAmountUsed": 200.0,
-                "created_at": "2023-10-30",  # Just within 1 year (1 day before cutoff - 1 year)
+                "created_at": "2023-10-31",  # Exactly 1 year before cutoff (included)
             },
             {
                 "id": "V003",
@@ -1564,8 +1564,8 @@ def test_calculate_timing_difference_bridge_comprehensive():
     jdash_df = pd.DataFrame(
         [
             {"Voucher Id": "V001", "Amount Used": 120.0},
-            {"Voucher Id": "V002", "Amount Used": 220.0},  # Will be ignored (V002 excluded)
-            {"Voucher Id": "V003", "Amount Used": 320.0},  # Will be ignored (V003 excluded)
+            {"Voucher Id": "V002", "Amount Used": 220.0},  # Not joined (V002 excluded from IPE_08)
+            {"Voucher Id": "V003", "Amount Used": 320.0},  # Not joined (V003 excluded from IPE_08)
             {"Voucher Id": "V004", "Amount Used": 140.0},
             # V005 has no Jdash entry
         ]

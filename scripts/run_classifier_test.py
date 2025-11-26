@@ -260,8 +260,14 @@ def run_task1_timing_diff(
     fixtures, cutoff_date=None, fx_converter=None, quiet=False, limit=10
 ):
     hr("TASK 1: TIMING DIFFERENCE BRIDGE")
+    
+    # Note: fx_converter parameter is deprecated and no longer used
+    # The function now compares Jdash (ordered) vs IPE_08 (delivered) amounts
+    jdash_df = fixtures.get("JDASH", pd.DataFrame())
+    ipe_08_df = fixtures.get("IPE_08", pd.DataFrame())
+    
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        fixtures["IPE_08"], cutoff_date=cutoff_date, fx_converter=fx_converter
+        jdash_df, ipe_08_df, cutoff_date=cutoff_date
     )
 
     # Save evidence

@@ -295,10 +295,13 @@ def main():
         tabs = st.tabs(["Task 1: Timing Diff", "Task 2: VTC", "Task 4: Reclass"])
 
         with tabs[0]:
+            # Note: fx_converter parameter is deprecated and no longer used
+            # The function now compares Jdash (ordered) vs IPE_08 (delivered) amounts
+            jdash_df = data.get("JDASH", pd.DataFrame())
             bridge_amt, proof_df = calculate_timing_difference_bridge(
+                jdash_df=jdash_df,
                 ipe_08_df=data["IPE_08"],
                 cutoff_date=params["cutoff_date"],
-                fx_converter=fx_converter,
             )
             c1, c2 = st.columns([1, 3])
             c1.metric("Timing Difference", f"${bridge_amt:,.2f}")

@@ -744,6 +744,15 @@ def calculate_timing_difference_bridge(
     if created_at_col:
         df_ipe[created_at_col] = pd.to_datetime(df_ipe[created_at_col], errors="coerce")
         df_ipe = df_ipe[df_ipe[created_at_col] >= one_year_before].copy()
+    else:
+        # Log warning when date filter cannot be applied
+        import warnings
+        warnings.warn(
+            "Column 'created_at' not found in IPE_08 DataFrame. "
+            "Date filter (1 year before cutoff) cannot be applied. "
+            "All vouchers will be included regardless of creation date.",
+            UserWarning
+        )
 
     # Filter for is_active == 0 (Inactive)
     if "is_active" not in df_ipe.columns:
@@ -798,8 +807,25 @@ def calculate_timing_difference_bridge(
             break
 
     if jdash_voucher_col is None or jdash_amount_col is None:
-        # Cannot perform reconciliation without proper columns
-        return 0.0, pd.DataFrame()
+        # Cannot perform reconciliation without proper columns - treat as empty Jdash
+        import warnings
+        warnings.warn(
+            "Jdash DataFrame is missing required columns for voucher id or amount used. "
+            "Treating as empty Jdash data (all vouchers unmatched).",
+            UserWarning
+        )
+        df_ipe["Jdash_Amount_Used"] = 0.0
+        df_ipe["Variance"] = df_ipe["Jdash_Amount_Used"] - df_ipe[ipe_amount_col]
+        variance_sum = df_ipe["Variance"].sum()
+        
+        # Prepare proof DataFrame with relevant columns
+        cols_to_keep = ["id"]
+        if business_use_col and business_use_col in df_ipe.columns:
+            cols_to_keep.append(business_use_col)
+        cols_to_keep.extend([ipe_amount_col, "Jdash_Amount_Used", "Variance"])
+        proof_df = df_ipe[[c for c in cols_to_keep if c in df_ipe.columns]].copy()
+        
+        return variance_sum, proof_df
 
     # Aggregate Jdash by Voucher Id summing Amount Used
     jdash_agg = df_jdash.groupby(jdash_voucher_col)[jdash_amount_col].sum().reset_index()
@@ -817,6 +843,8 @@ def calculate_timing_difference_bridge(
         right_on="Voucher_Id",
         how="left"
     )
+    # Drop redundant Voucher_Id column after merge
+    merged_df = merged_df.drop(columns=["Voucher_Id"], errors="ignore")
 
     # Fill missing Jdash amounts with 0
     merged_df["Jdash_Amount_Used"] = merged_df["Jdash_Amount_Used"].fillna(0.0)
