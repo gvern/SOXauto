@@ -746,8 +746,9 @@ def calculate_timing_difference_bridge(
         df_ipe = df_ipe[df_ipe[created_at_col] >= one_year_before].copy()
 
     # Filter for is_active == 0 (Inactive)
-    if "is_active" in df_ipe.columns:
-        df_ipe = df_ipe[df_ipe["is_active"] == 0].copy()
+    if "is_active" not in df_ipe.columns:
+        raise ValueError("Mandatory column 'is_active' not found in IPE_08 DataFrame. Cannot apply required inactive voucher filter.")
+    df_ipe = df_ipe[df_ipe["is_active"] == 0].copy()
 
     # Filter for Non-Marketing business_use
     business_use_col = None
