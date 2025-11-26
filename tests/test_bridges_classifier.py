@@ -1709,3 +1709,181 @@ def test_categorize_nav_vouchers_production_rf_space_pattern():
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - Refund"
     assert result.loc[0, "voucher_type"] == "Refund"
+
+
+# ========================================================================
+# Tests for _filter_ipe08_scope Helper Function
+# ========================================================================
+
+
+def test_filter_ipe08_scope_basic():
+    """Test basic filtering of IPE_08 with non-marketing vouchers."""
+    from src.bridges.classifier import _filter_ipe08_scope
+
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "remaining_amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use": "marketing",  # Should be filtered out
+                "Order_Creation_Date": "2024-10-15",
+                "remaining_amount": 200.0,
+            },
+            {
+                "id": "V003",
+                "business_use": "apology_v2",
+                "Order_Creation_Date": "2024-10-15",
+                "remaining_amount": 150.0,
+            },
+        ]
+    )
+
+    result = _filter_ipe08_scope(ipe_08_df)
+
+    # Only V001 and V003 should remain (non-marketing)
+    assert len(result) == 2
+    assert "V001" in result["id"].values
+    assert "V003" in result["id"].values
+    assert "V002" not in result["id"].values
+
+
+def test_filter_ipe08_scope_all_non_marketing_types():
+    """Test that all non-marketing types are retained."""
+    from src.bridges.classifier import _filter_ipe08_scope
+
+    ipe_08_df = pd.DataFrame(
+        [
+            {"id": "V001", "business_use": "apology_v2", "remaining_amount": 100.0},
+            {"id": "V002", "business_use": "jforce", "remaining_amount": 200.0},
+            {"id": "V003", "business_use": "refund", "remaining_amount": 150.0},
+            {"id": "V004", "business_use": "store_credit", "remaining_amount": 50.0},
+            {
+                "id": "V005",
+                "business_use": "Jpay store_credit",
+                "remaining_amount": 75.0,
+            },
+        ]
+    )
+
+    result = _filter_ipe08_scope(ipe_08_df)
+
+    # All should be retained
+    assert len(result) == 5
+    assert set(result["id"].values) == {"V001", "V002", "V003", "V004", "V005"}
+
+
+def test_filter_ipe08_scope_date_conversion():
+    """Test that date columns are converted to datetime."""
+    from src.bridges.classifier import _filter_ipe08_scope
+
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": "2024-10-20",
+                "Order_Cancellation_Date": "2024-10-25",
+                "remaining_amount": 100.0,
+            },
+        ]
+    )
+
+    result = _filter_ipe08_scope(ipe_08_df)
+
+    # Check that dates are datetime objects
+    assert pd.api.types.is_datetime64_any_dtype(result["Order_Creation_Date"])
+    assert pd.api.types.is_datetime64_any_dtype(result["Order_Delivery_Date"])
+    assert pd.api.types.is_datetime64_any_dtype(result["Order_Cancellation_Date"])
+
+
+def test_filter_ipe08_scope_empty_input():
+    """Test that empty DataFrame is handled correctly."""
+    from src.bridges.classifier import _filter_ipe08_scope
+
+    ipe_08_df = pd.DataFrame()
+    result = _filter_ipe08_scope(ipe_08_df)
+
+    assert result.empty
+
+
+def test_filter_ipe08_scope_none_input():
+    """Test that None input is handled correctly."""
+    from src.bridges.classifier import _filter_ipe08_scope
+
+    result = _filter_ipe08_scope(None)
+
+    assert result.empty
+
+
+def test_filter_ipe08_scope_missing_business_use_column():
+    """Test handling when business_use column is missing."""
+    from src.bridges.classifier import _filter_ipe08_scope
+
+    ipe_08_df = pd.DataFrame(
+        [
+            {"id": "V001", "remaining_amount": 100.0},
+            {"id": "V002", "remaining_amount": 200.0},
+        ]
+    )
+
+    result = _filter_ipe08_scope(ipe_08_df)
+
+    # Should return empty since we can't filter without business_use
+    assert len(result) == 2  # All rows retained when column is missing
+
+
+def test_filter_ipe08_scope_date_columns_missing():
+    """Test that missing date columns don't cause errors."""
+    from src.bridges.classifier import _filter_ipe08_scope
+
+    ipe_08_df = pd.DataFrame(
+        [
+            {"id": "V001", "business_use": "refund", "remaining_amount": 100.0},
+            {"id": "V002", "business_use": "apology_v2", "remaining_amount": 200.0},
+        ]
+    )
+
+    result = _filter_ipe08_scope(ipe_08_df)
+
+    # Should work fine without date columns
+    assert len(result) == 2
+
+
+def test_filter_ipe08_scope_preserves_other_columns():
+    """Test that other columns are preserved after filtering."""
+    from src.bridges.classifier import _filter_ipe08_scope
+
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "remaining_amount": 100.0,
+                "ID_COMPANY": "NG",
+                "custom_field": "value1",
+            },
+            {
+                "id": "V002",
+                "business_use": "jforce",
+                "remaining_amount": 200.0,
+                "ID_COMPANY": "EG",
+                "custom_field": "value2",
+            },
+        ]
+    )
+
+    result = _filter_ipe08_scope(ipe_08_df)
+
+    # All columns should be preserved
+    assert "id" in result.columns
+    assert "business_use" in result.columns
+    assert "remaining_amount" in result.columns
+    assert "ID_COMPANY" in result.columns
+    assert "custom_field" in result.columns
+    assert len(result) == 2

@@ -12,6 +12,53 @@ import pandas as pd
 from src.bridges.catalog import BridgeRule
 
 
+def _filter_ipe08_scope(ipe_08_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Filter IPE_08 DataFrame to include only Non-Marketing voucher types.
+
+    This helper ensures consistent filtering across all bridge calculations
+    that use IPE_08 data. Only vouchers with business_use in the Non-Marketing
+    category are included.
+
+    Args:
+        ipe_08_df: DataFrame from IPE_08 extraction containing voucher data
+                   Expected columns: 'business_use' and date columns
+
+    Returns:
+        DataFrame filtered to Non-Marketing vouchers with dates converted to datetime
+    """
+    if ipe_08_df is None or ipe_08_df.empty:
+        return ipe_08_df.copy() if ipe_08_df is not None else pd.DataFrame()
+
+    # Define Non-Marketing voucher types
+    NON_MARKETING_USES = [
+        "apology_v2",
+        "jforce",
+        "refund",
+        "store_credit",
+        "Jpay store_credit",
+    ]
+
+    # Work with a copy
+    df = ipe_08_df.copy()
+
+    # Filter for Non-Marketing types
+    if "business_use" in df.columns:
+        df = df[df["business_use"].isin(NON_MARKETING_USES)].copy()
+
+    # Convert date columns to datetime if they exist
+    date_columns = [
+        "Order_Creation_Date",
+        "Order_Delivery_Date",
+        "Order_Cancellation_Date",
+    ]
+    for col in date_columns:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+
+    return df
+
+
 def _row_matches_rule(row: pd.Series, rule: BridgeRule) -> bool:
     for col, values in rule.triggers.items():
         if col not in row.index:
@@ -138,10 +185,10 @@ def calculate_vtc_adjustment(
     Args:
         ipe_08_df: DataFrame containing voucher liabilities from BOB with columns:
             - id: Voucher ID
-            - business_use_formatted: Business use type
-            - is_valid: Validity status
+            - business_use: Business use type
+            - is_valid: Validity status (or Is_Valid)
             - is_active: Active status (0 for canceled)
-            - Remaining Amount: Amount for the voucher
+            - remaining_amount: Amount for the voucher
             - ID_COMPANY: Company code (required if fx_converter is provided)
         categorized_cr_03_df: DataFrame containing categorized NAV GL entries with columns:
             - [Voucher No_]: Voucher number from NAV
@@ -158,12 +205,40 @@ def calculate_vtc_adjustment(
     if ipe_08_df is None or ipe_08_df.empty:
         return 0.0, pd.DataFrame()
 
-    # Filter source vouchers (BOB): canceled refund vouchers
-    source_vouchers_df = ipe_08_df[
-        (ipe_08_df["business_use_formatted"] == "refund")
-        & (ipe_08_df["Is_Valid"] == "valid")
-        & (ipe_08_df["is_active"] == 0)
-    ].copy()
+    # Step 1: Apply Non-Marketing filter using helper
+    filtered_ipe_08 = _filter_ipe08_scope(ipe_08_df)
+
+    if filtered_ipe_08.empty:
+        return 0.0, pd.DataFrame()
+
+    # Step 2: Filter source vouchers (BOB): canceled refund vouchers
+    # Check for both business_use_formatted and business_use columns for backward compatibility
+    business_use_col = None
+    if "business_use_formatted" in filtered_ipe_08.columns:
+        business_use_col = "business_use_formatted"
+    elif "business_use" in filtered_ipe_08.columns:
+        business_use_col = "business_use"
+    
+    # Check for both Is_Valid and is_valid columns for backward compatibility
+    is_valid_col = None
+    if "Is_Valid" in filtered_ipe_08.columns:
+        is_valid_col = "Is_Valid"
+    elif "is_valid" in filtered_ipe_08.columns:
+        is_valid_col = "is_valid"
+
+    # Build filter condition
+    filter_condition = pd.Series([True] * len(filtered_ipe_08), index=filtered_ipe_08.index)
+    
+    if business_use_col:
+        filter_condition &= (filtered_ipe_08[business_use_col] == "refund")
+    
+    if is_valid_col:
+        filter_condition &= (filtered_ipe_08[is_valid_col] == "valid")
+    
+    if "is_active" in filtered_ipe_08.columns:
+        filter_condition &= (filtered_ipe_08["is_active"] == 0)
+    
+    source_vouchers_df = filtered_ipe_08[filter_condition].copy()
 
     if categorized_cr_03_df is None or categorized_cr_03_df.empty:
         # All source vouchers are unmatched
@@ -589,7 +664,7 @@ def calculate_timing_difference_bridge(
     or late in the following month (N+1).
 
     Business Rules:
-    1. Filter Scope: business_use in NON_MARKETING_USES
+    1. Filter Scope: business_use in NON_MARKETING_USES (via _filter_ipe08_scope)
     2. Filter "Used in N": Order_Creation_Date within reconciliation month
     3. Filter "Pending/Late in N+1":
        - Order_Delivery_Date > cutoff_date OR Order_Delivery_Date is NaT (Null)
@@ -618,38 +693,20 @@ def calculate_timing_difference_bridge(
     if ipe_08_df is None or ipe_08_df.empty:
         return 0.0, pd.DataFrame()
 
-    # 1. Define Non-Marketing Types
-    NON_MARKETING_USES = [
-        "apology_v2",
-        "jforce",
-        "refund",
-        "store_credit",
-        "Jpay store_credit",
-    ]
+    # Step 1: Apply Non-Marketing filter using helper
+    df = _filter_ipe08_scope(ipe_08_df)
 
-    # 2. Prepare cutoff date and reconciliation month boundaries
+    if df.empty:
+        return 0.0, pd.DataFrame()
+
+    # Step 2: Prepare cutoff date and reconciliation month boundaries
     cutoff_dt = pd.to_datetime(cutoff_date)
     # Start of reconciliation month
     recon_month_start = cutoff_dt.replace(day=1)
     # End of reconciliation month (should be cutoff_date in most cases)
     recon_month_end = cutoff_dt
 
-    # 3. Work with a copy and convert date columns to datetime
-    df = ipe_08_df.copy()
-    df["Order_Creation_Date"] = pd.to_datetime(
-        df["Order_Creation_Date"], errors="coerce"
-    )
-    df["Order_Delivery_Date"] = pd.to_datetime(
-        df["Order_Delivery_Date"], errors="coerce"
-    )
-    df["Order_Cancellation_Date"] = pd.to_datetime(
-        df["Order_Cancellation_Date"], errors="coerce"
-    )
-
-    # 4. Apply filters per business rules
-
-    # Filter Scope: Non-marketing uses only
-    filter_scope = df["business_use"].isin(NON_MARKETING_USES)
+    # Step 3: Apply filters per business rules
 
     # Filter "Used in N": Order created within the reconciliation month
     filter_used_in_n = (df["Order_Creation_Date"] >= recon_month_start) & (
@@ -670,12 +727,10 @@ def calculate_timing_difference_bridge(
     # Both delivery and cancellation must be pending
     filter_pending_in_n_plus_1 = delivery_pending & cancellation_pending
 
-    # Combine all filters
-    filtered_df = df[
-        filter_scope & filter_used_in_n & filter_pending_in_n_plus_1
-    ].copy()
+    # Combine all filters (scope filter already applied via helper)
+    filtered_df = df[filter_used_in_n & filter_pending_in_n_plus_1].copy()
 
-    # 5. Calculate bridge amount
+    # Step 4: Calculate bridge amount
     if filtered_df.empty:
         return 0.0, pd.DataFrame()
 
@@ -701,7 +756,7 @@ def calculate_timing_difference_bridge(
         # No FX converter provided - use local currency
         bridge_amount = filtered_df["remaining_amount"].sum()
 
-    # 6. Prepare proof DataFrame with relevant columns
+    # Step 5: Prepare proof DataFrame with relevant columns
     cols_to_keep = [
         "id",
         "business_use",
@@ -722,6 +777,7 @@ def calculate_timing_difference_bridge(
 
 
 __all__ = [
+    "_filter_ipe08_scope",
     "classify_bridges",
     "calculate_customer_posting_group_bridge",
     "calculate_vtc_adjustment",
