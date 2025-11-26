@@ -525,7 +525,7 @@ def test_categorize_nav_vouchers_none_df():
 
 def test_categorize_nav_vouchers_step1_integration_type():
     """Test Step 1: Integration_Type detection (Manual vs Integration).
-    
+
     New logic: If User ID contains "NAV" AND ("BATCH" OR "SRVC"), treat as Integration.
     """
     df = pd.DataFrame(
@@ -558,7 +558,9 @@ def test_categorize_nav_vouchers_step1_integration_type():
     )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "Integration_Type"] == "Integration"
-    assert result.loc[1, "Integration_Type"] == "Manual"  # Updated: NAV/13 without BATCH/SRVC is now Manual
+    assert (
+        result.loc[1, "Integration_Type"] == "Manual"
+    )  # Updated: NAV/13 without BATCH/SRVC is now Manual
     assert result.loc[2, "Integration_Type"] == "Manual"
     assert result.loc[3, "Integration_Type"] == "Integration"
 
@@ -1674,19 +1676,19 @@ def test_categorize_nav_vouchers_production_combined_scenario():
         ]
     )
     result = _categorize_nav_vouchers(df)
-    
+
     # Row 0: Integration + RF_ = Issuance - Refund
     assert result.loc[0, "Integration_Type"] == "Integration"
     assert result.loc[0, "bridge_category"] == "Issuance - Refund"
-    
+
     # Row 1: Manual + Bank Account = VTC
     assert result.loc[1, "Integration_Type"] == "Manual"
     assert result.loc[1, "bridge_category"] == "VTC"
-    
+
     # Row 2: Integration + PYT_ = Issuance - JForce
     assert result.loc[2, "Integration_Type"] == "Integration"
     assert result.loc[2, "bridge_category"] == "Issuance - JForce"
-    
+
     # Row 3: Manual without Bank Account = generic Issuance
     assert result.loc[3, "Integration_Type"] == "Manual"
     assert result.loc[3, "bridge_category"] == "Issuance"

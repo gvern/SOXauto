@@ -126,9 +126,9 @@ def calculate_customer_posting_group_bridge(
 
 
 def calculate_vtc_adjustment(
-    ipe_08_df: Optional[pd.DataFrame], 
+    ipe_08_df: Optional[pd.DataFrame],
     categorized_cr_03_df: Optional[pd.DataFrame],
-    fx_converter: Optional['FXConverter'] = None
+    fx_converter: Optional["FXConverter"] = None,
 ) -> tuple[float, pd.DataFrame]:
     """Calculate VTC (Voucher to Cash) refund reconciliation adjustment.
 
@@ -168,30 +168,29 @@ def calculate_vtc_adjustment(
     if categorized_cr_03_df is None or categorized_cr_03_df.empty:
         # All source vouchers are unmatched
         unmatched_df = source_vouchers_df.copy()
-        
+
         # Calculate USD amounts if FXConverter is provided
         if fx_converter is not None:
             # Check if ID_COMPANY column exists
             company_col = None
-            for col in ['ID_COMPANY', 'id_company', 'Company_Code']:
+            for col in ["ID_COMPANY", "id_company", "Company_Code"]:
                 if col in unmatched_df.columns:
                     company_col = col
                     break
-            
+
             if company_col is not None:
                 # Convert to USD
-                unmatched_df['Amount_USD'] = fx_converter.convert_series_to_usd(
-                    unmatched_df['remaining_amount'],
-                    unmatched_df[company_col]
+                unmatched_df["Amount_USD"] = fx_converter.convert_series_to_usd(
+                    unmatched_df["remaining_amount"], unmatched_df[company_col]
                 )
-                adjustment_amount = unmatched_df['Amount_USD'].sum()
+                adjustment_amount = unmatched_df["Amount_USD"].sum()
             else:
                 # No company column, cannot convert - use LCY
                 adjustment_amount = unmatched_df["remaining_amount"].sum()
         else:
             # No FX converter provided - use local currency
             adjustment_amount = unmatched_df["remaining_amount"].sum()
-        
+
         return adjustment_amount, unmatched_df
 
     # Filter target entries (NAV): cancellation categories
@@ -214,18 +213,17 @@ def calculate_vtc_adjustment(
     if fx_converter is not None:
         # Check if ID_COMPANY column exists
         company_col = None
-        for col in ['ID_COMPANY', 'id_company', 'Company_Code']:
+        for col in ["ID_COMPANY", "id_company", "Company_Code"]:
             if col in unmatched_df.columns:
                 company_col = col
                 break
-        
+
         if company_col is not None:
             # Convert to USD
-            unmatched_df['Amount_USD'] = fx_converter.convert_series_to_usd(
-                unmatched_df['remaining_amount'],
-                unmatched_df[company_col]
+            unmatched_df["Amount_USD"] = fx_converter.convert_series_to_usd(
+                unmatched_df["remaining_amount"], unmatched_df[company_col]
             )
-            adjustment_amount = unmatched_df['Amount_USD'].sum()
+            adjustment_amount = unmatched_df["Amount_USD"].sum()
         else:
             # No company column, cannot convert - use LCY
             adjustment_amount = unmatched_df["remaining_amount"].sum()
@@ -336,7 +334,9 @@ def _categorize_nav_vouchers(
     # Relaxed logic: If User ID contains "NAV" AND ("BATCH" OR "SRVC"), treat as Integration
     for idx, row in out.iterrows():
         user_id = (
-            str(row[user_col]).strip().upper() if user_col and pd.notna(row[user_col]) else ""
+            str(row[user_col]).strip().upper()
+            if user_col and pd.notna(row[user_col])
+            else ""
         )
         # Check if user_id matches integration pattern: contains NAV AND (BATCH OR SRVC)
         is_integration = "NAV" in user_id and ("BATCH" in user_id or "SRVC" in user_id)
@@ -387,7 +387,11 @@ def _categorize_nav_vouchers(
         # Step 2 (Priority): VTC Manual via Bank Account
         # Manual payments to customers (VTC) appear as negative amounts
         # =====================================================
-        if integration_type == "Manual" and amount != 0 and bal_account_type == "BANK ACCOUNT":
+        if (
+            integration_type == "Manual"
+            and amount != 0
+            and bal_account_type == "BANK ACCOUNT"
+        ):
             out.at[idx, "bridge_category"] = "VTC"
             out.at[idx, "voucher_type"] = "Refund"
             continue
@@ -399,7 +403,11 @@ def _categorize_nav_vouchers(
             if integration_type == "Integration":
                 # Integrated Issuance rules
                 # Check for Refund: match "REFUND", "RF_", or "RF " patterns
-                if "REFUND" in description or "RF_" in description or "RF " in description:
+                if (
+                    "REFUND" in description
+                    or "RF_" in description
+                    or "RF " in description
+                ):
                     out.at[idx, "bridge_category"] = "Issuance - Refund"
                     out.at[idx, "voucher_type"] = "Refund"
                 elif "COMMERCIAL GESTURE" in description:
@@ -418,10 +426,19 @@ def _categorize_nav_vouchers(
                 if is_store_credit:
                     out.at[idx, "bridge_category"] = "Issuance - Store Credit"
                     out.at[idx, "voucher_type"] = "Store Credit"
-                elif "REFUND" in description or "RFN" in description or "RF_" in description or "RF " in description:
+                elif (
+                    "REFUND" in description
+                    or "RFN" in description
+                    or "RF_" in description
+                    or "RF " in description
+                ):
                     out.at[idx, "bridge_category"] = "Issuance - Refund"
                     out.at[idx, "voucher_type"] = "Refund"
-                elif "COMMERCIAL" in description or "CXP" in description or "APOLOGY" in description:
+                elif (
+                    "COMMERCIAL" in description
+                    or "CXP" in description
+                    or "APOLOGY" in description
+                ):
                     out.at[idx, "bridge_category"] = "Issuance - Apology"
                     out.at[idx, "voucher_type"] = "Apology"
                 elif "PYT_PF" in description or "PYT_" in description:
@@ -477,7 +494,7 @@ def _categorize_nav_vouchers(
                 is_vtc = True
             elif "PYT_" in description and "GTB" in comment:
                 is_vtc = True
-            
+
             if is_vtc:
                 out.at[idx, "bridge_category"] = "VTC"
                 out.at[idx, "voucher_type"] = "Refund"
@@ -559,18 +576,18 @@ def _lookup_voucher_type(
 
 
 def calculate_timing_difference_bridge(
-    ipe_08_df: pd.DataFrame, 
+    ipe_08_df: pd.DataFrame,
     cutoff_date: str,
-    fx_converter: Optional['FXConverter'] = None
+    fx_converter: Optional["FXConverter"] = None,
 ) -> Tuple[float, pd.DataFrame]:
     """
     Calculates the Timing Difference Bridge using "Month N vs N+1" cut-off logic.
-    
+
     Logic (Validated Oct 2025):
     Identifies vouchers that were ordered in the reconciliation month (N) but not
     finalized (delivered or canceled) by the cutoff date, meaning they remain pending
     or late in the following month (N+1).
-    
+
     Business Rules:
     1. Filter Scope: business_use in NON_MARKETING_USES
     2. Filter "Used in N": Order_Creation_Date within reconciliation month
@@ -578,7 +595,7 @@ def calculate_timing_difference_bridge(
        - Order_Delivery_Date > cutoff_date OR Order_Delivery_Date is NaT (Null)
        - AND Order_Cancellation_Date > cutoff_date OR Order_Cancellation_Date is NaT (Null)
        (The order was placed in time, but not finalized by the closing date)
-    
+
     Args:
         ipe_08_df: DataFrame from IPE_08 with columns:
             - id: Voucher ID
@@ -591,7 +608,7 @@ def calculate_timing_difference_bridge(
         cutoff_date: Reconciliation cutoff date (YYYY-MM-DD), typically last day of month N
         fx_converter: Optional FXConverter instance for USD conversion.
                      If None, returns amounts in local currency.
-    
+
     Returns:
         tuple: (bridge_amount, proof_df) where:
             - bridge_amount: Sum of remaining_amount (in USD if fx_converter provided)
@@ -600,10 +617,14 @@ def calculate_timing_difference_bridge(
     # Handle empty or None input
     if ipe_08_df is None or ipe_08_df.empty:
         return 0.0, pd.DataFrame()
-    
+
     # 1. Define Non-Marketing Types
     NON_MARKETING_USES = [
-        'apology_v2', 'jforce', 'refund', 'store_credit', 'Jpay store_credit'
+        "apology_v2",
+        "jforce",
+        "refund",
+        "store_credit",
+        "Jpay store_credit",
     ]
 
     # 2. Prepare cutoff date and reconciliation month boundaries
@@ -612,84 +633,93 @@ def calculate_timing_difference_bridge(
     recon_month_start = cutoff_dt.replace(day=1)
     # End of reconciliation month (should be cutoff_date in most cases)
     recon_month_end = cutoff_dt
-    
+
     # 3. Work with a copy and convert date columns to datetime
     df = ipe_08_df.copy()
-    df['Order_Creation_Date'] = pd.to_datetime(df['Order_Creation_Date'], errors='coerce')
-    df['Order_Delivery_Date'] = pd.to_datetime(df['Order_Delivery_Date'], errors='coerce')
-    df['Order_Cancellation_Date'] = pd.to_datetime(df['Order_Cancellation_Date'], errors='coerce')
-    
-    # 4. Apply filters per business rules
-    
-    # Filter Scope: Non-marketing uses only
-    filter_scope = df['business_use'].isin(NON_MARKETING_USES)
-    
-    # Filter "Used in N": Order created within the reconciliation month
-    filter_used_in_n = (
-        (df['Order_Creation_Date'] >= recon_month_start) &
-        (df['Order_Creation_Date'] <= recon_month_end)
+    df["Order_Creation_Date"] = pd.to_datetime(
+        df["Order_Creation_Date"], errors="coerce"
     )
-    
+    df["Order_Delivery_Date"] = pd.to_datetime(
+        df["Order_Delivery_Date"], errors="coerce"
+    )
+    df["Order_Cancellation_Date"] = pd.to_datetime(
+        df["Order_Cancellation_Date"], errors="coerce"
+    )
+
+    # 4. Apply filters per business rules
+
+    # Filter Scope: Non-marketing uses only
+    filter_scope = df["business_use"].isin(NON_MARKETING_USES)
+
+    # Filter "Used in N": Order created within the reconciliation month
+    filter_used_in_n = (df["Order_Creation_Date"] >= recon_month_start) & (
+        df["Order_Creation_Date"] <= recon_month_end
+    )
+
     # Filter "Pending/Late in N+1": Order not finalized by cutoff date
     # Delivery date is after cutoff OR null (not delivered)
-    delivery_pending = (
-        (df['Order_Delivery_Date'] > cutoff_dt) |
-        (df['Order_Delivery_Date'].isna())
+    delivery_pending = (df["Order_Delivery_Date"] > cutoff_dt) | (
+        df["Order_Delivery_Date"].isna()
     )
-    
+
     # Cancellation date is after cutoff OR null (not canceled)
-    cancellation_pending = (
-        (df['Order_Cancellation_Date'] > cutoff_dt) |
-        (df['Order_Cancellation_Date'].isna())
+    cancellation_pending = (df["Order_Cancellation_Date"] > cutoff_dt) | (
+        df["Order_Cancellation_Date"].isna()
     )
-    
+
     # Both delivery and cancellation must be pending
     filter_pending_in_n_plus_1 = delivery_pending & cancellation_pending
-    
+
     # Combine all filters
-    filtered_df = df[filter_scope & filter_used_in_n & filter_pending_in_n_plus_1].copy()
-    
+    filtered_df = df[
+        filter_scope & filter_used_in_n & filter_pending_in_n_plus_1
+    ].copy()
+
     # 5. Calculate bridge amount
     if filtered_df.empty:
         return 0.0, pd.DataFrame()
-    
+
     # Calculate USD amounts if FXConverter is provided
     if fx_converter is not None:
         # Check if ID_COMPANY column exists
         company_col = None
-        for col in ['ID_COMPANY', 'id_company', 'Company_Code']:
+        for col in ["ID_COMPANY", "id_company", "Company_Code"]:
             if col in filtered_df.columns:
                 company_col = col
                 break
-        
+
         if company_col is not None:
             # Convert to USD
-            filtered_df['Amount_USD'] = fx_converter.convert_series_to_usd(
-                filtered_df['remaining_amount'],
-                filtered_df[company_col]
+            filtered_df["Amount_USD"] = fx_converter.convert_series_to_usd(
+                filtered_df["remaining_amount"], filtered_df[company_col]
             )
-            bridge_amount = filtered_df['Amount_USD'].sum()
+            bridge_amount = filtered_df["Amount_USD"].sum()
         else:
             # No company column, cannot convert - use LCY
-            bridge_amount = filtered_df['remaining_amount'].sum()
+            bridge_amount = filtered_df["remaining_amount"].sum()
     else:
         # No FX converter provided - use local currency
-        bridge_amount = filtered_df['remaining_amount'].sum()
-    
+        bridge_amount = filtered_df["remaining_amount"].sum()
+
     # 6. Prepare proof DataFrame with relevant columns
     cols_to_keep = [
-        'id', 'business_use', 'Order_Creation_Date', 'Order_Delivery_Date', 
-        'Order_Cancellation_Date', 'remaining_amount'
+        "id",
+        "business_use",
+        "Order_Creation_Date",
+        "Order_Delivery_Date",
+        "Order_Cancellation_Date",
+        "remaining_amount",
     ]
-    
+
     # Add Amount_USD if it exists
-    if 'Amount_USD' in filtered_df.columns:
-        cols_to_keep.append('Amount_USD')
-    
+    if "Amount_USD" in filtered_df.columns:
+        cols_to_keep.append("Amount_USD")
+
     # Keep only columns that exist in the dataframe
     proof_df = filtered_df[[c for c in cols_to_keep if c in filtered_df.columns]]
-    
+
     return bridge_amount, proof_df
+
 
 __all__ = [
     "classify_bridges",
