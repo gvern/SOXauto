@@ -468,31 +468,13 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
                 st.info(VTC_LOGIC)
             
             cat_cr03 = _categorize_nav_vouchers(data['CR_03'])
-            adj_amt, proof_df_vtc = calculate_vtc_adjustment(data['IPE_08'], cat_cr03, fx_converter=fx_converter)
+            # Now returns (adj_amt, proof_df_vtc, metrics)
+            adj_amt, proof_df_vtc, vtc_metrics = calculate_vtc_adjustment(data['IPE_08'], cat_cr03, fx_converter=fx_converter)
             
-            # Calculate intermediate metrics
-            filtered_ipe08_vtc = _filter_ipe08_scope(data["IPE_08"])
-            # Count refund vouchers that are valid and canceled
-            refund_vouchers = 0
-            if not filtered_ipe08_vtc.empty:
-                business_col = "business_use_formatted" if "business_use_formatted" in filtered_ipe08_vtc.columns else "business_use"
-                valid_col = "Is_Valid" if "Is_Valid" in filtered_ipe08_vtc.columns else "is_valid"
-                if business_col in filtered_ipe08_vtc.columns:
-                    refund_mask = filtered_ipe08_vtc[business_col] == "refund"
-                    if valid_col in filtered_ipe08_vtc.columns and "is_active" in filtered_ipe08_vtc.columns:
-                        refund_mask = refund_mask & (filtered_ipe08_vtc[valid_col] == "valid") & (filtered_ipe08_vtc["is_active"] == 0)
-                    refund_vouchers = refund_mask.sum()
-            
-            nav_cancellations = 0
-            if not cat_cr03.empty and "bridge_category" in cat_cr03.columns:
-                bridge_categories = cat_cr03["bridge_category"].astype(str)
-                nav_cancellations = len(cat_cr03[
-                    bridge_categories.str.startswith("Cancellation")
-                    | (bridge_categories == "VTC Manual")
-                    | (bridge_categories == "VTC")
-                ])
-            
-            unmatched_vouchers = len(proof_df_vtc)
+            # Use intermediate metrics from calculation function
+            refund_vouchers = vtc_metrics.get("refund_vouchers", 0)
+            nav_cancellations = vtc_metrics.get("nav_cancellations", 0)
+            unmatched_vouchers = vtc_metrics.get("unmatched_vouchers", len(proof_df_vtc))
             
             # Intermediate Metrics Display
             st.markdown("#### 📊 Processing Pipeline")
