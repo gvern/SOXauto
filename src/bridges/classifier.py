@@ -669,152 +669,173 @@ def _lookup_voucher_type(
 
 
 def calculate_timing_difference_bridge(
+    jdash_df: pd.DataFrame,
     ipe_08_df: pd.DataFrame,
     cutoff_date: str,
-    fx_converter: Optional["FXConverter"] = None,
 ) -> Tuple[float, pd.DataFrame]:
     """
-    Calculates the Timing Difference Bridge using "Month N vs N+1" cut-off logic.
+    Calculates the Timing Difference Bridge by comparing Ordered Amount (Jdash)
+    against Delivered Amount (IPE_08 - Issuance).
 
-    Logic (Validated Oct 2025):
-    Identifies vouchers that were ordered in the reconciliation month (N) but not
-    finalized (delivered or canceled) by the cutoff date, meaning they remain pending
-    or late in the following month (N+1).
+    Logic (Validated Manual Process - Finance Team):
+    Compares the Ordered Amount from Jdash export against the Delivered Amount
+    from the Issuance IPE to identify timing differences (pending/timing difference).
 
     Business Rules:
-    1. Filter Scope: business_use in NON_MARKETING_USES (via _filter_ipe08_scope)
-    2. Filter "Used in N": Order_Creation_Date within reconciliation month
-    3. Filter "Pending/Late in N+1":
-       - Order_Delivery_Date > cutoff_date OR Order_Delivery_Date is NaT (Null)
-       - AND Order_Cancellation_Date > cutoff_date OR Order_Cancellation_Date is NaT (Null)
-       (The order was placed in time, but not finalized by the closing date)
+    1. Filter Source A (IPE_08 - Issuance):
+       - Filter vouchers created within 1 year before cutoff_date
+       - Filter for is_active == 0 (Inactive)
+       - Filter for business_use in NON_MARKETING_USES
+    2. Prepare Source B (Jdash):
+       - Aggregate by Voucher Id summing Amount Used
+    3. Reconciliation Logic:
+       - Left Join of Filtered IPE_08 (Left) with Jdash (Right) on Voucher ID
+       - Fill missing Jdash amounts with 0
+    4. Calculate Variance:
+       - Variance = Jdash['Amount Used'] - IPE_08['TotalAmountUsed']
+       - (Ordered Amount - Delivered Amount = Pending/Timing Difference)
 
     Args:
-        ipe_08_df: DataFrame from IPE_08 with columns:
+        jdash_df: DataFrame from Jdash export with columns:
+            - Voucher Id: Voucher identifier
+            - Amount Used: Amount ordered/used
+        ipe_08_df: DataFrame from IPE_08 (Issuance) with columns:
             - id: Voucher ID
             - business_use: Business use type
-            - Order_Creation_Date: Date when order was created
-            - Order_Delivery_Date: Date when order was delivered (or NaT if not delivered)
-            - Order_Cancellation_Date: Date when order was canceled (or NaT if not canceled)
-            - remaining_amount: Amount for the voucher
-            - ID_COMPANY: Company code (required if fx_converter is provided)
-        cutoff_date: Reconciliation cutoff date (YYYY-MM-DD), typically last day of month N
-        fx_converter: Optional FXConverter instance for USD conversion.
-                     If None, returns amounts in local currency.
+            - is_active: Active status (0 for inactive)
+            - TotalAmountUsed: Delivered amount
+            - created_at: Creation date of voucher
+        cutoff_date: Reconciliation cutoff date (YYYY-MM-DD)
 
     Returns:
-        tuple: (bridge_amount, proof_df) where:
-            - bridge_amount: Sum of remaining_amount (in USD if fx_converter provided)
-            - proof_df: DataFrame with vouchers meeting the criteria and Amount_USD column
+        tuple: (variance_sum, proof_df) where:
+            - variance_sum: Sum of variance (Jdash Amount - IPE_08 Amount)
+            - proof_df: DataFrame with reconciliation details including variance
     """
-    # Handle empty or None input
+    # Define Non-Marketing voucher types
+    NON_MARKETING_USES = [
+        "apology_v2",
+        "jforce",
+        "refund",
+        "store_credit",
+        "Jpay store_credit",
+    ]
+
+    # Handle empty or None input for IPE_08
     if ipe_08_df is None or ipe_08_df.empty:
         return 0.0, pd.DataFrame()
 
-    # Step 1: Apply Non-Marketing filter using helper
-    df = _filter_ipe08_scope(ipe_08_df)
+    # Step 1: Filter Source A (IPE_08 - Issuance)
+    df_ipe = ipe_08_df.copy()
 
-    if df.empty:
-        return 0.0, pd.DataFrame()
-
-    # Step 2: Prepare cutoff date and reconciliation month boundaries
+    # Convert cutoff_date to datetime
     cutoff_dt = pd.to_datetime(cutoff_date)
-    # Start of reconciliation month
-    recon_month_start = cutoff_dt.replace(day=1)
-    # End of reconciliation month (should be cutoff_date in most cases)
-    recon_month_end = cutoff_dt
+    # Calculate 1 year before cutoff
+    one_year_before = cutoff_dt - pd.DateOffset(years=1)
 
-    # Step 3: Apply filters per business rules
-
-    # Filter "Used in N": Order created within the reconciliation month
-    filter_used_in_n = (df["Order_Creation_Date"] >= recon_month_start) & (
-        df["Order_Creation_Date"] <= recon_month_end
-    )
-
-    # Filter "Pending/Late in N+1": Order not finalized by cutoff date
-    # Delivery date is after cutoff OR null (not delivered)
-    delivery_pending = (df["Order_Delivery_Date"] > cutoff_dt) | (
-        df["Order_Delivery_Date"].isna()
-    )
-
-    # Cancellation date is after cutoff OR null (not canceled)
-    cancellation_pending = (df["Order_Cancellation_Date"] > cutoff_dt) | (
-        df["Order_Cancellation_Date"].isna()
-    )
-
-    # Both delivery and cancellation must be pending
-    filter_pending_in_n_plus_1 = delivery_pending & cancellation_pending
-
-    # Combine all filters (scope filter already applied via helper)
-    filtered_df = df[filter_used_in_n & filter_pending_in_n_plus_1].copy()
-
-    # Step 4: Calculate bridge amount
-    if filtered_df.empty:
-        return 0.0, pd.DataFrame()
-
-    # Find the amount column (handle various naming conventions)
-    amount_col = None
-    for col in ["remaining_amount", "Remaining Amount", "Remaining_Amount"]:
-        if col in filtered_df.columns:
-            amount_col = col
+    # Find the created_at column (handle various naming conventions)
+    created_at_col = None
+    for col in ["created_at", "Created_At", "creation_date", "Creation_Date"]:
+        if col in df_ipe.columns:
+            created_at_col = col
             break
-    
-    if amount_col is None:
-        # No amount column found, return empty result
-        return 0.0, pd.DataFrame()
 
-    # Calculate USD amounts if FXConverter is provided
-    if fx_converter is not None:
-        # Check if ID_COMPANY column exists
-        company_col = None
-        for col in ["ID_COMPANY", "id_company", "Company_Code"]:
-            if col in filtered_df.columns:
-                company_col = col
-                break
+    # Apply date filter if created_at column exists
+    if created_at_col:
+        df_ipe[created_at_col] = pd.to_datetime(df_ipe[created_at_col], errors="coerce")
+        df_ipe = df_ipe[df_ipe[created_at_col] >= one_year_before].copy()
 
-        if company_col is not None:
-            # Convert to USD
-            filtered_df["Amount_USD"] = fx_converter.convert_series_to_usd(
-                filtered_df[amount_col], filtered_df[company_col]
-            )
-            bridge_amount = filtered_df["Amount_USD"].sum()
-        else:
-            # No company column, cannot convert - use LCY
-            bridge_amount = filtered_df[amount_col].sum()
-    else:
-        # No FX converter provided - use local currency
-        bridge_amount = filtered_df[amount_col].sum()
+    # Filter for is_active == 0 (Inactive)
+    if "is_active" in df_ipe.columns:
+        df_ipe = df_ipe[df_ipe["is_active"] == 0].copy()
 
-    # Step 5: Prepare proof DataFrame with relevant columns
-    # Find the business_use column name
+    # Filter for Non-Marketing business_use
     business_use_col = None
-    for col in ["business_use", "business_use_formatted"]:
-        if col in filtered_df.columns:
-            business_use_col = col
-            break
-    
-    cols_to_keep = [
-        "id",
-    ]
-    
-    if business_use_col:
-        cols_to_keep.append(business_use_col)
-    
-    cols_to_keep.extend([
-        "Order_Creation_Date",
-        "Order_Delivery_Date",
-        "Order_Cancellation_Date",
-        amount_col,  # Use the actual column name found
-    ])
+    if "business_use" in df_ipe.columns:
+        business_use_col = "business_use"
+    elif "business_use_formatted" in df_ipe.columns:
+        business_use_col = "business_use_formatted"
 
-    # Add Amount_USD if it exists
-    if "Amount_USD" in filtered_df.columns:
-        cols_to_keep.append("Amount_USD")
+    if business_use_col:
+        df_ipe = df_ipe[df_ipe[business_use_col].isin(NON_MARKETING_USES)].copy()
+
+    if df_ipe.empty:
+        return 0.0, pd.DataFrame()
+
+    # Find the amount column in IPE_08 (handle various naming conventions)
+    ipe_amount_col = None
+    for col in ["TotalAmountUsed", "total_amount_used", "Remaining Amount", "remaining_amount"]:
+        if col in df_ipe.columns:
+            ipe_amount_col = col
+            break
+
+    if ipe_amount_col is None:
+        return 0.0, pd.DataFrame()
+
+    # Step 2: Prepare Source B (Jdash) - Aggregate by Voucher Id summing Amount Used
+    if jdash_df is None or jdash_df.empty:
+        # If Jdash is empty, all IPE amounts are considered unmatched (variance = -IPE amount)
+        df_ipe["Jdash_Amount_Used"] = 0.0
+        df_ipe["Variance"] = df_ipe["Jdash_Amount_Used"] - df_ipe[ipe_amount_col]
+        variance_sum = df_ipe["Variance"].sum()
+        return variance_sum, df_ipe
+
+    df_jdash = jdash_df.copy()
+
+    # Find the Voucher Id column in Jdash (handle various naming conventions)
+    jdash_voucher_col = None
+    for col in ["Voucher Id", "Voucher_Id", "voucher_id", "VoucherId"]:
+        if col in df_jdash.columns:
+            jdash_voucher_col = col
+            break
+
+    # Find the Amount Used column in Jdash (handle various naming conventions)
+    jdash_amount_col = None
+    for col in ["Amount Used", "Amount_Used", "amount_used", "AmountUsed"]:
+        if col in df_jdash.columns:
+            jdash_amount_col = col
+            break
+
+    if jdash_voucher_col is None or jdash_amount_col is None:
+        # Cannot perform reconciliation without proper columns
+        return 0.0, pd.DataFrame()
+
+    # Aggregate Jdash by Voucher Id summing Amount Used
+    jdash_agg = df_jdash.groupby(jdash_voucher_col)[jdash_amount_col].sum().reset_index()
+    jdash_agg.columns = ["Voucher_Id", "Jdash_Amount_Used"]
+
+    # Step 3: Reconciliation Logic - Left Join of Filtered IPE_08 with Jdash on Voucher ID
+    # Ensure 'id' column is string for proper joining
+    df_ipe["id"] = df_ipe["id"].astype(str)
+    jdash_agg["Voucher_Id"] = jdash_agg["Voucher_Id"].astype(str)
+
+    # Perform left join
+    merged_df = df_ipe.merge(
+        jdash_agg,
+        left_on="id",
+        right_on="Voucher_Id",
+        how="left"
+    )
+
+    # Fill missing Jdash amounts with 0
+    merged_df["Jdash_Amount_Used"] = merged_df["Jdash_Amount_Used"].fillna(0.0)
+
+    # Step 4: Calculate Variance = Jdash['Amount Used'] - IPE_08['TotalAmountUsed']
+    merged_df["Variance"] = merged_df["Jdash_Amount_Used"] - merged_df[ipe_amount_col]
+
+    # Step 5: Output - Return the sum of variance and the proof DataFrame
+    variance_sum = merged_df["Variance"].sum()
+
+    # Prepare proof DataFrame with relevant columns
+    cols_to_keep = ["id"]
+    if business_use_col and business_use_col in merged_df.columns:
+        cols_to_keep.append(business_use_col)
+    cols_to_keep.extend([ipe_amount_col, "Jdash_Amount_Used", "Variance"])
 
     # Keep only columns that exist in the dataframe
-    proof_df = filtered_df[[c for c in cols_to_keep if c in filtered_df.columns]]
+    proof_df = merged_df[[c for c in cols_to_keep if c in merged_df.columns]].copy()
 
-    return bridge_amount, proof_df
+    return variance_sum, proof_df
 
 
 __all__ = [
