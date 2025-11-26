@@ -613,62 +613,6 @@ The query handles special cases:
     ),
 
     # =================================================================
-    # == IPE_REC_ERRORS: Master Integration Errors Query (Task 3)
-    # =================================================================
-    CatalogItem(
-        item_id="IPE_REC_ERRORS",
-        item_type="IPE",
-        control="C-PG-1",
-        title="Master Integration Errors - Consolidated FinRec Integration Status",
-        change_status="New IPE",
-        last_updated="2025-11-17",
-        output_type="Query",
-        tool="PowerPivot",
-        third_party=False,
-        status="Completed",
-        baseline_required=True,
-        cross_reference="Task 3 - Integration Errors Bridge",
-        description="""Master Integration Errors report consolidating 36 FinRec tables into a 
-standardized view. This query serves as the foundation for Task 3 (Integration Errors Bridge) 
-and satisfies the CFO's request for a standardized 'Data Factory'. It aggregates data from 36 
-source files (SC, JForce, JPay, Cash, etc.) provided by the BI team, filtering for non-integrated 
-records (Nav_Integration_Status NOT IN ('Posted', 'Integrated')).""",
-        notes=(
-            "Consolidates 36+ FinRec tables with standardized schema: "
-            "Source_System, ID_Company, Transaction_ID, Amount, Integration_Status. "
-            "Filters for integration errors (non-Posted/non-Integrated records). "
-            "Foundation for Task 3 Integration Errors Bridge analysis. "
-            "NOTE: Column names (especially Transaction_ID) should be verified against "
-            "actual table schemas before deployment."
-        ),
-        evidence_ref="IPE_REC_ERRORS",
-        descriptor_excel=None,
-        sources=[
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_3PL_MANUAL_TRANSACTIONS_ERRORS]", system="3PL", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_CASHDEPOSIT_ERRORS]", system="Cash", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_COLLECTIONADJ_ERRORS]", system="Collections", domain="FinRec"),
-            _src_sql("[dbo].[V_REC_INTERNATIONAL_DELIVERY_FEES_ERRORS]", system="OMS", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_EXC_ACCOUNT_STATEMENTS_ERRORS]", system="Exceptions", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_JFORCE_PAYOUTS_ERRORS]", system="JForce", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_JPAYAPP_TRANSACTIONS_ERRORS]", system="JPay", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_SC_TRANSACTIONS_CUSTOMER_ERRORS]", system="Marketplace", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_PAYMENT_RECONCILES_ERRORS]", system="OMS", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_PREPAID_DELIVERIES_ERRORS]", system="OMS", domain="FinRec"),
-            _src_sql("AIG_Nav_Jumia_Reconciliation.dbo.V_REC_CUSTOMER_PRE_PAYMENTS_ERRORS", system="OMS", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_CUSTOMER_REFUNDS_ERRORS]", system="OMS", domain="FinRec"),
-            _src_sql("AIG_Nav_Jumia_Reconciliation.dbo.V_REC_SC_TRANSACTIONS_ERRORS", system="Seller Center", domain="FinRec"),
-            _src_sql("AIG_Nav_Jumia_Reconciliation.dbo.V_REC_SC_ACCOUNTSTATEMENTS_ERRORS", system="Ring", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_REC_VENDOR_PAYMENTS_ERRORS]", system="Vendor", domain="FinRec"),
-            # Note: 36 total tables. Additional sources can be added following the same pattern.
-        ],
-        sql_query=_load_sql("IPE_REC_ERRORS"),
-        quality_rules=[
-            ColumnExistsCheck("Integration_Status"),
-            ColumnExistsCheck("Amount"),
-        ],
-    ),
-
-    # =================================================================
     # == JIRA TICKETS - AUDIT EXTRACTS
     # =================================================================
     # == DS-3900: GL Actuals (Auditor's View)

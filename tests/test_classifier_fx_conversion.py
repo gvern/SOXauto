@@ -17,7 +17,6 @@ from src.bridges.classifier import (
     calculate_vtc_adjustment,
     _categorize_nav_vouchers,
     calculate_timing_difference_bridge,
-    calculate_integration_error_adjustment,
 )
 from src.utils.fx_utils import FXConverter
 
@@ -207,112 +206,6 @@ def test_calculate_timing_difference_bridge_without_fx_conversion():
     # Should use local currency variance: 310 - 100 = 210
     assert bridge_amount == pytest.approx(210.0, rel=1e-6)
     assert 'Amount_USD' not in proof_df.columns
-
-
-# ========================================================================
-# Tests for calculate_integration_error_adjustment with FX conversion
-# ========================================================================
-
-
-def test_calculate_integration_error_adjustment_with_fx_conversion():
-    """Test integration error adjustment with FX conversion to USD."""
-    # Create FX rates
-    cr05_df = pd.DataFrame({
-        'Company_Code': ['JD_GH', 'EC_NG'],
-        'FX_rate': [15.5, 4.0]
-    })
-    fx_converter = FXConverter(cr05_df)
-    
-    # Create integration errors data
-    ipe_rec_errors_df = pd.DataFrame([
-        {
-            "Source_System": "Cash Deposits",
-            "Amount": 1550.0,  # 1550 GHS = 100 USD
-            "Integration_Status": "Error",
-            "Transaction_ID": "T001",
-            "ID_COMPANY": "JD_GH"
-        },
-        {
-            "Source_System": "Refunds",
-            "Amount": 400.0,  # 400 NGN = 100 USD
-            "Integration_Status": "Failed",
-            "Transaction_ID": "T002",
-            "ID_COMPANY": "EC_NG"
-        },
-    ])
-    
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df, fx_converter=fx_converter
-    )
-    
-    # Should convert to USD: 100 + 100 = 200
-    assert adjustment_amount == pytest.approx(200.0, rel=1e-6)
-    assert 'Amount_USD' in proof_df.columns
-    assert len(proof_df) == 2
-
-
-def test_calculate_integration_error_adjustment_without_fx_conversion():
-    """Test integration error adjustment without FX converter (local currency)."""
-    ipe_rec_errors_df = pd.DataFrame([
-        {
-            "Source_System": "Cash Deposits",
-            "Amount": 1550.0,
-            "Integration_Status": "Error",
-            "Transaction_ID": "T001",
-            "ID_COMPANY": "JD_GH"
-        },
-        {
-            "Source_System": "Refunds",
-            "Amount": 400.0,
-            "Integration_Status": "Failed",
-            "Transaction_ID": "T002",
-            "ID_COMPANY": "EC_NG"
-        },
-    ])
-    
-    # Call without FX converter
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df, fx_converter=None
-    )
-    
-    # Should use local currency: 1550 + 400 = 1950
-    assert adjustment_amount == pytest.approx(1950.0, rel=1e-6)
-    assert 'Amount_USD' not in proof_df.columns
-
-
-def test_integration_error_adjustment_fx_with_unknown_companies():
-    """Test integration errors with some unknown companies in FX rates."""
-    # Create FX rates with only one company
-    cr05_df = pd.DataFrame({
-        'Company_Code': ['JD_GH'],
-        'FX_rate': [15.5]
-    })
-    fx_converter = FXConverter(cr05_df, default_rate=1.0)
-    
-    ipe_rec_errors_df = pd.DataFrame([
-        {
-            "Source_System": "Cash Deposits",
-            "Amount": 1550.0,  # Known company: 1550/15.5 = 100 USD
-            "Integration_Status": "Error",
-            "Transaction_ID": "T001",
-            "ID_COMPANY": "JD_GH"
-        },
-        {
-            "Source_System": "Refunds",
-            "Amount": 100.0,  # Unknown company: 100/1.0 = 100 USD (default)
-            "Integration_Status": "Failed",
-            "Transaction_ID": "T002",
-            "ID_COMPANY": "UNKNOWN_CO"
-        },
-    ])
-    
-    adjustment_amount, proof_df = calculate_integration_error_adjustment(
-        ipe_rec_errors_df, fx_converter=fx_converter
-    )
-    
-    # Should convert known company and use default for unknown: 100 + 100 = 200
-    assert adjustment_amount == pytest.approx(200.0, rel=1e-6)
-    assert 'Amount_USD' in proof_df.columns
 
 
 if __name__ == "__main__":
