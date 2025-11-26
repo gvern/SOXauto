@@ -43,8 +43,15 @@ def _filter_ipe08_scope(ipe_08_df: pd.DataFrame) -> pd.DataFrame:
     df = ipe_08_df.copy()
 
     # Filter for Non-Marketing types
+    # Check for both business_use and business_use_formatted for backward compatibility
+    business_use_col = None
     if "business_use" in df.columns:
-        df = df[df["business_use"].isin(NON_MARKETING_USES)].copy()
+        business_use_col = "business_use"
+    elif "business_use_formatted" in df.columns:
+        business_use_col = "business_use_formatted"
+    
+    if business_use_col:
+        df = df[df[business_use_col].isin(NON_MARKETING_USES)].copy()
 
     # Convert date columns to datetime if they exist
     date_columns = [

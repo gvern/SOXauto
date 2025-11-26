@@ -1528,6 +1528,127 @@ def test_calculate_timing_difference_bridge_month_boundaries():
     assert set(proof_df["id"].values) == {"V001", "V002"}
 
 
+def test_calculate_timing_difference_bridge_comprehensive_month_spanning():
+    """Test comprehensive month-spanning scenario with multiple edge cases.
+    
+    This test validates the complete "Month N vs Month N+1" cut-off logic:
+    - Orders created in Month N (October 2024)
+    - Various delivery/cancellation scenarios spanning the cutoff date
+    """
+    ipe_08_df = pd.DataFrame(
+        [
+            # Scenario 1: Created in Oct, Delivered in Nov (late delivery) - INCLUDED
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": "2024-11-05",
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 100.0,
+            },
+            # Scenario 2: Created in Oct, Not delivered, Not canceled - INCLUDED
+            {
+                "id": "V002",
+                "business_use": "apology_v2",
+                "Order_Creation_Date": "2024-10-20",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 200.0,
+            },
+            # Scenario 3: Created in Oct, Delivered before cutoff - EXCLUDED
+            {
+                "id": "V003",
+                "business_use": "store_credit",
+                "Order_Creation_Date": "2024-10-25",
+                "Order_Delivery_Date": "2024-10-28",
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 150.0,
+            },
+            # Scenario 4: Created in Oct, Canceled after cutoff - INCLUDED
+            {
+                "id": "V004",
+                "business_use": "jforce",
+                "Order_Creation_Date": "2024-10-10",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": "2024-11-03",
+                "remaining_amount": 50.0,
+            },
+            # Scenario 5: Created in Oct, Canceled before cutoff - EXCLUDED
+            {
+                "id": "V005",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-12",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": "2024-10-29",
+                "remaining_amount": 75.0,
+            },
+            # Scenario 6: Created in Sept (before month) - EXCLUDED
+            {
+                "id": "V006",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-09-28",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 300.0,
+            },
+            # Scenario 7: Created in Nov (after month) - EXCLUDED
+            {
+                "id": "V007",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-11-02",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 250.0,
+            },
+            # Scenario 8: Created on cutoff date (Oct 31), Not finalized - INCLUDED
+            {
+                "id": "V008",
+                "business_use": "Jpay store_credit",
+                "Order_Creation_Date": "2024-10-31",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 125.0,
+            },
+            # Scenario 9: Marketing voucher (should be filtered out by helper) - EXCLUDED
+            {
+                "id": "V009",
+                "business_use": "marketing",
+                "Order_Creation_Date": "2024-10-15",
+                "Order_Delivery_Date": pd.NaT,
+                "Order_Cancellation_Date": pd.NaT,
+                "remaining_amount": 500.0,
+            },
+            # Scenario 10: Created in Oct, Delivered before cutoff, Canceled after - EXCLUDED
+            # (both must be pending, but delivery happened)
+            {
+                "id": "V010",
+                "business_use": "refund",
+                "Order_Creation_Date": "2024-10-18",
+                "Order_Delivery_Date": "2024-10-29",
+                "Order_Cancellation_Date": "2024-11-05",
+                "remaining_amount": 80.0,
+            },
+        ]
+    )
+
+    bridge_amount, proof_df = calculate_timing_difference_bridge(
+        ipe_08_df, "2024-10-31"
+    )
+
+    # Should include: V001 (late delivery), V002 (not finalized), V004 (late cancellation), V008 (on cutoff, not finalized)
+    # Total: 100 + 200 + 50 + 125 = 475
+    assert bridge_amount == 475.0
+    assert len(proof_df) == 4
+    
+    included_ids = set(proof_df["id"].values)
+    assert included_ids == {"V001", "V002", "V004", "V008"}
+    
+    # Verify excluded scenarios
+    excluded_ids = {"V003", "V005", "V006", "V007", "V009", "V010"}
+    for excluded_id in excluded_ids:
+        assert excluded_id not in included_ids, f"{excluded_id} should be excluded but was included"
+
+
 # ========================================================================
 # Tests for Production Data Patterns (Ghana CR_03 Issue Fix)
 # ========================================================================
@@ -1887,3 +2008,36 @@ def test_filter_ipe08_scope_preserves_other_columns():
     assert "ID_COMPANY" in result.columns
     assert "custom_field" in result.columns
     assert len(result) == 2
+
+
+def test_filter_ipe08_scope_business_use_formatted_column():
+    """Test that business_use_formatted column is also supported for backward compatibility."""
+    from src.bridges.classifier import _filter_ipe08_scope
+
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use_formatted": "refund",
+                "remaining_amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use_formatted": "marketing",  # Should be filtered out
+                "remaining_amount": 200.0,
+            },
+            {
+                "id": "V003",
+                "business_use_formatted": "apology_v2",
+                "remaining_amount": 150.0,
+            },
+        ]
+    )
+
+    result = _filter_ipe08_scope(ipe_08_df)
+
+    # Only V001 and V003 should remain (non-marketing)
+    assert len(result) == 2
+    assert "V001" in result["id"].values
+    assert "V003" in result["id"].values
+    assert "V002" not in result["id"].values
