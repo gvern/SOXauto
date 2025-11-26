@@ -92,6 +92,7 @@ def get_latest_evidence_zip(item_id):
 async def run_extraction_with_evidence(item_id, params, country_code, period_str):
     """
     Executes extraction via IPERunner.run() ensuring Rich Metadata & Evidence Generation.
+    Includes a PATCH for CR_05 column names.
     """
     mock_secrets = MagicMock(spec=AWSSecretsManager)
     mock_secrets.get_secret.return_value = "FAKE_SECRET"
@@ -100,7 +101,7 @@ async def run_extraction_with_evidence(item_id, params, country_code, period_str
     if not item:
         return pd.DataFrame(), None
     
-    # Injection manuelle des paramètres dans la requête SQL pour l'exécution directe (fallback)
+    # Injection manuelle des paramètres dans la requête SQL
     final_query = item.sql_query
     for key, value in params.items():
         if f"{{{key}}}" in final_query:
@@ -111,18 +112,26 @@ async def run_extraction_with_evidence(item_id, params, country_code, period_str
         'main_query': final_query, 'validation': {}
     }
 
-    # --- MISE À JOUR : On passe les métadonnées enrichies au Runner ---
     runner = IPERunner(
         ipe_config, 
         mock_secrets, 
         cutoff_date=params["cutoff_date"],
-        country=country_code,   # <--- Nouveau : Pour le nom du dossier
-        period=period_str,      # <--- Nouveau : Pour le nom du dossier (YYYYMM)
-        full_params=params      # <--- Nouveau : Pour le log complet des paramètres
+        country=country_code,
+        period=period_str,
+        full_params=params
     )
     
+    # === PATCH CRITIQUE (Le même que fetch_live_fixtures.py) ===
+    # Force le runner à ignorer les '?' dans les noms de colonnes de CR_05
+    # et à exécuter la requête telle quelle (car les params sont déjà injectés)
+    def patched_exec(query, params=None):
+        return pd.read_sql(query, runner.connection)
+    
+    runner._execute_query_with_parameters = patched_exec
+    # ===========================================================
+    
     try:
-        # runner.run() va maintenant créer le dossier : IPE_XX_COUNTRY_PERIOD_TIMESTAMP
+        # runner.run() va maintenant utiliser notre méthode patchée
         df = runner.run()
         
         # On récupère le zip le plus récent
@@ -240,6 +249,43 @@ def main():
 
         st.markdown("---")
 
+        # --- PHASE 1.5: PRE-PROCESSING & VOUCHER ANALYSIS ---
+        st.header("1.5. Voucher Accrual Analysis (Pre-processing)")
+        st.info("Applying classification rules (Issuance, Usage, VTC, Expired) and enriching data.")
+
+        with st.spinner("Exécution de l'Agent de Catégorisation..."):
+            # CORRECTION : On passe les tables de lookup pour activer l'intelligence complète
+            cat_cr03 = _categorize_nav_vouchers(
+                cr_03_df=data['CR_03'],
+                ipe_08_df=data['IPE_08'],
+                doc_voucher_usage_df=data['DOC_VOUCHER_USAGE']
+            )
+        
+        # --- VISUALISATION DE LA CATÉGORISATION (PREUVE QUE ÇA MARCHE) ---
+        # On compte combien de lignes sont tombées dans chaque catégorie
+        if 'bridge_category' in cat_cr03.columns:
+            category_counts = cat_cr03['bridge_category'].value_counts(dropna=False).reset_index()
+            category_counts.columns = ['Category', 'Count']
+            
+            # Affichage en 2 colonnes
+            vc1, vc2 = st.columns([1, 2])
+            with vc1:
+                st.write("**Répartition des Écritures NAV:**")
+                st.dataframe(category_counts, hide_index=True, use_container_width=True)
+            with vc2:
+                # Afficher quelques exemples de lignes catégorisées (pas 'None')
+                st.write("**Exemples de Vouchers Catégorisés:**")
+                classified_sample = cat_cr03[cat_cr03['bridge_category'].notna()].head(10)
+                if not classified_sample.empty:
+                    st.dataframe(
+                        classified_sample[['Document No_', 'Description', 'Amount', 'bridge_category', 'voucher_type']], 
+                        use_container_width=True
+                    )
+                else:
+                    st.warning("Aucun voucher identifié avec les règles actuelles.")
+        
+        st.markdown("---")
+
         # --- PHASE 2: THE AGENT (LOGIC) ---
         st.header("2. Agentic Classification (Bridges)")
         st.write("Applying validated business logic to identify and explain variances.")
@@ -265,7 +311,6 @@ def main():
             c2.dataframe(proof_df.head(50), use_container_width=True)
 
         with tabs[1]:
-            cat_cr03 = _categorize_nav_vouchers(data['CR_03'])
             adj_amt, proof_df_vtc = calculate_vtc_adjustment(data['IPE_08'], cat_cr03, fx_converter=fx_converter)
             c1, c2 = st.columns([1, 3])
             c1.metric("VTC Adjustment", f"${adj_amt:,.2f}")
