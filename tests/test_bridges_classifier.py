@@ -1955,7 +1955,7 @@ def test_filter_ipe08_scope_missing_business_use_column():
 
     result = _filter_ipe08_scope(ipe_08_df)
 
-    # Should return empty since we can't filter without business_use
+    # All rows retained when column is missing
     assert len(result) == 2  # All rows retained when column is missing
 
 
