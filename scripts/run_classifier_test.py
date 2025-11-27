@@ -21,9 +21,16 @@ from src.bridges.classifier import (
     calculate_vtc_adjustment,
     calculate_customer_posting_group_bridge,
     calculate_timing_difference_bridge,
-    calculate_integration_error_adjustment,
+    summarize_nav_vouchers,
+    summarize_target_values,
+    compare_nav_vs_target,
+    build_account_summary_row,
 )
 from src.utils.fx_utils import FXConverter
+
+
+def calculate_integration_error_adjustment(*_, **__):  # pragma: no cover - placeholder
+    return 0.0, pd.DataFrame()
 
 # === CONFIGURATION ===
 PARAMS = {
@@ -95,6 +102,7 @@ def load_fixtures(country_code: str):
         "IPE_07": "fixture_IPE_07.csv",
         "JDASH": "fixture_JDASH.csv",
         "DOC_VOUCHER_USAGE": "fixture_DOC_VOUCHER_USAGE.csv",
+        "CR_04": "fixture_CR_04.csv",
     }
 
     hr("LOADING FIXTURES")
@@ -144,6 +152,15 @@ def load_fixtures(country_code: str):
             f"✓ Kept JDASH: {len(fixtures['JDASH'])} rows (already filtered or global)"
         )
 
+        if "CR_04" in fixtures:
+            rows_before = len(fixtures["CR_04"])
+            company_col = "ID_COMPANY" if "ID_COMPANY" in fixtures["CR_04"].columns else "Company_Code"
+            if company_col:
+                fixtures["CR_04"] = fixtures["CR_04"][
+                    fixtures["CR_04"][company_col] == country_code
+                ].copy()
+                print(f"✓ Filtered CR_04: {rows_before} -> {len(fixtures['CR_04'])}")
+
     except KeyError as e:
         print(
             "\n❌ ERREUR DE FILTRAGE: colonne manquante (id_company / ID_COMPANY / ID_Company)."
@@ -173,11 +190,14 @@ def load_fixtures(country_code: str):
 # -------------------------------
 # Tasks
 # -------------------------------
-def run_task2_vtc(fixtures, fx_converter=None, quiet=False, limit=10):
+def run_task2_vtc(fixtures, categorized_cr03=None, fx_converter=None, quiet=False, limit=10):
     hr("TASK 2: VTC (VOUCHER TO CASH) RECONCILIATION")
-    if not quiet:
-        print("\n[Step 1] Categorizing NAV vouchers from CR_03...")
-    categorized = _categorize_nav_vouchers(fixtures["CR_03"])
+    if categorized_cr03 is None:
+        if not quiet:
+            print("\n[Step 1] Categorizing NAV vouchers from CR_03...")
+        categorized = _categorize_nav_vouchers(fixtures["CR_03"])
+    else:
+        categorized = categorized_cr03
     if not quiet:
         print(f"✓ Categorized {len(categorized)} voucher entries")
         print_df(categorized, "Categorization Results", limit)
@@ -260,17 +280,16 @@ def run_task4_customer_reclass(fixtures, quiet=False, limit=10):
 
 
 def run_task1_timing_diff(
-    fixtures, cutoff_date=None, fx_converter=None, quiet=False, limit=10
+    fixtures, cutoff_date=None, quiet=False, limit=10
 ):
     hr("TASK 1: TIMING DIFFERENCE BRIDGE")
-    
-    # Note: fx_converter parameter is deprecated and no longer used
-    # The function now compares Jdash (ordered) vs IPE_08 (delivered) amounts
-    jdash_df = fixtures.get("JDASH", pd.DataFrame())
     ipe_08_df = fixtures.get("IPE_08", pd.DataFrame())
-    
+    jdash_df = fixtures.get("JDASH", pd.DataFrame())
+
     bridge_amount, proof_df = calculate_timing_difference_bridge(
-        jdash_df, ipe_08_df, cutoff_date=cutoff_date
+        jdash_df=jdash_df,
+        ipe_08_df=ipe_08_df,
+        cutoff_date=cutoff_date,
     )
 
     # Save evidence
@@ -362,6 +381,8 @@ def main():
     args = parse_args()
     cutoff_date = args.cutoff_date or PARAMS["cutoff_date"]
     country = args.country or PARAMS["country"]
+    cutoff_ts = pd.to_datetime(cutoff_date)
+    month_start = cutoff_ts.replace(day=1).strftime("%Y-%m-%d")
 
     print(f"Running analysis for: {country} (Cutoff: {cutoff_date})")
 
@@ -381,11 +402,18 @@ def main():
         print("   Continuing with local currency calculations...")
         fx_converter = None
 
+    categorized_cr03 = _categorize_nav_vouchers(
+        fixtures["CR_03"],
+        ipe_08_df=fixtures.get("IPE_08"),
+        doc_voucher_usage_df=fixtures.get("DOC_VOUCHER_USAGE"),
+        start_date=month_start,
+        end_date=cutoff_date,
+    )
+
     # 1. TASK 1: Timing Difference (L'analyse temporelle globale)
     task1 = run_task1_timing_diff(
         fixtures,
         cutoff_date=cutoff_date,
-        fx_converter=fx_converter,
         quiet=args.summary_only or args.quiet,
         limit=args.limit,
     )
@@ -393,6 +421,7 @@ def main():
     # 2. TASK 2: VTC Adjustment (L'analyse spécifique des remboursements)
     task2 = run_task2_vtc(
         fixtures,
+        categorized_cr03=categorized_cr03,
         fx_converter=fx_converter,
         quiet=args.summary_only or args.quiet,
         limit=args.limit,
@@ -415,6 +444,35 @@ def main():
     # Résumé
     hr("SUMMARY OF ALL BRIDGES/ADJUSTMENTS")
     print_summary(task1, task2, task3, task4)
+
+    # --- NAV vs TARGET SUMMARIES ---
+    hr("NAV VS TARGET RECONCILIATION")
+    nav_summary = summarize_nav_vouchers(
+        categorized_cr03, fx_converter=fx_converter, country_code=country
+    )
+    target_summary = summarize_target_values(
+        fixtures.get("IPE_08"),
+        fixtures.get("DOC_VOUCHER_USAGE"),
+        cutoff_date,
+        country,
+        fx_converter=fx_converter,
+    )
+    comparison_df = compare_nav_vs_target(nav_summary, target_summary)
+    account_summary = build_account_summary_row(
+        fixtures.get("CR_04"),
+        nav_summary,
+        target_summary,
+        country,
+        cutoff_date,
+        timing_difference_amount=task1[0],
+        vtc_adjustment_amount=task2[0],
+        fx_converter=fx_converter,
+    )
+
+    print_df(nav_summary, "NAV Classified Totals", limit=args.limit)
+    print_df(target_summary, "Target Values Totals", limit=args.limit)
+    print_df(comparison_df, "NAV vs Target Variance", limit=args.limit)
+    print_df(account_summary, "Account 18412 Summary", limit=5)
 
     print("\n✓ Test completed successfully!\n")
 

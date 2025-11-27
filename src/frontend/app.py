@@ -34,8 +34,8 @@ TIMING_DIFF_LOGIC = """
 1. **Filter Scope:** Select only Non-Marketing vouchers (apology_v2, jforce, refund, store_credit, Jpay store_credit)
 2. **Filter "Used in Month N":** Keep vouchers where `Order_Creation_Date` is within the reconciliation month
 3. **Filter "Pending/Late in Month N+1":**
-   - `Order_Delivery_Date` > cutoff date OR is NULL (not delivered)
-   - AND `Order_Cancellation_Date` > cutoff date OR is NULL (not canceled)
+    - `Order_Delivery_Date` > cutoff date OR is NULL (not delivered)
+    - AND `Order_Cancellation_Date` > cutoff date OR is NULL (not canceled)
 4. **Calculate:** Sum of `remaining_amount` for all matching vouchers
 
 *These are vouchers ordered in the control period but not yet finalized by the cutoff date.*
@@ -46,11 +46,11 @@ VTC_LOGIC = """
 
 1. **Filter Non-Marketing:** Select only Non-Marketing vouchers (apology_v2, jforce, refund, store_credit, Jpay store_credit)
 2. **Filter IPE_08 (BOB):** Select canceled refund vouchers from Non-Marketing set
-   - `business_use` = "refund"
-   - `is_valid` = "valid"  
-   - `is_active` = 0 (canceled)
+    - `business_use` = "refund"
+    - `is_valid` = "valid"  
+    - `is_active` = 0 (canceled)
 3. **Filter CR_03 (NAV):** Identify cancellation entries
-   - `bridge_category` starts with "Cancellation" OR equals "VTC"/"VTC Manual"
+    - `bridge_category` starts with "Cancellation" OR equals "VTC"/"VTC Manual"
 4. **Anti-Join:** Find IPE_08 vouchers NOT present in CR_03 cancellations
 5. **Calculate:** Sum of unmatched voucher amounts
 
@@ -212,6 +212,15 @@ async def run_extraction_with_evidence(item_id, params, country_code, period_str
         return pd.DataFrame(), None
 
 
+def load_jdash_data(uploaded_file):
+    if uploaded_file is not None:
+        return pd.read_csv(uploaded_file), "Uploaded File"
+    fixture_path = os.path.join(REPO_ROOT, "tests", "fixtures", "fixture_JDASH.csv")
+    if os.path.exists(fixture_path):
+        return pd.read_csv(fixture_path), "Local Fixture"
+    return pd.DataFrame(columns=["Voucher Id", "Amount Used"]), "No Data"
+
+
 def load_all_data(params, uploaded_files=None):
     """Orchestrates loading and evidence collection with context.
     
@@ -309,15 +318,6 @@ def load_all_data(params, uploaded_files=None):
     return data_store, evidence_store, source_store
 
 
-def load_jdash_data(uploaded_file):
-    if uploaded_file is not None:
-        return pd.read_csv(uploaded_file)
-    fixture_path = os.path.join(REPO_ROOT, "tests", "fixtures", "fixture_JDASH.csv")
-    if os.path.exists(fixture_path):
-        return pd.read_csv(fixture_path)
-    return pd.DataFrame(columns=["Voucher Id", "Amount Used"])
-
-
 # --- MAIN APP ---
 
 
@@ -333,7 +333,7 @@ def main():
         # --- MANUAL FILE UPLOADS (Acceptance Criteria #1) ---
         with st.expander("📂 Manual File Uploads (Optional)", expanded=False):
             st.markdown("""
-            Upload CSV files to bypass live SQL extraction. 
+            Upload CSV files to bypass live SQL extraction.
             If a file is provided, it will be used instead of querying the database.
             """)
             
@@ -388,7 +388,7 @@ def main():
             "year_end": cutoff_date.strftime("%Y-%m-%d"),
             "year": year,
             "month": month,
-            "gl_accounts": "('15010','18303','18304','18406','18408','18409','18411','18416','18417','18419','18421','18320','18307','18308','18309','18312','18310','18314','18380','18635','18317','18318','18319')",
+            "gl_accounts": "('15010','18303','18304','18406','18408','18409','18411','18412','18416','18417','18419','18421','18320','18307','18308','18309','18312','18310','18314','18380','18635','18317','18318','18319')",
             "id_companies_active": f"('{target_country}')",
         }
 
@@ -424,13 +424,51 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             st.markdown("**Full Parameters Dictionary:**")
             st.json(params)
 
+        jdash_df, jdash_source = load_jdash_data(uploaded_jdash)
+
+        # --- PREPROCESSING & LOGIC BLUEPRINT (new informational section) ---
+        st.header("0. Preprocessing & Logic Blueprint")
+        st.caption("Documentation of the normalization steps and the exact business logic applied before each bridge is executed.")
+
+        pre_cols = st.columns(3)
+        pre_cols[0].metric("JDASH Rows Loaded", f"{len(jdash_df):,}")
+        pre_cols[0].caption(f"Source: {jdash_source}")
+        pre_cols[1].metric("IPE Scope Filter", "Non-Marketing + GL 18412")
+        pre_cols[1].caption("`_filter_ipe08_scope` enforces account and business_use rules.")
+        pre_cols[2].metric("Cutoff Date", params["cutoff_date"])
+        pre_cols[2].caption("All preprocessing buckets data into Month N vs N+1 windows.")
+
+        preprocessing_steps = [
+            (
+                "JDASH Normalization",
+                "`load_jdash_data()` ingests the uploaded export (or fixture) and keeps the canonical columns `Voucher Id` and `Amount Used` for downstream joins."
+            ),
+            (
+                "BOB Scope Enforcement",
+                "`_filter_ipe08_scope()` restricts IPE_08 to Non-Marketing vouchers, includes GL 18412, and keeps only valid, country-specific liabilities."
+            ),
+            (
+                "Cutoff Bucketing",
+                "`calculate_timing_difference_bridge()` compares Month N order creation to Month N+1 delivery/cancel status to isolate pending vouchers, mirroring the manual reconciliation checklist."
+            ),
+        ]
+
+        with st.expander("🔬 Preprocessing Steps", expanded=False):
+            for title, description in preprocessing_steps:
+                st.markdown(f"**{title}** — {description}")
+
+        st.markdown("#### Business Logic Reference")
+        logic_tabs = st.tabs(["Timing Difference", "VTC", "Customer Reclass"])
+        logic_tabs[0].markdown(TIMING_DIFF_LOGIC)
+        logic_tabs[1].markdown(VTC_LOGIC)
+        logic_tabs[2].markdown(RECLASS_LOGIC)
+
         # --- PHASE 1: DATA FACTORY (EVIDENCE GENERATION) ---
         st.header("1. Digital Evidence Factory")
         st.info(
             "Extracting data from immutable sources, validating quality, and generating cryptographic hashes."
         )
 
-        jdash_df = load_jdash_data(uploaded_jdash)
         data, evidence_paths, source_info = load_all_data(params, uploaded_files)
 
         # Helper function to display source badge
@@ -536,7 +574,6 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
                     )
             with st.expander("View Source Query"):
                 st.code(get_sql_query_for_item("DOC_VOUCHER_USAGE"), language="sql")
-
         st.markdown("---")
 
         # --- PHASE 2: THE AGENT (LOGIC) ---
@@ -561,23 +598,22 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
         with tabs[0]:
             # Note: fx_converter parameter is deprecated and no longer used
             # The function now compares Jdash (ordered) vs IPE_08 (delivered) amounts
-            jdash_df = data.get("JDASH", pd.DataFrame())
             # Logic Explanation Block
             with st.expander("📖 Logic Explanation", expanded=False):
                 st.info(TIMING_DIFF_LOGIC)
-            
+
             # Calculate intermediate metrics for transparency
             filtered_ipe08 = _filter_ipe08_scope(data["IPE_08"])
             total_ipe08_vouchers = len(data["IPE_08"])
             non_marketing_vouchers = len(filtered_ipe08)
-            
+
             bridge_amt, proof_df = calculate_timing_difference_bridge(
                 jdash_df=jdash_df,
                 ipe_08_df=data["IPE_08"],
                 cutoff_date=params["cutoff_date"],
             )
             timing_diff_vouchers = len(proof_df)
-            
+
             # Intermediate Metrics Display
             st.markdown("#### 📊 Processing Pipeline")
             step_cols = st.columns(4)
@@ -585,9 +621,9 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             step_cols[1].metric("Step 2: Non-Marketing", f"{non_marketing_vouchers:,}")
             step_cols[2].metric("Step 3: In Period", f"{timing_diff_vouchers:,}")
             step_cols[3].metric("Step 4: Bridge Amount", f"${bridge_amt:,.2f}")
-            
+
             st.markdown("---")
-            
+
             # Results
             c1, c2 = st.columns([1, 3])
             c1.metric("Timing Difference", f"${bridge_amt:,.2f}")
@@ -602,46 +638,40 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
 
         # --- TASK 2: VTC (Acceptance Criteria #3 - Glass Box) ---
         with tabs[1]:
-            st.subheader("VTC Adjustment (Canceled not in NAV)")
-            st.caption(
-                "Logique: Vouchers remboursés dans BOB sans écriture d'annulation dans NAV."
-            )
+            # Logic Explanation Block
+            with st.expander("📖 Logic Explanation", expanded=False):
+                st.info(VTC_LOGIC)
 
-            with st.spinner("Classification des écritures NAV en cours..."):
-                cat_cr03 = _categorize_nav_vouchers(
-                    cr_03_df=data['CR_03'],
-                    ipe_08_df=data['IPE_08'],
-                    doc_voucher_usage_df=data['DOC_VOUCHER_USAGE']
-                )
-            
-            adj_amt, proof_df_vtc, vtc_metrics = calculate_vtc_adjustment(
-                data['IPE_08'],
-                cat_cr03,
-                fx_converter=fx_converter
-            )
+            cat_cr03 = _categorize_nav_vouchers(data['CR_03'])
+            # Now returns (adj_amt, proof_df_vtc, metrics)
+            adj_amt, proof_df_vtc, vtc_metrics = calculate_vtc_adjustment(data['IPE_08'], cat_cr03, fx_converter=fx_converter)
 
+            # Use intermediate metrics from calculation function
+            refund_vouchers = vtc_metrics.get("refund_vouchers", 0)
+            nav_cancellations = vtc_metrics.get("nav_cancellations", 0)
+            unmatched_vouchers = vtc_metrics.get("unmatched_vouchers", len(proof_df_vtc))
+
+            # Intermediate Metrics Display
+            st.markdown("#### 📊 Processing Pipeline")
+            step_cols = st.columns(4)
+            step_cols[0].metric("Step 1: Canceled Refunds (BOB)", f"{refund_vouchers:,}")
+            step_cols[1].metric("Step 2: NAV Cancellations", f"{nav_cancellations:,}")
+            step_cols[2].metric("Step 3: Unmatched", f"{unmatched_vouchers:,}")
+            step_cols[3].metric("Step 4: VTC Amount", f"${adj_amt:,.2f}")
+
+            st.markdown("---")
+
+            # Results
             c1, c2 = st.columns([1, 3])
-            c1.metric("Ajustement VTC", f"${adj_amt:,.2f}")
-
-            if vtc_metrics["total_count"] > 0:
-                st.markdown("#### 📊 Répartition par Type")
-                metrics_df = pd.DataFrame.from_dict(
-                    vtc_metrics["breakdown_by_type"],
-                    orient='index',
-                    columns=['Nombre']
-                )
-                st.dataframe(metrics_df, use_container_width=True)
-
-            if not proof_df_vtc.empty:
-                c1.download_button(
-                    "📥 Télécharger Preuve",
-                    convert_df(proof_df_vtc),
-                    "task2_vtc_proof.csv",
-                    key="dl_task2_vtc_proof",
-                )
-                c2.dataframe(proof_df_vtc.head(100), use_container_width=True)
-            else:
-                c2.success("Aucun ajustement VTC requis.")
+            c1.metric("VTC Adjustment", f"${adj_amt:,.2f}")
+            c1.download_button(
+                "📥 Download Bridge Calculation",
+                proof_df_vtc.to_csv(index=False),
+                f"Bridge_VTC_{target_country}.csv",
+                key="dl_vtc",
+            )
+            c2.markdown("**Unmatched Vouchers (BOB without NAV cancellation):**")
+            c2.dataframe(proof_df_vtc.head(50), use_container_width=True)
 
         # --- TASK 4: Reclass (Acceptance Criteria #3 - Glass Box) ---
         with tabs[2]:
