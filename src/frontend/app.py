@@ -423,6 +423,9 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
 
         # --- TASK 1: Timing Difference (Acceptance Criteria #3 - Glass Box) ---
         with tabs[0]:
+            # Note: fx_converter parameter is deprecated and no longer used
+            # The function now compares Jdash (ordered) vs IPE_08 (delivered) amounts
+            jdash_df = data.get("JDASH", pd.DataFrame())
             # Logic Explanation Block
             with st.expander("📖 Logic Explanation", expanded=False):
                 st.info(TIMING_DIFF_LOGIC)
@@ -433,9 +436,9 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             non_marketing_vouchers = len(filtered_ipe08)
             
             bridge_amt, proof_df = calculate_timing_difference_bridge(
+                jdash_df=jdash_df,
                 ipe_08_df=data["IPE_08"],
                 cutoff_date=params["cutoff_date"],
-                fx_converter=fx_converter,
             )
             timing_diff_vouchers = len(proof_df)
             
