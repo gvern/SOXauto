@@ -184,7 +184,7 @@ def run_task2_vtc(fixtures, fx_converter=None, quiet=False, limit=10):
 
     if not quiet:
         print("\n[Step 2] Calculating VTC adjustment...")
-    adjustment_amount, proof_df = calculate_vtc_adjustment(
+    adjustment_amount, proof_df, vtc_metrics = calculate_vtc_adjustment(
         fixtures["IPE_08"], categorized, fx_converter=fx_converter
     )
 
@@ -198,9 +198,12 @@ def run_task2_vtc(fixtures, fx_converter=None, quiet=False, limit=10):
     if not quiet:
         print(f"\n✓ VTC Adjustment Amount: ${adjustment_amount:,.2f}")
         print(f"✓ Number of unmatched vouchers: {len(proof_df)}")
+        print(
+            f"✓ Voucher type breakdown: {vtc_metrics.get('breakdown_by_type', {})}"
+        )
         print_df(proof_df, "Unmatched Vouchers (proof_df)", limit)
 
-    return adjustment_amount, proof_df
+    return adjustment_amount, proof_df, vtc_metrics
 
 
 def run_task3_integration(fixtures, fx_converter=None, quiet=False, limit=10):

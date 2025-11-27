@@ -58,7 +58,7 @@ def test_calculate_vtc_adjustment_with_fx_conversion():
     # No cancellations in NAV, so all vouchers unmatched
     cr_03_df = pd.DataFrame()
     
-    adjustment_amount, proof_df = calculate_vtc_adjustment(
+    adjustment_amount, proof_df, vtc_metrics = calculate_vtc_adjustment(
         ipe_08_df, cr_03_df, fx_converter=fx_converter
     )
     
@@ -66,6 +66,7 @@ def test_calculate_vtc_adjustment_with_fx_conversion():
     assert adjustment_amount == pytest.approx(200.0, rel=1e-6)
     assert 'Amount_USD' in proof_df.columns
     assert len(proof_df) == 2
+    assert vtc_metrics["total_count"] == 2
 
 
 def test_calculate_vtc_adjustment_without_fx_conversion():
@@ -92,13 +93,14 @@ def test_calculate_vtc_adjustment_without_fx_conversion():
     cr_03_df = pd.DataFrame()
     
     # Call without FX converter
-    adjustment_amount, proof_df = calculate_vtc_adjustment(
+    adjustment_amount, proof_df, vtc_metrics = calculate_vtc_adjustment(
         ipe_08_df, cr_03_df, fx_converter=None
     )
     
     # Should use local currency: 1550 + 400 = 1950
     assert adjustment_amount == pytest.approx(1950.0, rel=1e-6)
     assert 'Amount_USD' not in proof_df.columns
+    assert vtc_metrics["total_count"] == 2
 
 
 def test_calculate_vtc_adjustment_fx_missing_company_column():
@@ -124,11 +126,12 @@ def test_calculate_vtc_adjustment_fx_missing_company_column():
     cr_03_df = pd.DataFrame()
     
     # Should fall back to local currency
-    adjustment_amount, proof_df = calculate_vtc_adjustment(
+    adjustment_amount, proof_df, vtc_metrics = calculate_vtc_adjustment(
         ipe_08_df, cr_03_df, fx_converter=fx_converter
     )
     
     assert adjustment_amount == pytest.approx(1550.0, rel=1e-6)
+    assert vtc_metrics["total_count"] == 1
 
 
 # ========================================================================

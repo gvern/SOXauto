@@ -80,3 +80,4 @@ fixtures/
 docs/project-history/
 README.md.backup
 src/core/evidence/__pycache__/
+.github/copilot-instructions.md

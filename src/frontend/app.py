@@ -75,6 +75,12 @@ def get_sql_query_for_item(item_id: str) -> str:
         return item.sql_query
     return "SQL query not available for this item."
 
+
+@st.cache_data
+def convert_df(df: pd.DataFrame) -> bytes:
+    """Convert a DataFrame to CSV bytes for Streamlit download buttons."""
+    return df.to_csv(index=False).encode("utf-8")
+
 # --- PAGE CONFIG ---
 st.set_page_config(
     page_title="SOXauto | C-PG-1 Audit Agent",
@@ -173,10 +179,19 @@ async def run_extraction_with_evidence(item_id, params, country_code, period_str
         ipe_config,
         mock_secrets,
         cutoff_date=params["cutoff_date"],
-        country=country_code,   # <--- Nouveau : Pour le nom du dossier
-        period=period_str,      # <--- Nouveau : Pour le nom du dossier (YYYYMM)
-        full_params=params      # <--- Nouveau : Pour le log complet des paramètres
+        country=country_code,
+        period=period_str,
+        full_params=params
     )
+    
+    # === PATCH CRITIQUE (Le même que fetch_live_fixtures.py) ===
+    # Force le runner à ignorer les '?' dans les noms de colonnes de CR_05
+    # et à exécuter la requête telle quelle (car les params sont déjà injectés)
+    def patched_exec(query, params=None):
+        return pd.read_sql(query, runner.connection)
+    
+    runner._execute_query_with_parameters = patched_exec
+    # ===========================================================
     
     try:
         # runner.run() va maintenant utiliser notre méthode patchée
@@ -587,40 +602,46 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
 
         # --- TASK 2: VTC (Acceptance Criteria #3 - Glass Box) ---
         with tabs[1]:
-            # Logic Explanation Block
-            with st.expander("📖 Logic Explanation", expanded=False):
-                st.info(VTC_LOGIC)
-            
-            cat_cr03 = _categorize_nav_vouchers(data['CR_03'])
-            # Now returns (adj_amt, proof_df_vtc, metrics)
-            adj_amt, proof_df_vtc, vtc_metrics = calculate_vtc_adjustment(data['IPE_08'], cat_cr03, fx_converter=fx_converter)
-            
-            # Use intermediate metrics from calculation function
-            refund_vouchers = vtc_metrics.get("refund_vouchers", 0)
-            nav_cancellations = vtc_metrics.get("nav_cancellations", 0)
-            unmatched_vouchers = vtc_metrics.get("unmatched_vouchers", len(proof_df_vtc))
-            
-            # Intermediate Metrics Display
-            st.markdown("#### 📊 Processing Pipeline")
-            step_cols = st.columns(4)
-            step_cols[0].metric("Step 1: Canceled Refunds (BOB)", f"{refund_vouchers:,}")
-            step_cols[1].metric("Step 2: NAV Cancellations", f"{nav_cancellations:,}")
-            step_cols[2].metric("Step 3: Unmatched", f"{unmatched_vouchers:,}")
-            step_cols[3].metric("Step 4: VTC Amount", f"${adj_amt:,.2f}")
-            
-            st.markdown("---")
-            
-            # Results
-            c1, c2 = st.columns([1, 3])
-            c1.metric("VTC Adjustment", f"${adj_amt:,.2f}")
-            c1.download_button(
-                "📥 Download Bridge Calculation",
-                proof_df_vtc.to_csv(index=False),
-                f"Bridge_VTC_{target_country}.csv",
-                key="dl_vtc",
+            st.subheader("VTC Adjustment (Canceled not in NAV)")
+            st.caption(
+                "Logique: Vouchers remboursés dans BOB sans écriture d'annulation dans NAV."
             )
-            c2.markdown("**Unmatched Vouchers (BOB without NAV cancellation):**")
-            c2.dataframe(proof_df_vtc.head(50), use_container_width=True)
+
+            with st.spinner("Classification des écritures NAV en cours..."):
+                cat_cr03 = _categorize_nav_vouchers(
+                    cr_03_df=data['CR_03'],
+                    ipe_08_df=data['IPE_08'],
+                    doc_voucher_usage_df=data['DOC_VOUCHER_USAGE']
+                )
+            
+            adj_amt, proof_df_vtc, vtc_metrics = calculate_vtc_adjustment(
+                data['IPE_08'],
+                cat_cr03,
+                fx_converter=fx_converter
+            )
+
+            c1, c2 = st.columns([1, 3])
+            c1.metric("Ajustement VTC", f"${adj_amt:,.2f}")
+
+            if vtc_metrics["total_count"] > 0:
+                st.markdown("#### 📊 Répartition par Type")
+                metrics_df = pd.DataFrame.from_dict(
+                    vtc_metrics["breakdown_by_type"],
+                    orient='index',
+                    columns=['Nombre']
+                )
+                st.dataframe(metrics_df, use_container_width=True)
+
+            if not proof_df_vtc.empty:
+                c1.download_button(
+                    "📥 Télécharger Preuve",
+                    convert_df(proof_df_vtc),
+                    "task2_vtc_proof.csv",
+                    key="dl_task2_vtc_proof",
+                )
+                c2.dataframe(proof_df_vtc.head(100), use_container_width=True)
+            else:
+                c2.success("Aucun ajustement VTC requis.")
 
         # --- TASK 4: Reclass (Acceptance Criteria #3 - Glass Box) ---
         with tabs[2]:

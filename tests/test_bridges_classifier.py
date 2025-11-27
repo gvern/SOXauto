@@ -253,12 +253,13 @@ def test_calculate_vtc_adjustment_basic():
         ]
     )
 
-    adjustment, proof = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
+    adjustment, proof, metrics = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
 
     # V002 should be unmatched (V001 matches, V003 is filtered out by is_active)
     assert adjustment == 200.0
     assert len(proof) == 1
     assert proof.iloc[0]["id"] == "V002"
+    assert metrics["total_count"] == len(proof)
 
 
 def test_calculate_vtc_adjustment_all_matched():
@@ -281,10 +282,11 @@ def test_calculate_vtc_adjustment_all_matched():
         ]
     )
 
-    adjustment, proof = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
+    adjustment, proof, metrics = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
 
     assert adjustment == 0.0
     assert len(proof) == 0
+    assert metrics["total_count"] == 0
 
 
 def test_calculate_vtc_adjustment_vtc_manual():
@@ -314,12 +316,13 @@ def test_calculate_vtc_adjustment_vtc_manual():
         ]
     )
 
-    adjustment, proof = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
+    adjustment, proof, metrics = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
 
     # Only V002 should be unmatched
     assert adjustment == 250.0
     assert len(proof) == 1
     assert proof.iloc[0]["id"] == "V002"
+    assert metrics["total_count"] == len(proof)
 
 
 def test_calculate_vtc_adjustment_vtc_category():
@@ -349,12 +352,13 @@ def test_calculate_vtc_adjustment_vtc_category():
         ]
     )
 
-    adjustment, proof = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
+    adjustment, proof, metrics = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
 
     # Only V002 should be unmatched
     assert adjustment == 250.0
     assert len(proof) == 1
     assert proof.iloc[0]["id"] == "V002"
+    assert metrics["total_count"] == len(proof)
 
 
 def test_calculate_vtc_adjustment_empty_nav():
@@ -380,11 +384,12 @@ def test_calculate_vtc_adjustment_empty_nav():
 
     cr_03_df = pd.DataFrame()
 
-    adjustment, proof = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
+    adjustment, proof, metrics = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
 
     # All vouchers should be unmatched
     assert adjustment == 300.0
     assert len(proof) == 2
+    assert metrics["total_count"] == 2
 
 
 def test_calculate_vtc_adjustment_empty_bob():
@@ -397,10 +402,11 @@ def test_calculate_vtc_adjustment_empty_bob():
         ]
     )
 
-    adjustment, proof = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
+    adjustment, proof, metrics = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
 
     assert adjustment == 0.0
     assert len(proof) == 0
+    assert metrics["total_count"] == 0
 
 
 def test_calculate_vtc_adjustment_filters():
@@ -451,13 +457,14 @@ def test_calculate_vtc_adjustment_filters():
         ]
     )
 
-    adjustment, proof = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
+    adjustment, proof, metrics = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
 
     # Only V005 should pass filters and be unmatched
     # V001 matches in NAV, V002/V003/V004 are filtered out
     assert adjustment == 500.0
     assert len(proof) == 1
     assert proof.iloc[0]["id"] == "V005"
+    assert metrics["total_count"] == len(proof)
 
 
 def test_calculate_vtc_adjustment_non_cancellation_categories():
@@ -491,11 +498,12 @@ def test_calculate_vtc_adjustment_non_cancellation_categories():
         ]
     )
 
-    adjustment, proof = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
+    adjustment, proof, metrics = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
 
     # Both vouchers should be unmatched since NAV entries are not cancellations
     assert adjustment == 300.0
     assert len(proof) == 2
+    assert metrics["total_count"] == len(proof)
 
 
 def test_categorize_nav_vouchers_empty_df():

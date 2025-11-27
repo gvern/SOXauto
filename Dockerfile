@@ -1,92 +1,78 @@
-# Dockerfile for SOXauto PG-01 Application
-# Multi-stage build for optimized production image
+# Dockerfile for SOXauto C-PG-1
+# Target: n8n Integration via FastAPI
 
-# Stage 1: Build stage with all dependencies
+# Stage 1: Builder
 FROM python:3.11-slim as builder
 
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies required for building Python packages
+# Installation des dépendances système (Build tools + ODBC)
 RUN apt-get update && apt-get install -y \
     build-essential \
-    gcc \
-    g++ \
-    unixodbc-dev \
     curl \
     gnupg2 \
+    unixodbc-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Microsoft ODBC Driver for SQL Server
+# Ajout des clés Microsoft pour le Driver ODBC 17 (Compatible avec votre connection string)
 RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
     && curl https://packages.microsoft.com/config/debian/11/prod.list > /etc/apt/sources.list.d/mssql-release.list \
     && apt-get update \
-    && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \
+    && ACCEPT_EULA=Y apt-get install -y msodbcsql17 \
     && rm -rf /var/lib/apt/lists/*
 
-# Create virtual environment
+# Environnement virtuel
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy requirements and install Python dependencies
+# Installation des dépendances Python
 COPY requirements.txt .
-RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+# On s'assure d'avoir fastapi et uvicorn pour l'interface n8n
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install fastapi uvicorn python-multipart
 
-# Stage 2: Production stage with minimal footprint
+# Stage 2: Production Runner
 FROM python:3.11-slim as production
 
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Install runtime dependencies only
+# Installation des dépendances Runtime (ODBC uniquement)
 RUN apt-get update && apt-get install -y \
-    unixodbc \
     curl \
     gnupg2 \
+    unixodbc \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Microsoft ODBC Driver for SQL Server (runtime only)
+# Installation du Driver ODBC 17 (Runtime)
 RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
     && curl https://packages.microsoft.com/config/debian/11/prod.list > /etc/apt/sources.list.d/mssql-release.list \
     && apt-get update \
-    && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \
+    && ACCEPT_EULA=Y apt-get install -y msodbcsql17 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy virtual environment from builder stage
+# Copie de l'environnement virtuel
 COPY --from=builder /opt/venv /opt/venv
 
-# Create application user for security
-RUN groupadd --gid 1000 appuser \
-    && useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
-
-# Create application directory
+# Création user non-root
+RUN groupadd --gid 1000 appuser && useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
 WORKDIR /app
 
-# Copy application code with new structure
+# Copie du code source
 COPY --chown=appuser:appuser src/ /app/src/
+COPY --chown=appuser:appuser scripts/ /app/scripts/
+COPY --chown=appuser:appuser tests/ /app/tests/
 
-# Set ownership and permissions
-RUN chown -R appuser:appuser /app \
-    && chmod +x /app
+# Création des dossiers de sortie
+RUN mkdir -p /app/evidence_output && chown -R appuser:appuser /app/evidence_output
 
-# Switch to non-root user
 USER appuser
 
-# Expose port for Cloud Run
-EXPOSE 8080
+# Port pour l'API n8n
+EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
-
-# Set environment variables for AWS
-ENV PORT=8080
-ENV AWS_REGION=${AWS_REGION}
-
-# Command to run the application
-# Use gunicorn for production WSGI server with module syntax
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 --worker-class gthread src.core.main:app
+# Lancement via Uvicorn (API)
+CMD ["uvicorn", "src.frontend.n8n_api:app", "--host", "0.0.0.0", "--port", "8000"]

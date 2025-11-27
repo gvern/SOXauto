@@ -6,10 +6,11 @@ BridgeRule triggers to produce a standardized classification with GL expectation
 """
 
 from __future__ import annotations
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 
 from src.bridges.catalog import BridgeRule
+from src.utils.fx_utils import FXConverter
 
 
 def _filter_ipe08_scope(ipe_08_df: pd.DataFrame) -> pd.DataFrame:
@@ -183,7 +184,7 @@ def calculate_vtc_adjustment(
     ipe_08_df: Optional[pd.DataFrame],
     categorized_cr_03_df: Optional[pd.DataFrame],
     fx_converter: Optional["FXConverter"] = None,
-) -> tuple[float, pd.DataFrame]:
+) -> Tuple[float, pd.DataFrame, Dict[str, Any]]:
     """Calculate VTC (Voucher to Cash) refund reconciliation adjustment.
 
     This function identifies "canceled refund vouchers" from BOB (IPE_08) that do not
@@ -204,19 +205,20 @@ def calculate_vtc_adjustment(
                      If None, returns amounts in local currency.
 
     Returns:
-        tuple: (adjustment_amount_usd, proof_df) where:
+        tuple: (adjustment_amount_usd, proof_df, vtc_metrics) where:
             - adjustment_amount_usd: Sum of unmatched voucher amounts in USD
             - proof_df: DataFrame of unmatched vouchers with Amount_USD column
+            - vtc_metrics: Dict containing total_count and breakdown_by_type
     """
     # Handle empty inputs
     if ipe_08_df is None or ipe_08_df.empty:
-        return 0.0, pd.DataFrame()
+        return 0.0, pd.DataFrame(), {"total_count": 0, "breakdown_by_type": {}}
 
     # Step 1: Apply Non-Marketing filter using helper
     filtered_ipe_08 = _filter_ipe08_scope(ipe_08_df)
 
     if filtered_ipe_08.empty:
-        return 0.0, pd.DataFrame()
+        return 0.0, pd.DataFrame(), {"total_count": 0, "breakdown_by_type": {}}
 
     # Step 2: Filter source vouchers (BOB): canceled refund vouchers
     # Check for both business_use_formatted and business_use columns for backward compatibility
@@ -256,75 +258,81 @@ def calculate_vtc_adjustment(
     
     if amount_col is None:
         # No amount column found, return empty result
-        return 0.0, pd.DataFrame()
+        return 0.0, pd.DataFrame(), {"total_count": 0, "breakdown_by_type": {}}
 
     if categorized_cr_03_df is None or categorized_cr_03_df.empty:
         # All source vouchers are unmatched
         unmatched_df = source_vouchers_df.copy()
+    else:
+        # Filter target entries (NAV): cancellation categories
+        # Include entries where bridge_category starts with 'Cancellation' or equals 'VTC'/'VTC Manual'
+        # Convert to string once for efficiency
+        bridge_categories = categorized_cr_03_df["bridge_category"].astype(str)
+        target_entries_df = categorized_cr_03_df[
+            bridge_categories.str.startswith("Cancellation")
+            | (bridge_categories == "VTC Manual")
+            | (bridge_categories == "VTC")
+        ].copy()
 
-        # Calculate USD amounts if FXConverter is provided
-        if fx_converter is not None:
-            # Check if ID_COMPANY column exists
-            company_col = None
-            for col in ["ID_COMPANY", "id_company", "Company_Code"]:
-                if col in unmatched_df.columns:
-                    company_col = col
-                    break
+        # Determine voucher number column variants
+        voucher_no_col = None
+        for col in ["Voucher No_", "[Voucher No_]", "voucher_no", "Voucher_No"]:
+            if col in target_entries_df.columns:
+                voucher_no_col = col
+                break
 
-            if company_col is not None:
-                # Convert to USD
-                unmatched_df["Amount_USD"] = fx_converter.convert_series_to_usd(
-                    unmatched_df[amount_col], unmatched_df[company_col]
-                )
-                adjustment_amount = unmatched_df["Amount_USD"].sum()
-            else:
-                # No company column, cannot convert - use LCY
-                adjustment_amount = unmatched_df[amount_col].sum()
-        else:
-            # No FX converter provided - use local currency
-            adjustment_amount = unmatched_df[amount_col].sum()
+        matched_voucher_series = (
+            target_entries_df[voucher_no_col]
+            if voucher_no_col is not None
+            else pd.Series(dtype=object)
+        )
 
-        return adjustment_amount, unmatched_df
-
-    # Filter target entries (NAV): cancellation categories
-    # Include entries where bridge_category starts with 'Cancellation' or equals 'VTC'/'VTC Manual'
-    # Convert to string once for efficiency
-    bridge_categories = categorized_cr_03_df["bridge_category"].astype(str)
-    target_entries_df = categorized_cr_03_df[
-        bridge_categories.str.startswith("Cancellation")
-        | (bridge_categories == "VTC Manual")
-        | (bridge_categories == "VTC")
-    ].copy()
-
-    # Perform left anti-join: find vouchers in source that are NOT in target
-    # Left anti-join means: keep rows from left where the join key does NOT match any row in right
-    unmatched_df = source_vouchers_df[
-        ~source_vouchers_df["id"].isin(target_entries_df["Voucher No_"])
-    ].copy()
+        # Perform left anti-join: find vouchers in source that are NOT in target
+        # Left anti-join means: keep rows from left where the join key does NOT match any row in right
+        unmatched_df = source_vouchers_df[
+            ~source_vouchers_df["id"].isin(matched_voucher_series)
+        ].copy()
+    proof_df = unmatched_df.copy()
 
     # Calculate USD amounts if FXConverter is provided
     if fx_converter is not None:
         # Check if ID_COMPANY column exists
         company_col = None
         for col in ["ID_COMPANY", "id_company", "Company_Code"]:
-            if col in unmatched_df.columns:
+            if col in proof_df.columns:
                 company_col = col
                 break
 
         if company_col is not None:
             # Convert to USD
-            unmatched_df["Amount_USD"] = fx_converter.convert_series_to_usd(
-                unmatched_df[amount_col], unmatched_df[company_col]
+            proof_df["Amount_USD"] = fx_converter.convert_series_to_usd(
+                proof_df[amount_col], proof_df[company_col]
             )
-            adjustment_amount = unmatched_df["Amount_USD"].sum()
+            adjustment_amount = proof_df["Amount_USD"].sum()
         else:
             # No company column, cannot convert - use LCY
-            adjustment_amount = unmatched_df[amount_col].sum()
+            adjustment_amount = proof_df[amount_col].sum()
     else:
         # No FX converter provided - use local currency
-        adjustment_amount = unmatched_df[amount_col].sum()
+        adjustment_amount = proof_df[amount_col].sum()
 
-    return adjustment_amount, unmatched_df
+    # --- VTC Metrics ---
+    vtc_metrics: Dict[str, Any] = {
+        "total_count": len(proof_df),
+        "breakdown_by_type": {},
+    }
+
+    if not proof_df.empty:
+        if "business_use_formatted" in proof_df.columns:
+            vtc_metrics["breakdown_by_type"] = (
+                proof_df["business_use_formatted"].value_counts().to_dict()
+            )
+        elif "business_use" in proof_df.columns:
+            vtc_metrics["breakdown_by_type"] = (
+                proof_df["business_use"].value_counts().to_dict()
+            )
+
+    return adjustment_amount, proof_df, vtc_metrics
 
 
 def _categorize_nav_vouchers(

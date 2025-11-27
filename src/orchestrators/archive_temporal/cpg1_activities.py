@@ -336,7 +336,7 @@ async def calculate_vtc_adjustment_activity(
         )
 
         # Call core business logic
-        adjustment_amount, proof_df = calculate_vtc_adjustment(
+        adjustment_amount, proof_df, vtc_metrics = calculate_vtc_adjustment(
             ipe_08_df, categorized_cr_03_df
         )
         log.info(
@@ -346,6 +346,7 @@ async def calculate_vtc_adjustment_activity(
             "adjustment_amount": float(adjustment_amount),
             "proof_data": dataframe_to_dict(proof_df),
             "unmatched_count": len(proof_df),
+            "vtc_metrics": vtc_metrics,
         }
 
     except Exception as e:
