@@ -197,11 +197,24 @@ async def run_extraction_with_evidence(item_id, params, country_code, period_str
         return pd.DataFrame(), None
 
 
-def load_all_data(params):
-    """Orchestrates loading and evidence collection with context."""
+def load_all_data(params, uploaded_files=None):
+    """Orchestrates loading and evidence collection with context.
+    
+    Args:
+        params: SQL parameters dictionary
+        uploaded_files: Dictionary of {item_id: UploadedFile} for manual CSV overrides
+    
+    Returns:
+        tuple: (data_store, evidence_store, source_store) where source_store tracks 
+               the source of each dataset ("Uploaded File", "Live Database", "Local Fixture")
+    """
     REQUIRED_IPES = ["CR_04", "CR_03", "CR_05", "IPE_07", "IPE_08", "DOC_VOUCHER_USAGE"]
     data_store = {}
     evidence_store = {}
+    source_store = {}  # Track data source for visual feedback
+    
+    if uploaded_files is None:
+        uploaded_files = {}
 
     status_container = st.empty()
     progress_bar = st.progress(0)
@@ -214,13 +227,56 @@ def load_all_data(params):
 
     for i, item_id in enumerate(REQUIRED_IPES):
         status_container.markdown(
-            f"🛡️ **Audit Process:** Extracting & Hashing `{item_id}` for **{country_code}**..."
+            f"🛡️ **Audit Process:** Processing `{item_id}` for **{country_code}**..."
         )
 
-        # On passe les nouvelles métadonnées
-        df, zip_path = asyncio.run(
-            run_extraction_with_evidence(item_id, params, country_code, period_str)
-        )
+        # Priority 1: Check if a file was uploaded for this IPE
+        if item_id in uploaded_files and uploaded_files[item_id] is not None:
+            try:
+                df = pd.read_csv(uploaded_files[item_id], low_memory=False)
+                zip_path = None  # No evidence package for uploaded files
+                source_store[item_id] = "Uploaded File"
+                status_container.markdown(
+                    f"✅ **{item_id}:** Loaded from uploaded CSV ({len(df):,} rows)"
+                )
+            except Exception as e:
+                st.warning(f"⚠️ Error reading uploaded file for {item_id}: {e}. Falling back to live extraction.")
+                df = None
+                zip_path = None
+                source_store[item_id] = None
+        else:
+            df = None
+            zip_path = None
+            source_store[item_id] = None
+
+        # Priority 2: Try live SQL extraction if no uploaded file
+        if df is None:
+            try:
+                df, zip_path = asyncio.run(
+                    run_extraction_with_evidence(item_id, params, country_code, period_str)
+                )
+                if not df.empty:
+                    source_store[item_id] = "Live Database"
+                else:
+                    # Empty result from live extraction, try fixture
+                    df = None
+            except Exception:
+                df = None
+                zip_path = None
+
+        # Priority 3: Fall back to local fixture
+        if df is None or (df is not None and df.empty and source_store.get(item_id) != "Uploaded File"):
+            fixture_path = os.path.join(
+                REPO_ROOT, "tests", "fixtures", f"fixture_{item_id}.csv"
+            )
+            if os.path.exists(fixture_path):
+                df = pd.read_csv(fixture_path, low_memory=False)
+                zip_path = None
+                source_store[item_id] = "Local Fixture"
+            else:
+                df = pd.DataFrame()
+                zip_path = None
+                source_store[item_id] = "No Data"
 
         # Filtrage local pour l'affichage (si nécessaire)
         for col in ["ID_COMPANY", "id_company", "ID_Company", "country"]:
@@ -235,7 +291,7 @@ def load_all_data(params):
 
     progress_bar.empty()
     status_container.empty()
-    return data_store, evidence_store
+    return data_store, evidence_store, source_store
 
 
 def load_jdash_data(uploaded_file):
@@ -258,7 +314,54 @@ def main():
         )
         cutoff_date = st.date_input("Control Period", value=datetime(2025, 9, 30))
         st.markdown("---")
-        uploaded_jdash = st.file_uploader("Upload Jdash Export (CSV)", type="csv")
+        
+        # --- MANUAL FILE UPLOADS (Acceptance Criteria #1) ---
+        with st.expander("📂 Manual File Uploads (Optional)", expanded=False):
+            st.markdown("""
+            Upload CSV files to bypass live SQL extraction. 
+            If a file is provided, it will be used instead of querying the database.
+            """)
+            
+            # File uploaders for all required data sources
+            uploaded_cr04 = st.file_uploader(
+                "CR_04 - GL Balances", type="csv", key="upload_cr04",
+                help="NAV GL Balances extract"
+            )
+            uploaded_cr03 = st.file_uploader(
+                "CR_03 - GL Entries", type="csv", key="upload_cr03",
+                help="NAV GL Entries extract"
+            )
+            uploaded_ipe07 = st.file_uploader(
+                "IPE_07 - Customer Ledger", type="csv", key="upload_ipe07",
+                help="Customer balances - Monthly balances at date"
+            )
+            uploaded_ipe08 = st.file_uploader(
+                "IPE_08 - Voucher Issuance", type="csv", key="upload_ipe08",
+                help="TV - Voucher liabilities from BOB"
+            )
+            uploaded_doc_voucher = st.file_uploader(
+                "DOC_VOUCHER_USAGE - Voucher Usage", type="csv", key="upload_doc_voucher",
+                help="Voucher Usage TV Extract for Timing Bridge"
+            )
+            uploaded_cr05 = st.file_uploader(
+                "CR_05 - FX Rates", type="csv", key="upload_cr05",
+                help="Monthly closing FX rates"
+            )
+            uploaded_jdash = st.file_uploader(
+                "JDASH - Jdash Export", type="csv", key="upload_jdash",
+                help="Jdash voucher usage data"
+            )
+        
+        # Build uploaded_files dictionary
+        uploaded_files = {
+            "CR_04": uploaded_cr04,
+            "CR_03": uploaded_cr03,
+            "IPE_07": uploaded_ipe07,
+            "IPE_08": uploaded_ipe08,
+            "DOC_VOUCHER_USAGE": uploaded_doc_voucher,
+            "CR_05": uploaded_cr05,
+        }
+        
         st.markdown("---")
         run_btn = st.button("🚀 Start SOX Reconciliation", type="primary")
 
@@ -313,7 +416,19 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
         )
 
         jdash_df = load_jdash_data(uploaded_jdash)
-        data, evidence_paths = load_all_data(params)
+        data, evidence_paths, source_info = load_all_data(params, uploaded_files)
+
+        # Helper function to display source badge
+        def display_source_badge(source: str):
+            """Display a colored badge indicating the data source."""
+            if source == "Uploaded File":
+                st.markdown('<span class="evidence-badge" style="background-color: #d4edda; color: #155724; border-color: #c3e6cb;">📤 Source: Uploaded File</span>', unsafe_allow_html=True)
+            elif source == "Live Database":
+                st.markdown('<span class="evidence-badge" style="background-color: #cce5ff; color: #004085; border-color: #b8daff;">🔗 Source: Live Database</span>', unsafe_allow_html=True)
+            elif source == "Local Fixture":
+                st.markdown('<span class="evidence-badge" style="background-color: #fff3cd; color: #856404; border-color: #ffeeba;">📁 Source: Local Fixture</span>', unsafe_allow_html=True)
+            else:
+                st.markdown('<span class="evidence-badge" style="background-color: #f8d7da; color: #721c24; border-color: #f5c6cb;">⚠️ Source: No Data</span>', unsafe_allow_html=True)
 
         # Evidence Grid (Acceptance Criteria #2 - Enhanced Extraction Section)
         st.subheader("📦 Source Data Packages (Authenticated)")
@@ -323,6 +438,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
         c1, c2, c3 = st.columns(3)
         with c1:
             st.metric("GL Balances (CR_04)", f"{len(data['CR_04']):,} rows")
+            display_source_badge(source_info.get("CR_04", "No Data"))
             if evidence_paths.get("CR_04"):
                 with open(evidence_paths["CR_04"], "rb") as fp:
                     st.download_button(
@@ -337,6 +453,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
 
         with c2:
             st.metric("GL Entries (CR_03)", f"{len(data['CR_03']):,} rows")
+            display_source_badge(source_info.get("CR_03", "No Data"))
             if evidence_paths.get("CR_03"):
                 with open(evidence_paths["CR_03"], "rb") as fp:
                     st.download_button(
@@ -351,6 +468,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
 
         with c3:
             st.metric("Voucher Liability (IPE_08)", f"{len(data['IPE_08']):,} rows")
+            display_source_badge(source_info.get("IPE_08", "No Data"))
             if evidence_paths.get('IPE_08'):
                 with open(evidence_paths['IPE_08'], "rb") as fp:
                     st.download_button("🔒 Download Package (ZIP)", fp, "IPE_08_Evidence.zip", "application/zip", key="dl_ipe08")
@@ -361,6 +479,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
         c4, c5, c6 = st.columns(3)
         with c4:
             st.metric("Customer Balances (IPE_07)", f"{len(data['IPE_07']):,} rows")
+            display_source_badge(source_info.get("IPE_07", "No Data"))
             if evidence_paths.get("IPE_07"):
                 with open(evidence_paths["IPE_07"], "rb") as fp:
                     st.download_button(
@@ -375,6 +494,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
         
         with c5:
             st.metric("FX Rates (CR_05)", f"{len(data['CR_05']):,} rows")
+            display_source_badge(source_info.get("CR_05", "No Data"))
             if evidence_paths.get("CR_05"):
                 with open(evidence_paths["CR_05"], "rb") as fp:
                     st.download_button(
@@ -389,6 +509,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
         
         with c6:
             st.metric("Voucher Usage (DOC)", f"{len(data['DOC_VOUCHER_USAGE']):,} rows")
+            display_source_badge(source_info.get("DOC_VOUCHER_USAGE", "No Data"))
             if evidence_paths.get("DOC_VOUCHER_USAGE"):
                 with open(evidence_paths["DOC_VOUCHER_USAGE"], "rb") as fp:
                     st.download_button(
