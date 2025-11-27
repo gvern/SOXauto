@@ -12,59 +12,8 @@ import pandas as pd
 from src.bridges.catalog import BridgeRule
 from src.utils.fx_utils import FXConverter
 
-
-def _filter_ipe08_scope(ipe_08_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Filter IPE_08 DataFrame to include only Non-Marketing voucher types.
-
-    This helper ensures consistent filtering across all bridge calculations
-    that use IPE_08 data. Only vouchers with business_use in the Non-Marketing
-    category are included.
-
-    Args:
-        ipe_08_df: DataFrame from IPE_08 extraction containing voucher data
-                   Expected columns: 'business_use' and date columns
-
-    Returns:
-        DataFrame filtered to Non-Marketing vouchers with dates converted to datetime
-    """
-    if ipe_08_df is None or ipe_08_df.empty:
-        return ipe_08_df.copy() if ipe_08_df is not None else pd.DataFrame()
-
-    # Define Non-Marketing voucher types
-    NON_MARKETING_USES = [
-        "apology_v2",
-        "jforce",
-        "refund",
-        "store_credit",
-        "Jpay store_credit",
-    ]
-
-    # Work with a copy
-    df = ipe_08_df.copy()
-
-    # Filter for Non-Marketing types
-    # Check for both business_use and business_use_formatted for backward compatibility
-    business_use_col = None
-    if "business_use" in df.columns:
-        business_use_col = "business_use"
-    elif "business_use_formatted" in df.columns:
-        business_use_col = "business_use_formatted"
-    
-    if business_use_col:
-        df = df[df[business_use_col].isin(NON_MARKETING_USES)].copy()
-
-    # Convert date columns to datetime if they exist
-    date_columns = [
-        "Order_Creation_Date",
-        "Order_Delivery_Date",
-        "Order_Cancellation_Date",
-    ]
-    for col in date_columns:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce")
-
-    return df
+# Import scope filtering from the new core module
+from src.core.scope_filtering import filter_ipe08_scope as _filter_ipe08_scope
 
 
 def _row_matches_rule(row: pd.Series, rule: BridgeRule) -> bool:
