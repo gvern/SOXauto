@@ -242,9 +242,11 @@ def load_all_data(params, uploaded_files=None):
             except Exception as e:
                 st.warning(f"⚠️ Error reading uploaded file for {item_id}: {e}. Falling back to live extraction.")
                 df = None
+                zip_path = None
                 source_store[item_id] = None
         else:
             df = None
+            zip_path = None
             source_store[item_id] = None
 
         # Priority 2: Try live SQL extraction if no uploaded file
