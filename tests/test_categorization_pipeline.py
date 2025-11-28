@@ -12,7 +12,6 @@ from src.bridges.cat_nav_classifier import (
 )
 from src.bridges.cat_issuance_classifier import (
     classify_issuance,
-    COUNTRY_CODES,
 )
 from src.bridges.cat_usage_classifier import (
     classify_usage,
