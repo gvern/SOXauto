@@ -5,7 +5,6 @@ Tests the individual classifiers and the main categorization pipeline.
 """
 
 import pandas as pd
-import pytest
 
 from src.bridges.cat_nav_classifier import (
     classify_integration_type,
