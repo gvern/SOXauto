@@ -113,6 +113,12 @@ python3 scripts/run_demo.py --ipe IPE_07
 
 - `CUTOFF_DATE` - Date for IPE extraction (format: YYYY-MM-DD)
 - `TEMPORAL_ADDRESS` - Temporal server address (default: localhost:7233)
+- `AWS_PROFILE` - AWS profile name for credentials
+- `AWS_REGION` - AWS region (default: eu-west-1)
+- `S3_BUCKET_EVIDENCE` - S3 bucket for storing evidence packages
+- `USE_OKTA_AUTH` - Enable Okta SSO authentication (true/false)
+
+**Note**: Teleport tunnel (`tsh`) must be configured separately via `tsh login` before running extractions.
 
 ## Domain-Specific Knowledge
 
@@ -134,13 +140,15 @@ Each extraction generates a package containing:
 
 ### Key IPEs in This Project
 
+**Acronyms**: TV = Transaction Value, BOB = Buy Online/Backoffice, SC = Seller Center, PG = Payment Gateway
+
 | IPE ID | Description |
 |--------|-------------|
-| IPE_07 | Customer balances - Monthly balances |
-| IPE_08 | Store credit vouchers TV |
-| IPE_09 | BOB Sales Orders |
+| IPE_07 | Customer balances - Monthly balances at cutoff date |
+| IPE_08 | Store credit vouchers Transaction Value |
+| IPE_09 | BOB (Buy Online/Backoffice) Sales Orders |
 | IPE_11 | Seller Center Liability reconciliation |
-| IPE_31 | PG detailed TV extraction |
+| IPE_31 | Payment Gateway detailed Transaction Value extraction |
 
 ## Common Tasks
 
