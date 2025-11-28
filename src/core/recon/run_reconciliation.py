@@ -33,15 +33,15 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
 # Import extraction modules
-from src.core.extraction_pipeline import ExtractionPipeline, load_all_data
+from src.core.extraction_pipeline import load_all_data
 
 # Import preprocessing modules
-from src.core.quality_checker import DataQualityEngine, QualityReport
+from src.core.quality_checker import DataQualityEngine
 from src.core.scope_filtering import (
     filter_ipe08_scope,
     filter_gl_18412,
