@@ -19,8 +19,6 @@ from src.bridges.cat_usage_classifier import (
 )
 from src.bridges.cat_vtc_classifier import (
     classify_vtc,
-    classify_vtc_bank_account,
-    classify_vtc_pattern,
 )
 from src.bridges.cat_expired_classifier import (
     classify_expired,
