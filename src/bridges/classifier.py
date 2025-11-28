@@ -3,6 +3,17 @@ Rule-based classifier for PG-1 reconciliation bridges.
 
 Takes input DataFrames (e.g., IPE_31 open items, IPE_10 prepayments) and applies
 BridgeRule triggers to produce a standardized classification with GL expectations.
+
+The NAV voucher categorization logic has been refactored into modular classifiers:
+- cat_nav_classifier: Integration type detection (Manual vs Integration)
+- cat_issuance_classifier: Issuance categorization rules
+- cat_usage_classifier: Usage categorization rules
+- cat_vtc_classifier: VTC (Voucher to Cash) categorization rules
+- cat_expired_classifier: Expired voucher categorization rules
+- cat_pipeline: Main categorization pipeline
+
+The _categorize_nav_vouchers function in this module delegates to the new
+modular pipeline while maintaining backward compatibility.
 """
 
 from __future__ import annotations
@@ -14,6 +25,9 @@ from src.utils.fx_utils import FXConverter
 
 # Import scope filtering from the new core module
 from src.core.scope_filtering import filter_ipe08_scope as _filter_ipe08_scope
+
+# Import the new modular categorization pipeline
+from src.bridges.cat_usage_classifier import lookup_voucher_type as _lookup_voucher_type
 
 
 def _row_matches_rule(row: pd.Series, rule: BridgeRule) -> bool:
