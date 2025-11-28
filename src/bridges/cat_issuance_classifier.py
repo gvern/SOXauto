@@ -8,13 +8,13 @@ Business Rules:
 - Integrated Issuance:
   - REFUND/RF_/RF  -> Issuance - Refund
   - COMMERCIAL GESTURE -> Issuance - Apology
-  - PYT_PF/PYT_ -> Issuance - JForce
+  - PYT_ -> Issuance - JForce
   
 - Manual Issuance:
   - Document No starts with country code -> Issuance - Store Credit
   - REFUND/RFN/RF_ patterns -> Issuance - Refund
   - COMMERCIAL/CXP/APOLOGY -> Issuance - Apology
-  - PYT_PF/PYT_ -> Issuance - JForce
+  - PYT_ -> Issuance - JForce
 
 This is a pure function: DataFrame -> DataFrame
 No st.session_state or st.cache usage.
@@ -142,7 +142,7 @@ def _classify_integrated_issuance(df: pd.DataFrame, idx: int, description: str) 
     Priority:
     1. Refund: REFUND, RF_, RF (space)
     2. Apology: COMMERCIAL GESTURE
-    3. JForce: PYT_PF, PYT_
+    3. JForce: PYT_ (includes PYT_PF)
     4. Generic Issuance (fallback)
     """
     if "REFUND" in description or "RF_" in description or "RF " in description:
@@ -151,7 +151,7 @@ def _classify_integrated_issuance(df: pd.DataFrame, idx: int, description: str) 
     elif "COMMERCIAL GESTURE" in description:
         df.at[idx, "bridge_category"] = "Issuance - Apology"
         df.at[idx, "voucher_type"] = "Apology"
-    elif "PYT_PF" in description or "PYT_" in description:
+    elif "PYT_" in description:
         df.at[idx, "bridge_category"] = "Issuance - JForce"
         df.at[idx, "voucher_type"] = "JForce"
     else:
@@ -169,7 +169,7 @@ def _classify_manual_issuance(
     1. Store Credit: Document No starts with country code
     2. Refund: REFUND, RFN, RF_
     3. Apology: COMMERCIAL, CXP, APOLOGY
-    4. JForce: PYT_PF, PYT_
+    4. JForce: PYT_ (includes PYT_PF)
     5. Generic Issuance (fallback)
     """
     # Check if Document No starts with Country Code
@@ -184,7 +184,7 @@ def _classify_manual_issuance(
     elif "COMMERCIAL" in description or "CXP" in description or "APOLOGY" in description:
         df.at[idx, "bridge_category"] = "Issuance - Apology"
         df.at[idx, "voucher_type"] = "Apology"
-    elif "PYT_PF" in description or "PYT_" in description:
+    elif "PYT_" in description:
         df.at[idx, "bridge_category"] = "Issuance - JForce"
         df.at[idx, "voucher_type"] = "JForce"
     else:

@@ -13,6 +13,9 @@ Rule Priority (highest to lowest):
 6. Manual Cancellation - Manual + Positive + Credit Memo
 7. Manual Usage - Manual + Positive + ITEMPRICECREDIT
 
+Note: "VTC via Bank Account" has the highest priority among all rules,
+as described in the PR ("VTC > Issuance > Usage > Expired > Manual").
+
 This is a pure function: DataFrame -> DataFrame
 No st.session_state or st.cache usage.
 """

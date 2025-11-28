@@ -123,13 +123,39 @@ class TestClassifyIssuance:
         assert len(result) == 0
 
     def test_integrated_refund_issuance(self):
-        """Test integrated refund issuance detection."""
+        """Test integrated refund issuance detection.
+        
+        Note: Integration_Type is pre-set here because classify_issuance 
+        expects it to be already computed by classify_integration_type.
+        In the full pipeline (categorize_nav_vouchers), Integration_Type
+        is computed automatically from User ID.
+        """
         df = pd.DataFrame({
             "Amount": [-100.0],
             "Document Description": ["Refund voucher issued"],
             "Integration_Type": ["Integration"]
         })
         result = classify_issuance(df)
+        assert result.loc[0, "bridge_category"] == "Issuance - Refund"
+        assert result.loc[0, "voucher_type"] == "Refund"
+    
+    def test_integrated_refund_issuance_from_user_id(self):
+        """Test integrated refund issuance with User ID (full pipeline behavior).
+        
+        This test verifies the actual pipeline behavior where Integration_Type
+        is computed from User ID, not pre-set.
+        """
+        df = pd.DataFrame({
+            "Amount": [-100.0],
+            "Document Description": ["Refund voucher issued"],
+            "User ID": ["JUMIA/NAV13AFR.BATCH.SRVC"]
+        })
+        # First classify integration type
+        from src.bridges.cat_nav_classifier import classify_integration_type
+        df = classify_integration_type(df)
+        # Then classify issuance
+        result = classify_issuance(df)
+        assert result.loc[0, "Integration_Type"] == "Integration"
         assert result.loc[0, "bridge_category"] == "Issuance - Refund"
         assert result.loc[0, "voucher_type"] == "Refund"
 
@@ -197,7 +223,7 @@ class TestClassifyIssuance:
             "Integration_Type": ["Integration"]
         })
         result = classify_issuance(df)
-        assert pd.isna(result.loc[0, "bridge_category"]) or result.loc[0, "bridge_category"] is None
+        assert pd.isna(result.loc[0, "bridge_category"])
 
 
 # =============================================================================
@@ -242,7 +268,7 @@ class TestClassifyUsage:
             "Integration_Type": ["Manual"]
         })
         result = classify_usage(df)
-        assert pd.isna(result.loc[0, "bridge_category"]) or result.loc[0, "bridge_category"] is None
+        assert pd.isna(result.loc[0, "bridge_category"])
 
 
 class TestClassifyManualUsage:
@@ -266,7 +292,7 @@ class TestClassifyManualUsage:
             "Integration_Type": ["Manual"]
         })
         result = classify_manual_usage(df)
-        assert pd.isna(result.loc[0, "bridge_category"]) or result.loc[0, "bridge_category"] is None
+        assert pd.isna(result.loc[0, "bridge_category"])
 
 
 # =============================================================================
@@ -335,7 +361,7 @@ class TestClassifyVTC:
             "Integration_Type": ["Integration"]
         })
         result = classify_vtc(df)
-        assert pd.isna(result.loc[0, "bridge_category"]) or result.loc[0, "bridge_category"] is None
+        assert pd.isna(result.loc[0, "bridge_category"])
 
 
 # =============================================================================
@@ -478,10 +504,7 @@ class TestCategorizationPipeline:
         assert result.loc[1, "bridge_category"] == "Usage"
         assert result.loc[2, "bridge_category"] == "VTC"
         assert result.loc[3, "bridge_category"] == "Expired - Apology"
-        assert (
-            pd.isna(result.loc[4, "bridge_category"])
-            or result.loc[4, "bridge_category"] is None
-        )
+        assert pd.isna(result.loc[4, "bridge_category"])
 
     def test_vtc_priority_over_issuance(self):
         """Test that VTC Bank Account has priority over Issuance."""
@@ -555,8 +578,11 @@ class TestBackwardCompatibility:
         original_result = original_categorize(df.copy())
         new_result = categorize_nav_vouchers(df.copy())
 
-        # Compare results
+        # Compare results - verify all three output columns
         assert original_result.loc[0, "bridge_category"] == new_result.loc[0, "bridge_category"]
         assert original_result.loc[1, "bridge_category"] == new_result.loc[1, "bridge_category"]
         assert original_result.loc[0, "Integration_Type"] == new_result.loc[0, "Integration_Type"]
         assert original_result.loc[1, "Integration_Type"] == new_result.loc[1, "Integration_Type"]
+        # Also verify voucher_type consistency
+        assert original_result.loc[0, "voucher_type"] == new_result.loc[0, "voucher_type"]
+        assert original_result.loc[1, "voucher_type"] == new_result.loc[1, "voucher_type"]

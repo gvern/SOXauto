@@ -295,31 +295,35 @@ def lookup_voucher_type(
     Returns:
         The voucher type (business_use) if found, None otherwise
     """
-    # Try IPE_08 first
-    if ipe_08_df is not None and not ipe_08_df.empty:
-        # Try matching by voucher_no
-        if voucher_no:
-            match = ipe_08_df[ipe_08_df["id"].astype(str) == voucher_no]
-            if not match.empty and "business_use" in match.columns:
-                return str(match.iloc[0]["business_use"])
+    try:
+        # Try IPE_08 first
+        if ipe_08_df is not None and not ipe_08_df.empty:
+            # Try matching by voucher_no
+            if voucher_no:
+                match = ipe_08_df[ipe_08_df["id"].astype(str) == str(voucher_no)]
+                if not match.empty and "business_use" in match.columns:
+                    return str(match.iloc[0]["business_use"])
 
-    # Try doc_voucher_usage_df
-    if doc_voucher_usage_df is not None and not doc_voucher_usage_df.empty:
-        # Try matching by voucher_no
-        if voucher_no:
-            match = doc_voucher_usage_df[
-                doc_voucher_usage_df["id"].astype(str) == voucher_no
-            ]
-            if not match.empty and "business_use" in match.columns:
-                return str(match.iloc[0]["business_use"])
+        # Try doc_voucher_usage_df
+        if doc_voucher_usage_df is not None and not doc_voucher_usage_df.empty:
+            # Try matching by voucher_no
+            if voucher_no:
+                match = doc_voucher_usage_df[
+                    doc_voucher_usage_df["id"].astype(str) == str(voucher_no)
+                ]
+                if not match.empty and "business_use" in match.columns:
+                    return str(match.iloc[0]["business_use"])
 
-        # Fallback: Try matching by doc_no against Transaction_No
-        if doc_no and "Transaction_No" in doc_voucher_usage_df.columns:
-            match = doc_voucher_usage_df[
-                doc_voucher_usage_df["Transaction_No"].astype(str) == doc_no
-            ]
-            if not match.empty and "business_use" in match.columns:
-                return str(match.iloc[0]["business_use"])
+            # Fallback: Try matching by doc_no against Transaction_No
+            if doc_no and "Transaction_No" in doc_voucher_usage_df.columns:
+                match = doc_voucher_usage_df[
+                    doc_voucher_usage_df["Transaction_No"].astype(str) == str(doc_no)
+                ]
+                if not match.empty and "business_use" in match.columns:
+                    return str(match.iloc[0]["business_use"])
+    except (TypeError, ValueError):
+        # Handle conversion errors gracefully
+        pass
 
     return None
 
