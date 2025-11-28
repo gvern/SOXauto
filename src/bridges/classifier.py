@@ -27,7 +27,6 @@ from src.utils.fx_utils import FXConverter
 from src.core.scope_filtering import filter_ipe08_scope as _filter_ipe08_scope
 
 # Import the new modular categorization pipeline
-from src.bridges.cat_pipeline import categorize_nav_vouchers as _pipeline_categorize
 from src.bridges.cat_usage_classifier import lookup_voucher_type as _lookup_voucher_type
 
 
