@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import pandas as pd
 
@@ -63,8 +63,8 @@ from src.bridges.catalog import load_rules
 # Import catalog for quality rules
 from src.core.catalog.cpg1 import get_item_by_id
 
-# Import reconciliation config
-from src.core.recon.cpg1 import CPG1ReconciliationConfig
+# Import summary builder for reconciliation metrics
+from src.core.recon.summary_builder import SummaryBuilder
 
 
 logger = logging.getLogger(__name__)
@@ -144,7 +144,6 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
     
     # Extract parameters with defaults
     cutoff_date = params['cutoff_date']
-    id_companies_active = params['id_companies_active']
     required_ipes = params.get('required_ipes', _get_default_ipes())
     uploaded_files = params.get('uploaded_files', {})
     run_bridges = params.get('run_bridges', True)
@@ -264,11 +263,8 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
         # =========================================================
         logger.info("Phase 5: Calculating reconciliation metrics...")
         
-        recon_metrics = _calculate_reconciliation_metrics(
-            data_store=data_store,
-            processed_data=processed_data,
-            bridges_result=result.get('bridges', {}),
-        )
+        summary_builder = SummaryBuilder(data_store)
+        recon_metrics = summary_builder.build()
         
         result['reconciliation'] = recon_metrics
         
@@ -369,7 +365,6 @@ def _run_bridge_analysis(
     }
     
     # Get required DataFrames
-    ipe_08_df = data_store.get('IPE_08')
     ipe_08_filtered = processed_data.get('IPE_08_filtered')
     ipe_07_df = data_store.get('IPE_07')
     categorized_cr_03 = processed_data.get('CR_03_categorized')
@@ -444,73 +439,6 @@ def _run_bridge_analysis(
             bridges['classified_transactions'] = {'error': str(e)}
     
     return bridges
-
-
-def _calculate_reconciliation_metrics(
-    data_store: Dict[str, pd.DataFrame],
-    processed_data: Dict[str, pd.DataFrame],
-    bridges_result: Dict[str, Any],
-) -> Dict[str, Any]:
-    """
-    Calculate overall reconciliation metrics.
-    
-    Uses the CPG1ReconciliationConfig for business logic.
-    """
-    metrics = {
-        'actuals': None,
-        'target_values': None,
-        'variance': None,
-        'status': None,
-        'component_totals': {},
-    }
-    
-    # Get Actuals from CR_04 (NAV GL Balances)
-    cr_04_df = data_store.get('CR_04')
-    if cr_04_df is not None and not cr_04_df.empty:
-        try:
-            # Look for amount column
-            amount_col = None
-            for col in ['BALANCE_AT_DATE', 'Balance_At_Date', 'balance', 'Amount']:
-                if col in cr_04_df.columns:
-                    amount_col = col
-                    break
-            
-            if amount_col:
-                metrics['actuals'] = float(cr_04_df[amount_col].sum())
-        except Exception as e:
-            logger.warning(f"Could not calculate actuals: {e}")
-    
-    # Calculate Target Values from component IPEs
-    component_ipes = CPG1ReconciliationConfig.get_component_ipes()
-    target_sum = 0.0
-    
-    for ipe_id in component_ipes:
-        df = data_store.get(ipe_id)
-        if df is not None and not df.empty:
-            try:
-                # Try to find an amount column
-                amount_cols = ['Amount', 'amount', 'Remaining Amount', 'remaining_amount', 
-                               'BALANCE_AT_DATE', 'Balance', 'Sum of Grand Total']
-                for col in amount_cols:
-                    if col in df.columns:
-                        component_total = float(df[col].sum())
-                        metrics['component_totals'][ipe_id] = component_total
-                        target_sum += component_total
-                        break
-            except Exception as e:
-                logger.warning(f"Could not calculate total for {ipe_id}: {e}")
-    
-    metrics['target_values'] = target_sum
-    
-    # Calculate Variance
-    if metrics['actuals'] is not None and metrics['target_values'] is not None:
-        variance_result = CPG1ReconciliationConfig.calculate_variance(
-            actuals=metrics['actuals'],
-            target_values=metrics['target_values'],
-        )
-        metrics.update(variance_result)
-    
-    return metrics
 
 
 def _serialize_dataframes(

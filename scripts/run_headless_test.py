@@ -235,10 +235,14 @@ def main():
     output_json = json.dumps(result, indent=2, default=str)
     
     if args.output_file:
-        with open(args.output_file, 'w') as f:
-            f.write(output_json)
-        if not args.quiet:
-            print(f"✅ Results written to: {args.output_file}", file=sys.stderr)
+        try:
+            with open(args.output_file, 'w') as f:
+                f.write(output_json)
+            if not args.quiet:
+                print(f"✅ Results written to: {args.output_file}", file=sys.stderr)
+        except IOError as e:
+            print(f"Error: Failed to write output file: {e}", file=sys.stderr)
+            sys.exit(1)
     else:
         print(output_json)
     
