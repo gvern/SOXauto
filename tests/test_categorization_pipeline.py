@@ -16,7 +16,6 @@ from src.bridges.cat_issuance_classifier import (
 from src.bridges.cat_usage_classifier import (
     classify_usage,
     classify_manual_usage,
-    lookup_voucher_type,
 )
 from src.bridges.cat_vtc_classifier import (
     classify_vtc,
