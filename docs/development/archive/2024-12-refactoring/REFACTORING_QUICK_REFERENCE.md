@@ -84,7 +84,7 @@ from src.core.config_cpg1_athena import CPG1ReconciliationConfig
 
 **✅ New way:**
 ```python
-from src.core.recon import CPG1ReconciliationConfig
+from src.core.reconciliation import CPG1ReconciliationConfig
 ```
 
 ### 5. SQL Server Runner
@@ -111,7 +111,7 @@ from src.core.runners import IPERunnerMSSQL as IPERunner
 | SQL Server runner | `from src.core.runners import IPERunnerMSSQL` | `from src.core.ipe_runner import IPERunner` |
 | Evidence manager | `from src.core.evidence import DigitalEvidenceManager` | `from src.core.evidence_manager import DigitalEvidenceManager` |
 | Evidence generator | `from src.core.evidence import IPEEvidenceGenerator` | `from src.core.evidence_manager import IPEEvidenceGenerator` |
-| Reconciliation | `from src.core.recon import CPG1ReconciliationConfig` | `from src.core.config_cpg1_athena import CPG1ReconciliationConfig` |
+| Reconciliation | `from src.core.reconciliation import CPG1ReconciliationConfig` | `from src.core.config_cpg1_athena import CPG1ReconciliationConfig` |
 | Exceptions | `from src.core.runners import IPEValidationError, IPEConnectionError` | `from src.core.ipe_runner import IPEValidationError` |
 
 ## 🎁 New Features
@@ -149,7 +149,7 @@ results = runner.run()
 ### 3. Reconciliation Helpers
 
 ```python
-from src.core.recon import CPG1ReconciliationConfig
+from src.core.reconciliation import CPG1ReconciliationConfig
 
 recon = CPG1ReconciliationConfig()
 

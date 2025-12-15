@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
-from src.core.recon.cpg1 import CPG1ReconciliationConfig
+from src.core.reconciliation.cpg1 import CPG1ReconciliationConfig
 
 
 logger = logging.getLogger(__name__)
