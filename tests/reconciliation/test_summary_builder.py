@@ -10,7 +10,7 @@ Tests the financial reconciliation summary calculation logic:
 import pandas as pd
 import pytest
 
-from src.core.recon.summary_builder import SummaryBuilder, calculate_reconciliation_metrics
+from src.core.reconciliation.summary_builder import SummaryBuilder, calculate_reconciliation_metrics
 
 
 class TestSummaryBuilder:

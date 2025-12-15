@@ -8,7 +8,7 @@ Extraction -> Preprocessing -> Categorization -> Bridges
 import pandas as pd
 from unittest.mock import patch
 
-from src.core.recon.run_reconciliation import (
+from src.core.reconciliation.run_reconciliation import (
     run_reconciliation,
     _validate_params,
     _get_dataframe_summary,
@@ -62,7 +62,7 @@ class TestGetDataframeSummary:
 
     def test_none_dataframe(self):
         """Test summary of None DataFrame."""
-        summary = _get_dataframe_summary(None)
+        summary = _get_dataframe_summary(None)  # type: ignore
         assert summary['row_count'] == 0
         assert summary['column_count'] == 0
 
@@ -107,7 +107,7 @@ class TestRunReconciliation:
         }
         
         # Mock load_all_data to avoid actual extraction
-        with patch('src.core.recon.run_reconciliation.load_all_data') as mock_load:
+        with patch('src.core.reconciliation.run_reconciliation.load_all_data') as mock_load:
             mock_load.return_value = ({}, {}, {})
             
             result = run_reconciliation(params)
@@ -138,7 +138,7 @@ class TestRunReconciliation:
             'id_companies_active': "('EC_NG')",
         }
         
-        with patch('src.core.recon.run_reconciliation.load_all_data') as mock_load:
+        with patch('src.core.reconciliation.run_reconciliation.load_all_data') as mock_load:
             mock_load.return_value = ({}, {}, {})
             
             result = run_reconciliation(params)
@@ -156,7 +156,7 @@ class TestRunReconciliation:
             'id_companies_active': "('EC_NG')",
         }
         
-        with patch('src.core.recon.run_reconciliation.load_all_data') as mock_load:
+        with patch('src.core.reconciliation.run_reconciliation.load_all_data') as mock_load:
             mock_load.return_value = ({}, {}, {})
             
             result = run_reconciliation(params)
@@ -191,7 +191,7 @@ class TestRunReconciliation:
             'CR_04': mock_cr_04,
         }
         
-        with patch('src.core.recon.run_reconciliation.load_all_data') as mock_load:
+        with patch('src.core.reconciliation.run_reconciliation.load_all_data') as mock_load:
             mock_load.return_value = (mock_data_store, {}, {'CR_03': 'Mock', 'CR_04': 'Mock'})
             
             result = run_reconciliation(params)
@@ -222,7 +222,7 @@ class TestRunReconciliation:
         
         mock_data_store = {'CR_03': mock_cr_03}
         
-        with patch('src.core.recon.run_reconciliation.load_all_data') as mock_load:
+        with patch('src.core.reconciliation.run_reconciliation.load_all_data') as mock_load:
             mock_load.return_value = (mock_data_store, {}, {'CR_03': 'Mock'})
             
             result = run_reconciliation(params)
@@ -242,7 +242,7 @@ class TestRunReconciliation:
             'validate_quality': False,
         }
         
-        with patch('src.core.recon.run_reconciliation.load_all_data') as mock_load:
+        with patch('src.core.reconciliation.run_reconciliation.load_all_data') as mock_load:
             mock_load.return_value = ({}, {}, {})
             
             result = run_reconciliation(params)
@@ -316,7 +316,7 @@ class TestReconciliationIntegration:
             'IPE_08': 'Mock',
         }
         
-        with patch('src.core.recon.run_reconciliation.load_all_data') as mock_load:
+        with patch('src.core.reconciliation.run_reconciliation.load_all_data') as mock_load:
             mock_load.return_value = (mock_data_store, {}, mock_source_store)
             
             result = run_reconciliation(params)
