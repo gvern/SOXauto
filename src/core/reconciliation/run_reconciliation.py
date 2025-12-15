@@ -6,7 +6,7 @@ without a graphical interface. This is the key module for automation via
 Temporal.io or n8n.
 
 Usage:
-    from src.core.recon.run_reconciliation import run_reconciliation
+    from src.core.reconciliation.run_reconciliation import run_reconciliation
     
     params = {
         'cutoff_date': '2025-09-30',
@@ -64,7 +64,7 @@ from src.bridges.catalog import load_rules
 from src.core.catalog.cpg1 import get_item_by_id
 
 # Import summary builder for reconciliation metrics
-from src.core.recon.summary_builder import SummaryBuilder
+from src.core.reconciliation.summary_builder import SummaryBuilder
 
 
 logger = logging.getLogger(__name__)
@@ -126,7 +126,7 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
     # Initialize result structure
     result: Dict[str, Any] = {
         'status': 'SUCCESS',
-        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'params': params.copy(),  # Create a copy to avoid modifying original
         'dataframes': {},
         'dataframe_summaries': {},
