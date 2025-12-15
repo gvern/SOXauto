@@ -32,7 +32,7 @@ Dependencies:
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import pandas as pd
@@ -69,6 +69,9 @@ from src.core.recon.summary_builder import SummaryBuilder
 
 logger = logging.getLogger(__name__)
 
+# Configuration constants
+MAX_ROWS_FOR_FULL_DATA = 1000  # Maximum rows to include in full DataFrame serialization
+
 
 def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -86,7 +89,9 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
             - id_companies_active (str): Company filter in SQL format, 
                                          e.g., "('EC_NG')" (required)
             - gl_accounts (List[str], optional): GL accounts to include
-            - required_ipes (List[str], optional): IPE IDs to load
+            - required_ipes (List[str], optional): IPE IDs to load. 
+                                                   Note: 'JDASH' is required for timing difference bridge.
+                                                   'IPE_31' is required for bridge classification.
             - uploaded_files (Dict[str, Any], optional): Manual file uploads
             - run_bridges (bool, optional): Whether to run bridge analysis (default: True)
             - validate_quality (bool, optional): Whether to run quality checks (default: True)
@@ -121,8 +126,8 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
     # Initialize result structure
     result: Dict[str, Any] = {
         'status': 'SUCCESS',
-        'timestamp': datetime.utcnow().isoformat() + 'Z',
-        'params': params,
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'params': params.copy(),  # Create a copy to avoid modifying original
         'dataframes': {},
         'dataframe_summaries': {},
         'evidence_paths': {},
@@ -184,8 +189,8 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
             result['dataframe_summaries']['IPE_08_filtered'] = _get_dataframe_summary(ipe_08_filtered)
             
             # Add Non-Marketing summary
-            nm_summary = get_non_marketing_summary(data_store['IPE_08'])
-            result['categorization']['ipe_08_non_marketing_summary'] = nm_summary
+            non_marketing_summary = get_non_marketing_summary(data_store['IPE_08'])
+            result['categorization']['ipe_08_non_marketing_summary'] = non_marketing_summary
         
         # Apply GL 18412 filter for CR_03
         if 'CR_03' in data_store:
@@ -234,6 +239,14 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
             # Get categorization summary
             cat_summary = get_categorization_summary(categorized_df)
             result['categorization']['summary'] = cat_summary
+            
+            # Validate presence of expected keys in cat_summary
+            expected_keys = ['by_category', 'by_voucher_type', 'by_integration_type']
+            missing_keys = [k for k in expected_keys if k not in cat_summary]
+            if missing_keys:
+                logger.warning(f"Categorization summary missing expected keys: {missing_keys}")
+                result['warnings'].append(f"Categorization summary missing expected keys: {missing_keys}")
+            
             result['categorization']['by_category'] = cat_summary.get('by_category', {})
             result['categorization']['by_voucher_type'] = cat_summary.get('by_voucher_type', {})
             result['categorization']['by_integration_type'] = cat_summary.get('by_integration_type', {})
@@ -315,7 +328,12 @@ def _validate_params(params: Dict[str, Any]) -> List[str]:
 
 
 def _get_default_ipes() -> List[str]:
-    """Return the default list of IPEs required for reconciliation."""
+    """
+    Return the default list of IPEs required for reconciliation.
+    
+    Note: JDASH is required for timing difference bridge.
+    IPE_31 is required for general bridge classification.
+    """
     return [
         'CR_04',      # NAV GL Balances (Actuals)
         'CR_03',      # NAV GL Entries (for categorization)
@@ -323,7 +341,9 @@ def _get_default_ipes() -> List[str]:
         'IPE_07',     # Customer balances
         'IPE_08',     # Voucher liabilities
         'IPE_10',     # Customer prepayments
+        'IPE_31',     # Collection Accounts (for bridge classification)
         'DOC_VOUCHER_USAGE',  # Voucher usage for timing bridge
+        # Note: JDASH is optional but recommended for timing difference bridge
     ]
 
 
@@ -398,9 +418,18 @@ def _run_bridge_analysis(
             bridges['customer_posting_group'] = {'error': str(e)}
     
     # 3. Timing Difference Bridge
-    # Requires Jdash data which may not be available
-    jdash_df = data_store.get('JDASH')  # May need to be loaded separately
-    if ipe_08_filtered is not None and not ipe_08_filtered.empty:
+    # Requires JDASH data which may need to be loaded separately
+    jdash_df = data_store.get('JDASH')
+    if jdash_df is None or jdash_df.empty:
+        logger.warning(
+            "Timing difference bridge requires 'JDASH' data, but it was not found in the data store. "
+            "Please ensure 'JDASH' is included in required_ipes if timing difference analysis is needed."
+        )
+        bridges['timing_difference'] = {
+            'error': "Missing required 'JDASH' data for timing difference bridge. "
+                     "Please include 'JDASH' in required_ipes."
+        }
+    elif ipe_08_filtered is not None and not ipe_08_filtered.empty:
         try:
             timing_variance, timing_proof_df = calculate_timing_difference_bridge(
                 jdash_df=jdash_df,
@@ -451,8 +480,6 @@ def _serialize_dataframes(
     For large DataFrames, only includes summary information.
     For smaller DataFrames, includes the full data as records.
     """
-    MAX_ROWS_FOR_FULL_DATA = 1000
-    
     serialized = {}
     
     all_data = {**data_store, **processed_data}
@@ -463,23 +490,23 @@ def _serialize_dataframes(
             continue
         
         try:
-            # Convert datetime columns to strings
-            df_copy = df.copy()
-            for col in df_copy.columns:
-                if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
-                    df_copy[col] = df_copy[col].astype(str)
+            # Convert datetime columns to strings without deep copying the entire DataFrame
+            df_for_serialization = df.copy(deep=False)
+            for col in df_for_serialization.columns:
+                if pd.api.types.is_datetime64_any_dtype(df_for_serialization[col]):
+                    df_for_serialization[col] = df_for_serialization[col].dt.strftime('%Y-%m-%d %H:%M:%S')
             
-            if len(df_copy) <= MAX_ROWS_FOR_FULL_DATA:
+            if len(df_for_serialization) <= MAX_ROWS_FOR_FULL_DATA:
                 serialized[name] = {
-                    'records': df_copy.to_dict(orient='records'),
+                    'records': df_for_serialization.to_dict(orient='records'),
                     'truncated': False,
                 }
             else:
                 # Only include first N rows for large DataFrames
                 serialized[name] = {
-                    'records': df_copy.head(MAX_ROWS_FOR_FULL_DATA).to_dict(orient='records'),
+                    'records': df_for_serialization.head(MAX_ROWS_FOR_FULL_DATA).to_dict(orient='records'),
                     'truncated': True,
-                    'total_rows': len(df_copy),
+                    'total_rows': len(df_for_serialization),
                 }
         except Exception as e:
             logger.warning(f"Could not serialize DataFrame {name}: {e}")

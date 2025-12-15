@@ -13,7 +13,7 @@ This module is responsible for:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import pandas as pd
 
@@ -85,7 +85,7 @@ class SummaryBuilder:
         
         return metrics
     
-    def _calculate_actuals(self) -> float:
+    def _calculate_actuals(self) -> Optional[float]:
         """
         Calculate Actuals from CR_04 (NAV GL Balances).
         
@@ -114,7 +114,7 @@ class SummaryBuilder:
             logger.warning(f"Could not calculate actuals: {e}")
             return None
     
-    def _calculate_target_values(self) -> tuple:
+    def _calculate_target_values(self) -> tuple[float, Dict[str, float]]:
         """
         Calculate Target Values from component IPEs.
         
@@ -136,12 +136,17 @@ class SummaryBuilder:
                     ]
                     for col in amount_cols:
                         if col in df.columns:
-                            component_total = float(df[col].sum())
-                            component_totals[ipe_id] = component_total
-                            target_sum += component_total
-                            break
+                            try:
+                                component_total = float(df[col].sum())
+                                component_totals[ipe_id] = component_total
+                                target_sum += component_total
+                                break
+                            except Exception as e:
+                                logger.warning(f"Could not calculate total for {ipe_id} using column '{col}': {e}")
+                                # Continue to try next column
+                                continue
                 except Exception as e:
-                    logger.warning(f"Could not calculate total for {ipe_id}: {e}")
+                    logger.warning(f"Error processing {ipe_id}: {e}")
         
         return target_sum, component_totals
 
