@@ -190,7 +190,7 @@ def load_fixtures(country_code: str):
 # -------------------------------
 # Tasks
 # -------------------------------
-def run_task2_vtc(fixtures, categorized_cr03=None, fx_converter=None, quiet=False, limit=10):
+def run_task2_vtc(fixtures, categorized_cr03=None, fx_converter=None, cutoff_date=None, quiet=False, limit=10):
     hr("TASK 2: VTC (VOUCHER TO CASH) RECONCILIATION")
     if categorized_cr03 is None:
         if not quiet:
@@ -205,7 +205,10 @@ def run_task2_vtc(fixtures, categorized_cr03=None, fx_converter=None, quiet=Fals
     if not quiet:
         print("\n[Step 2] Calculating VTC adjustment...")
     adjustment_amount, proof_df, vtc_metrics = calculate_vtc_adjustment(
-        fixtures["IPE_08"], categorized, fx_converter=fx_converter
+        fixtures["IPE_08"], 
+        categorized, 
+        fx_converter=fx_converter,
+        cutoff_date=cutoff_date or PARAMS["cutoff_date"]
     )
 
     # Save evidence
@@ -423,6 +426,7 @@ def main():
         fixtures,
         categorized_cr03=categorized_cr03,
         fx_converter=fx_converter,
+        cutoff_date=cutoff_date,
         quiet=args.summary_only or args.quiet,
         limit=args.limit,
     )
