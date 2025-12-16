@@ -60,12 +60,12 @@ class TestClassifyIntegrationType:
         assert result.loc[0, "Integration_Type"] == "Integration"
 
     def test_integration_user_nav13(self):
-        """Test that NAV13AFR.BATCH.SRVC is detected as Integration."""
+        """Test that NAV13AFR.BATCH.SRVC is Manual (only JUMIA/NAV31AFR.BATCH.SRVC is Integration)."""
         df = pd.DataFrame({
             "User ID": ["NAV13AFR.BATCH.SRVC"]
         })
         result = classify_integration_type(df)
-        assert result.loc[0, "Integration_Type"] == "Integration"
+        assert result.loc[0, "Integration_Type"] == "Manual"
 
     def test_manual_user_nav_without_batch_srvc(self):
         """Test that NAV without BATCH/SRVC is Manual."""
@@ -91,13 +91,30 @@ class TestClassifyIntegrationType:
         result = classify_integration_type(df)
         assert result.loc[0, "Integration_Type"] == "Integration"
 
+    def test_backslash_separator(self):
+        """Test that backslash separator is normalized to forward slash."""
+        df = pd.DataFrame({
+            "User ID": ["JUMIA\\NAV31AFR.BATCH.SRVC"]
+        })
+        result = classify_integration_type(df)
+        assert result.loc[0, "Integration_Type"] == "Integration"
+
+    def test_backslash_separator_lowercase(self):
+        """Test backslash separator with lowercase."""
+        df = pd.DataFrame({
+            "User ID": ["jumia\\nav31afr.batch.srvc"]
+        })
+        result = classify_integration_type(df)
+        assert result.loc[0, "Integration_Type"] == "Integration"
+
 
 class TestIsIntegrationUser:
     """Tests for is_integration_user helper function."""
 
     def test_integration_pattern(self):
         assert is_integration_user("JUMIA/NAV31AFR.BATCH.SRVC") is True
-        assert is_integration_user("NAV13AFR.BATCH.SRVC") is True
+        assert is_integration_user("JUMIA\\NAV31AFR.BATCH.SRVC") is True  # Backslash separator
+        assert is_integration_user("NAV13AFR.BATCH.SRVC") is False
 
     def test_manual_pattern(self):
         assert is_integration_user("USER/01") is False
@@ -148,7 +165,7 @@ class TestClassifyIssuance:
         df = pd.DataFrame({
             "Amount": [-100.0],
             "Document Description": ["Refund voucher issued"],
-            "User ID": ["JUMIA/NAV13AFR.BATCH.SRVC"]
+            "User ID": ["JUMIA/NAV31AFR.BATCH.SRVC"]
         })
         # First classify integration type
         from src.bridges.cat_nav_classifier import classify_integration_type
@@ -309,15 +326,14 @@ class TestClassifyVTC:
         assert len(result) == 0
 
     def test_vtc_bank_account_negative(self):
-        """Test VTC via Bank Account with negative amount."""
+        """Test VTC via Bank Account with negative amount - should NOT classify (positive amounts only)."""
         df = pd.DataFrame({
             "Amount": [-5437.0],
             "Bal_ Account Type": ["Bank Account"],
             "Integration_Type": ["Manual"]
         })
         result = classify_vtc(df)
-        assert result.loc[0, "bridge_category"] == "VTC"
-        assert result.loc[0, "voucher_type"] == "Refund"
+        assert pd.isna(result.loc[0, "bridge_category"])
 
     def test_vtc_bank_account_positive(self):
         """Test VTC via Bank Account with positive amount."""
@@ -466,14 +482,14 @@ class TestCategorizationPipeline:
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -75.0,
-                "User ID": "JUMIA/NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
                 "Document Description": "Refund voucher",
             },
             # Usage (Integrated)
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 50.0,
-                "User ID": "JUMIA/NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
                 "Document Description": "Item price credit",
             },
             # VTC (Manual + RND)
@@ -507,7 +523,7 @@ class TestCategorizationPipeline:
         assert pd.isna(result.loc[4, "bridge_category"])
 
     def test_vtc_priority_over_issuance(self):
-        """Test that VTC Bank Account has priority over Issuance."""
+        """Test that VTC Bank Account has priority for positive amounts (negative amounts should be Issuance)."""
         df = pd.DataFrame([
             {
                 "Chart of Accounts No_": "18412",
@@ -518,8 +534,9 @@ class TestCategorizationPipeline:
             },
         ])
         result = categorize_nav_vouchers(df)
-        assert result.loc[0, "bridge_category"] == "VTC"
-        assert result.loc[0, "voucher_type"] == "Refund"
+        # Negative amount + Bank Account should be Issuance (Manual), not VTC
+        assert result.loc[0, "bridge_category"] == "Issuance"
+        assert result.loc[0, "Integration_Type"] == "Manual"
 
 
 class TestGetCategorizationSummary:
@@ -564,13 +581,13 @@ class TestBackwardCompatibility:
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -100.0,
-                "User ID": "JUMIA/NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
                 "Document Description": "Refund voucher",
             },
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 50.0,
-                "User ID": "JUMIA/NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
                 "Document Description": "Item price credit",
             },
         ])
