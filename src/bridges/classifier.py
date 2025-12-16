@@ -395,15 +395,15 @@ def _categorize_nav_vouchers(
     COUNTRY_CODES = ["NG", "EG", "KE", "GH", "CI", "MA", "TN", "ZA", "UG", "SN"]
 
     # Step 1: Determine Integration_Type for all rows
-    # Relaxed logic: If User ID contains "NAV" AND ("BATCH" OR "SRVC"), treat as Integration
+    # Strict matching: If User ID == "JUMIA/NAV31AFR.BATCH.SRVC", treat as Integration
     for idx, row in out.iterrows():
         user_id = (
             str(row[user_col]).strip().upper()
             if user_col and pd.notna(row[user_col])
             else ""
         )
-        # Check if user_id matches integration pattern: contains NAV AND (BATCH OR SRVC)
-        is_integration = "NAV" in user_id and ("BATCH" in user_id or "SRVC" in user_id)
+        # Strict match: only JUMIA/NAV31AFR.BATCH.SRVC is Integration
+        is_integration = user_id == "JUMIA/NAV31AFR.BATCH.SRVC"
         out.at[idx, "Integration_Type"] = "Integration" if is_integration else "Manual"
 
     # Apply categorization rules in order for each row
@@ -449,11 +449,11 @@ def _categorize_nav_vouchers(
 
         # =====================================================
         # Step 2 (Priority): VTC Manual via Bank Account
-        # Manual payments to customers (VTC) appear as negative amounts
+        # Manual payments to customers (VTC) appear as positive amounts
         # =====================================================
         if (
             integration_type == "Manual"
-            and amount != 0
+            and amount > 0
             and bal_account_type == "BANK ACCOUNT"
         ):
             out.at[idx, "bridge_category"] = "VTC"

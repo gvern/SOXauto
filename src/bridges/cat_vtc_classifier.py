@@ -4,7 +4,7 @@ VTC (Voucher to Cash) Classifier Module.
 Classifies NAV GL entries as VTC (Voucher to Cash) refund transactions.
 
 Business Rules (Priority Order):
-1. VTC via Bank Account: Manual + Amount != 0 + Bal_ Account Type = "Bank Account"
+1. VTC via Bank Account: Manual + Amount > 0 + Bal_ Account Type = "Bank Account"
 2. VTC via RND: Manual + Positive + "MANUAL RND" in description
 3. VTC via PYT/GTB: Manual + Positive + "PYT_" in description + "GTB" in comment
 
@@ -128,8 +128,8 @@ def classify_vtc(
             else ""
         )
 
-        # Priority 1: VTC via Bank Account (any non-zero amount)
-        if amount != 0 and bal_account_type == "BANK ACCOUNT":
+        # Priority 1: VTC via Bank Account (positive amounts only per business rule)
+        if amount > 0 and bal_account_type == "BANK ACCOUNT":
             out.at[idx, "bridge_category"] = "VTC"
             out.at[idx, "voucher_type"] = "Refund"
             continue
@@ -166,7 +166,7 @@ def classify_vtc_bank_account(
 
     Business Rule:
     - Manual user
-    - Non-zero amount
+    - Positive amount (> 0)
     - Balancing Account Type = "Bank Account"
 
     Args:
@@ -225,7 +225,7 @@ def classify_vtc_bank_account(
             else ""
         )
 
-        if amount != 0 and bal_account_type == "BANK ACCOUNT":
+        if amount > 0 and bal_account_type == "BANK ACCOUNT":
             out.at[idx, "bridge_category"] = "VTC"
             out.at[idx, "voucher_type"] = "Refund"
 

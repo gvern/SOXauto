@@ -4,7 +4,7 @@ NAV Classifier Module - Integration Type Detection.
 Determines whether a NAV GL entry is Manual or Integration based on the User ID.
 
 Business Rule:
-- If User ID contains "NAV" AND ("BATCH" OR "SRVC"), treat as Integration
+- If User ID == 'JUMIA/NAV31AFR.BATCH.SRVC' (strict match), treat as Integration
 - Otherwise, treat as Manual
 
 This is a pure function: DataFrame -> DataFrame
@@ -22,8 +22,8 @@ def classify_integration_type(
     """
     Classify NAV GL entries as Manual or Integration based on User ID.
 
-    The integration pattern matches user IDs containing "NAV" AND ("BATCH" OR "SRVC").
-    This indicates system/batch processing rather than manual entry.
+    The integration type is determined by strict matching against the
+    specific user ID 'JUMIA/NAV31AFR.BATCH.SRVC'.
 
     Args:
         df: DataFrame containing GL entries with a user ID column.
@@ -35,7 +35,7 @@ def classify_integration_type(
         'Integration' or 'Manual'.
 
     Example:
-        >>> df = pd.DataFrame({'User ID': ['JUMIA/NAV13AFR.BATCH.SRVC', 'USER/01']})
+        >>> df = pd.DataFrame({'User ID': ['JUMIA/NAV31AFR.BATCH.SRVC', 'USER/01']})
         >>> result = classify_integration_type(df)
         >>> print(result['Integration_Type'].tolist())
         ['Integration', 'Manual']
@@ -68,8 +68,8 @@ def classify_integration_type(
             if pd.notna(row[user_id_col])
             else ""
         )
-        # Check if user_id matches integration pattern: contains NAV AND (BATCH OR SRVC)
-        is_integration = "NAV" in user_id and ("BATCH" in user_id or "SRVC" in user_id)
+        # Strict match: only JUMIA/NAV31AFR.BATCH.SRVC is Integration
+        is_integration = user_id == "JUMIA/NAV31AFR.BATCH.SRVC"
         out.at[idx, "Integration_Type"] = "Integration" if is_integration else "Manual"
 
     return out
@@ -83,10 +83,10 @@ def is_integration_user(user_id: str) -> bool:
         user_id: The user ID string to check.
 
     Returns:
-        True if the user ID matches the integration pattern, False otherwise.
+        True if the user ID matches the integration user (JUMIA/NAV31AFR.BATCH.SRVC), False otherwise.
 
     Example:
-        >>> is_integration_user("JUMIA/NAV13AFR.BATCH.SRVC")
+        >>> is_integration_user("JUMIA/NAV31AFR.BATCH.SRVC")
         True
         >>> is_integration_user("USER/01")
         False
@@ -94,7 +94,7 @@ def is_integration_user(user_id: str) -> bool:
     if not user_id or pd.isna(user_id):
         return False
     user_id_upper = str(user_id).strip().upper()
-    return "NAV" in user_id_upper and ("BATCH" in user_id_upper or "SRVC" in user_id_upper)
+    return user_id_upper == "JUMIA/NAV31AFR.BATCH.SRVC"
 
 
 __all__ = ["classify_integration_type", "is_integration_user"]
