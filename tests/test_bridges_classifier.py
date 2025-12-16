@@ -534,7 +534,7 @@ def test_categorize_nav_vouchers_none_df():
 def test_categorize_nav_vouchers_step1_integration_type():
     """Test Step 1: Integration_Type detection (Manual vs Integration).
 
-    New logic: If User ID contains "NAV" AND ("BATCH" OR "SRVC"), treat as Integration.
+    New strict logic: Only User ID == "JUMIA/NAV31AFR.BATCH.SRVC" is Integration.
     """
     df = pd.DataFrame(
         [
@@ -547,7 +547,7 @@ def test_categorize_nav_vouchers_step1_integration_type():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 100.0,
-                "User ID": "NAV/13",  # Contains NAV but not BATCH or SRVC -> Manual
+                "User ID": "NAV/13",  # Manual (not the specific integration user)
                 "Document Description": "Test entry",
             },
             {
@@ -559,18 +559,16 @@ def test_categorize_nav_vouchers_step1_integration_type():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 100.0,
-                "User ID": "NAV13AFR.BATCH.SRVC",
+                "User ID": "NAV13AFR.BATCH.SRVC",  # Manual (not the specific integration user)
                 "Document Description": "Test entry",
             },
         ]
     )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "Integration_Type"] == "Integration"
-    assert (
-        result.loc[1, "Integration_Type"] == "Manual"
-    )  # Updated: NAV/13 without BATCH/SRVC is now Manual
+    assert result.loc[1, "Integration_Type"] == "Manual"
     assert result.loc[2, "Integration_Type"] == "Manual"
-    assert result.loc[3, "Integration_Type"] == "Integration"
+    assert result.loc[3, "Integration_Type"] == "Manual"
 
 
 # ========================================================================
@@ -708,7 +706,7 @@ def test_categorize_nav_vouchers_step3_usage_integrated():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 75.0,
-                "User ID": "JUMIA/NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
                 "Document Description": "Item price credit applied",
             },
             {
@@ -733,7 +731,7 @@ def test_categorize_nav_vouchers_step3_cancellation_apology_voucher_accrual():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 45.0,
-                "User ID": "JUMIA/NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
                 "Document Description": "Voucher Accrual reversal",
             }
         ]
@@ -750,7 +748,7 @@ def test_categorize_nav_vouchers_step3_usage_with_voucher_lookup():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 75.0,
-                "User ID": "JUMIA/NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
                 "Document Description": "Item price credit applied",
                 "[Voucher No_]": "V001",
             },
@@ -774,7 +772,7 @@ def test_categorize_nav_vouchers_step3_usage_fallback_doc_no():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 75.0,
-                "User ID": "JUMIA/NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
                 "Document Description": "Item price credit applied",
                 "[Voucher No_]": "",  # Empty voucher no
                 "Document No": "TXN001",
@@ -1017,14 +1015,14 @@ def test_categorize_nav_vouchers_mixed_scenarios():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -75.0,
-                "User ID": "JUMIA/NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
                 "Document Description": "Refund voucher",
             },
             # Usage (Integrated)
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 50.0,
-                "User ID": "JUMIA/NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
                 "Document Description": "Item price credit",
             },
             # VTC (Manual + RND)
@@ -1074,7 +1072,7 @@ def test_categorize_nav_vouchers_case_insensitivity():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -100.0,
-                "User ID": "jumia/nav13afr.batch.srvc",
+                "User ID": "jumia/nav31afr.batch.srvc",
                 "Document Description": "refund voucher issued",
             },
         ]
@@ -1091,7 +1089,7 @@ def test_categorize_nav_vouchers_returns_enriched_columns():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": 100.0,
-                "User ID": "JUMIA/NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
                 "Document Description": "Test",
             },
         ]
@@ -1605,13 +1603,13 @@ def test_calculate_timing_difference_bridge_comprehensive():
 
 
 def test_categorize_nav_vouchers_production_integration_user_nav13():
-    """Test production data pattern: JUMIA\\NAV13AFR.BATCH.SRVC as Integration user."""
+    """Test production data pattern: JUMIA\\NAV31AFR.BATCH.SRVC as Integration user."""
     df = pd.DataFrame(
         [
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -100.0,
-                "User ID": "JUMIA\\NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA\\NAV31AFR.BATCH.SRVC",
                 "Document Description": "RF_317489956_0925",
             },
         ]
@@ -1629,7 +1627,7 @@ def test_categorize_nav_vouchers_production_rf_prefix_pattern():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -5437.00,
-                "User ID": "JUMIA\\NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA\\NAV31AFR.BATCH.SRVC",
                 "Document Description": "RF_317489956_0925",
             },
         ]
@@ -1640,7 +1638,7 @@ def test_categorize_nav_vouchers_production_rf_prefix_pattern():
 
 
 def test_categorize_nav_vouchers_production_vtc_bank_account_negative():
-    """Test production data pattern: VTC via Bank Account with negative amount."""
+    """Test production data pattern: VTC via Bank Account with negative amount should be Issuance."""
     df = pd.DataFrame(
         [
             {
@@ -1654,8 +1652,8 @@ def test_categorize_nav_vouchers_production_vtc_bank_account_negative():
     )
     result = _categorize_nav_vouchers(df)
     assert result.loc[0, "Integration_Type"] == "Manual"
-    assert result.loc[0, "bridge_category"] == "VTC"
-    assert result.loc[0, "voucher_type"] == "Refund"
+    # Negative amount + Bank Account should be Issuance (not VTC - positive amounts only)
+    assert result.loc[0, "bridge_category"] == "Issuance"
 
 
 def test_categorize_nav_vouchers_production_vtc_bank_account_positive():
@@ -1684,7 +1682,7 @@ def test_categorize_nav_vouchers_production_pyt_jforce():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -200.0,
-                "User ID": "JUMIA\\NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA\\NAV31AFR.BATCH.SRVC",
                 "Document Description": "PYT_123456_0925",
             },
         ]
@@ -1701,7 +1699,7 @@ def test_categorize_nav_vouchers_production_case_insensitivity():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -100.0,
-                "User ID": "jumia\\nav13afr.batch.srvc",
+                "User ID": "jumia\\nav31afr.batch.srvc",
                 "Document Description": "rf_317489956_0925",
             },
         ]
@@ -1719,10 +1717,10 @@ def test_categorize_nav_vouchers_production_combined_scenario():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -5437.00,
-                "User ID": "JUMIA\\NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA\\NAV31AFR.BATCH.SRVC",
                 "Document Description": "RF_317489956_0925",
             },
-            # Manual user with Bank Account (VTC negative)
+            # Manual user with Bank Account (VTC positive only - negative becomes Issuance)
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -3250.00,
@@ -1734,7 +1732,7 @@ def test_categorize_nav_vouchers_production_combined_scenario():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -1500.00,
-                "User ID": "JUMIA\\NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA\\NAV31AFR.BATCH.SRVC",
                 "Document Description": "PYT_789012_0925",
             },
             # Manual user without Bank Account (generic issuance)
@@ -1752,9 +1750,9 @@ def test_categorize_nav_vouchers_production_combined_scenario():
     assert result.loc[0, "Integration_Type"] == "Integration"
     assert result.loc[0, "bridge_category"] == "Issuance - Refund"
 
-    # Row 1: Manual + Bank Account = VTC
+    # Row 1: Manual + Bank Account + Negative amount = Issuance (not VTC)
     assert result.loc[1, "Integration_Type"] == "Manual"
-    assert result.loc[1, "bridge_category"] == "VTC"
+    assert result.loc[1, "bridge_category"] == "Issuance"
 
     # Row 2: Integration + PYT_ = Issuance - JForce
     assert result.loc[2, "Integration_Type"] == "Integration"
@@ -1772,7 +1770,7 @@ def test_categorize_nav_vouchers_production_rf_space_pattern():
             {
                 "Chart of Accounts No_": "18412",
                 "Amount": -100.0,
-                "User ID": "JUMIA\\NAV13AFR.BATCH.SRVC",
+                "User ID": "JUMIA\\NAV31AFR.BATCH.SRVC",
                 "Document Description": "RF 317489956 0925",
             },
         ]
