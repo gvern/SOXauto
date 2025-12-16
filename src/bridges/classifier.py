@@ -589,6 +589,44 @@ def _categorize_nav_vouchers(
     return out
 
 
+def _lookup_by_transaction_no(
+    df: pd.DataFrame,
+    doc_no: str
+) -> Optional[str]:
+    """
+    Helper function to lookup business_use by matching doc_no to Transaction_No column.
+    
+    Handles various Transaction_No column naming conventions.
+    
+    Args:
+        df: DataFrame to search (must have Transaction_No and business_use columns)
+        doc_no: Document number to match
+    
+    Returns:
+        The business_use value if found, None otherwise
+    """
+    if df is None or df.empty or not doc_no:
+        return None
+    
+    # Find Transaction_No column (handle various naming conventions)
+    transaction_col = None
+    for col in ["Transaction_No", "transaction_no", "Transaction_No_", "TransactionNo"]:
+        if col in df.columns:
+            transaction_col = col
+            break
+    
+    if transaction_col:
+        try:
+            match = df[df[transaction_col].astype(str).str.strip() == str(doc_no).strip()]
+            if not match.empty and "business_use" in match.columns:
+                return str(match.iloc[0]["business_use"])
+        except (TypeError, ValueError, AttributeError):
+            # Handle conversion errors gracefully
+            pass
+    
+    return None
+
+
 def _lookup_voucher_type(
     voucher_no: str,
     doc_no: str,
@@ -635,7 +673,7 @@ def _lookup_voucher_type(
         # Try IPE_08 first (Issuance data takes priority)
         if ipe_08_df is not None and not ipe_08_df.empty:
             if voucher_no:
-                match = ipe_08_df[ipe_08_df["id"].astype(str) == str(voucher_no)]
+                match = ipe_08_df[ipe_08_df["id"].astype(str).str.strip() == str(voucher_no).strip()]
                 if not match.empty and "business_use" in match.columns:
                     return str(match.iloc[0]["business_use"])
 
@@ -643,7 +681,7 @@ def _lookup_voucher_type(
         if doc_voucher_usage_df is not None and not doc_voucher_usage_df.empty:
             if voucher_no:
                 match = doc_voucher_usage_df[
-                    doc_voucher_usage_df["id"].astype(str) == str(voucher_no)
+                    doc_voucher_usage_df["id"].astype(str).str.strip() == str(voucher_no).strip()
                 ]
                 if not match.empty and "business_use" in match.columns:
                     return str(match.iloc[0]["business_use"])
@@ -656,33 +694,18 @@ def _lookup_voucher_type(
             # - Voucher No_ doesn't match any records
             # - Nigeria Integration Issue (ITEMPRICECREDIT without voucher ID)
             
-            if doc_no:
-                # Find Transaction_No column (handle various naming conventions)
-                transaction_col = None
-                for col in ["Transaction_No", "transaction_no", "Transaction_No_", "TransactionNo"]:
-                    if col in doc_voucher_usage_df.columns:
-                        transaction_col = col
-                        break
-                
-                if transaction_col:
-                    match = doc_voucher_usage_df[
-                        doc_voucher_usage_df[transaction_col].astype(str) == str(doc_no)
-                    ]
-                    if not match.empty and "business_use" in match.columns:
-                        return str(match.iloc[0]["business_use"])
+            result = _lookup_by_transaction_no(doc_voucher_usage_df, doc_no)
+            if result:
+                return result
         
         # Also try IPE_08 by Transaction_No if column exists (defensive coding)
         # Though typically IPE_08 (Issuance) doesn't have Transaction_No, 
         # we check anyway for robustness in case data schema evolves
-        if ipe_08_df is not None and not ipe_08_df.empty and doc_no:
-            for col in ["Transaction_No", "transaction_no", "Transaction_No_", "TransactionNo"]:
-                if col in ipe_08_df.columns:
-                    match = ipe_08_df[ipe_08_df[col].astype(str) == str(doc_no)]
-                    if not match.empty and "business_use" in match.columns:
-                        return str(match.iloc[0]["business_use"])
-                    break  # Only try first matching column name
+        result = _lookup_by_transaction_no(ipe_08_df, doc_no)
+        if result:
+            return result
                     
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, AttributeError):
         # Handle conversion errors gracefully
         pass
 

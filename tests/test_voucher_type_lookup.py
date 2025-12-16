@@ -157,17 +157,28 @@ class TestVoucherTypeLookupEdgeCases:
         assert result == "apology"
     
     def test_whitespace_handling(self):
-        """Test that whitespace in IDs doesn't prevent matching"""
+        """Test that whitespace in IDs is handled correctly"""
         doc_voucher_usage_df = pd.DataFrame({
             "id": ["V101 ", " V102", "V103"],
             "business_use": ["refund", "apology", "jforce"],
             "Transaction_No": ["TRX001", "TRX002", "TRX003"]
         })
         
-        # Note: Current implementation uses astype(str) which preserves whitespace
-        # This test documents current behavior - enhancement could add .strip()
+        # Enhanced implementation strips whitespace for robust matching
         result = lookup_voucher_type("V102", "DOC123", None, doc_voucher_usage_df)
-        assert result is None, "Current implementation doesn't strip whitespace"
+        assert result == "apology", "Implementation should strip whitespace for robust matching"
+    
+    def test_whitespace_in_transaction_no(self):
+        """Test that whitespace in Transaction_No is handled correctly"""
+        doc_voucher_usage_df = pd.DataFrame({
+            "id": ["V101"],
+            "business_use": ["store_credit"],
+            "Transaction_No": [" TRX-SPACE "]  # Whitespace in Transaction_No
+        })
+        
+        # Should match even with whitespace
+        result = lookup_voucher_type("", "TRX-SPACE", None, doc_voucher_usage_df)
+        assert result == "store_credit", "Implementation should strip whitespace in Transaction_No"
 
 
 class TestNigeriaIntegrationIssue:
