@@ -402,8 +402,9 @@ def _categorize_nav_vouchers(
             if user_col and pd.notna(row[user_col])
             else ""
         )
-        # Strict match: only JUMIA/NAV31AFR.BATCH.SRVC is Integration
-        is_integration = user_id == "JUMIA/NAV31AFR.BATCH.SRVC"
+        # Normalize slashes for strict match: treat both / and \ as equivalent
+        normalized_user_id = user_id.replace("\\", "/")
+        is_integration = normalized_user_id == "JUMIA/NAV31AFR.BATCH.SRVC"
         out.at[idx, "Integration_Type"] = "Integration" if is_integration else "Manual"
 
     # Apply categorization rules in order for each row
