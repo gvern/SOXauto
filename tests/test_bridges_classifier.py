@@ -506,6 +506,244 @@ def test_calculate_vtc_adjustment_non_cancellation_categories():
     assert metrics["total_count"] == len(proof)
 
 
+def test_calculate_vtc_adjustment_with_date_filter_within_month():
+    """Test VTC adjustment with date filter - vouchers within reconciliation month."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "inactive_at": "2024-09-15",  # Within September
+                "Remaining Amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "inactive_at": "2024-09-30",  # Within September (last day)
+                "Remaining Amount": 200.0,
+            },
+            {
+                "id": "V003",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "inactive_at": "2024-08-31",  # August - should be excluded
+                "Remaining Amount": 150.0,
+            },
+        ]
+    )
+
+    cr_03_df = pd.DataFrame()
+
+    adjustment, proof, metrics = calculate_vtc_adjustment(
+        ipe_08_df, cr_03_df, cutoff_date="2024-09-30"
+    )
+
+    # Only V001 and V002 should be included (inactive in September)
+    assert adjustment == 300.0
+    assert len(proof) == 2
+    assert "V001" in proof["id"].values
+    assert "V002" in proof["id"].values
+    assert "V003" not in proof["id"].values
+    assert metrics["total_count"] == 2
+
+
+def test_calculate_vtc_adjustment_with_date_filter_outside_month():
+    """Test VTC adjustment with date filter - all vouchers outside reconciliation month."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "inactive_at": "2024-08-15",  # August - excluded
+                "Remaining Amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "inactive_at": "2024-10-01",  # October - excluded
+                "Remaining Amount": 200.0,
+            },
+        ]
+    )
+
+    cr_03_df = pd.DataFrame()
+
+    adjustment, proof, metrics = calculate_vtc_adjustment(
+        ipe_08_df, cr_03_df, cutoff_date="2024-09-30"
+    )
+
+    # No vouchers should be included
+    assert adjustment == 0.0
+    assert len(proof) == 0
+    assert metrics["total_count"] == 0
+
+
+def test_calculate_vtc_adjustment_with_date_filter_month_boundaries():
+    """Test VTC adjustment with date filter - test month boundary cases."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "inactive_at": "2024-09-01",  # First day of September
+                "Remaining Amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "inactive_at": "2024-09-30",  # Last day of September
+                "Remaining Amount": 200.0,
+            },
+            {
+                "id": "V003",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "inactive_at": "2024-08-31",  # Day before September
+                "Remaining Amount": 150.0,
+            },
+            {
+                "id": "V004",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "inactive_at": "2024-10-01",  # Day after September
+                "Remaining Amount": 250.0,
+            },
+        ]
+    )
+
+    cr_03_df = pd.DataFrame()
+
+    adjustment, proof, metrics = calculate_vtc_adjustment(
+        ipe_08_df, cr_03_df, cutoff_date="2024-09-30"
+    )
+
+    # Only V001 and V002 should be included (both are within September boundaries)
+    assert adjustment == 300.0
+    assert len(proof) == 2
+    assert set(proof["id"].values) == {"V001", "V002"}
+    assert metrics["total_count"] == 2
+
+
+def test_calculate_vtc_adjustment_without_date_filter():
+    """Test VTC adjustment without date filter - should include all vouchers (backward compatibility)."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "inactive_at": "2024-01-15",
+                "Remaining Amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "inactive_at": "2024-09-15",
+                "Remaining Amount": 200.0,
+            },
+        ]
+    )
+
+    cr_03_df = pd.DataFrame()
+
+    # Without cutoff_date, should include all vouchers
+    adjustment, proof, metrics = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
+
+    assert adjustment == 300.0
+    assert len(proof) == 2
+    assert metrics["total_count"] == 2
+
+
+def test_calculate_vtc_adjustment_with_date_filter_no_inactive_at_column():
+    """Test VTC adjustment with date filter when inactive_at column is missing."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                # No inactive_at column
+                "Remaining Amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                # No inactive_at column
+                "Remaining Amount": 200.0,
+            },
+        ]
+    )
+
+    cr_03_df = pd.DataFrame()
+
+    # With cutoff_date but no inactive_at column, should include all vouchers
+    # (date filter is silently skipped when column is missing)
+    adjustment, proof, metrics = calculate_vtc_adjustment(
+        ipe_08_df, cr_03_df, cutoff_date="2024-09-30"
+    )
+
+    assert adjustment == 300.0
+    assert len(proof) == 2
+    assert metrics["total_count"] == 2
+
+
+def test_calculate_vtc_adjustment_with_date_filter_december():
+    """Test VTC adjustment with date filter - December edge case (year boundary)."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "inactive_at": "2024-12-15",  # Within December
+                "Remaining Amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "inactive_at": "2025-01-01",  # January next year - excluded
+                "Remaining Amount": 200.0,
+            },
+        ]
+    )
+
+    cr_03_df = pd.DataFrame()
+
+    adjustment, proof, metrics = calculate_vtc_adjustment(
+        ipe_08_df, cr_03_df, cutoff_date="2024-12-31"
+    )
+
+    # Only V001 should be included (inactive in December 2024)
+    assert adjustment == 100.0
+    assert len(proof) == 1
+    assert proof.iloc[0]["id"] == "V001"
+    assert metrics["total_count"] == 1
+
+
 def test_categorize_nav_vouchers_empty_df():
     """Test that empty DataFrames are handled correctly."""
     empty_df = pd.DataFrame()
