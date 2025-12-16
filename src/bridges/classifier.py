@@ -649,8 +649,9 @@ def calculate_timing_difference_bridge(
     against Delivered Amount (IPE_08 - Issuance).
 
     Logic (Validated Manual Process - Finance Team):
-    Compares the Ordered Amount from Jdash export against the Delivered Amount
-    from the Issuance IPE to identify timing differences (pending/timing difference).
+    Compares the Ordered Amount (Usage from Ops) from Jdash export against 
+    the Total Amount Used (Usage from Accounting) from the Issuance IPE to 
+    identify timing differences (pending/timing difference).
 
     Business Rules:
     1. Filter Source A (IPE_08 - Issuance):
@@ -658,29 +659,30 @@ def calculate_timing_difference_bridge(
        - Filter for is_active == 0 (Inactive)
        - Filter for business_use in NON_MARKETING_USES
     2. Prepare Source B (Jdash):
-       - Aggregate by Voucher Id summing Amount Used
+       - Aggregate by Voucher Id summing Amount Used (Ops)
     3. Reconciliation Logic:
        - Left Join of Filtered IPE_08 (Left) with Jdash (Right) on Voucher ID
        - Fill missing Jdash amounts with 0
     4. Calculate Variance:
-       - Variance = Jdash['Amount Used'] - IPE_08['TotalAmountUsed']
-       - (Ordered Amount - Delivered Amount = Pending/Timing Difference)
+       - Variance = Jdash['Amount Used'] - IPE_08['Total Amount Used']
+       - (Ordered Amount from Ops - Usage Amount from Accounting = Pending/Timing Difference)
+       - IMPORTANT: Use "Total Amount Used" NOT "Remaining Amount" or "Discount Amount"
 
     Args:
         jdash_df: DataFrame from Jdash export with columns:
             - Voucher Id: Voucher identifier
-            - Amount Used: Amount ordered/used
+            - Amount Used: Amount ordered/used from Ops
         ipe_08_df: DataFrame from IPE_08 (Issuance) with columns:
             - id: Voucher ID
             - business_use: Business use type
             - is_active: Active status (0 for inactive)
-            - TotalAmountUsed: Delivered amount
+            - Total Amount Used (or usage_tv): Usage amount from Accounting (NOT Remaining Amount)
             - created_at: Creation date of voucher
         cutoff_date: Reconciliation cutoff date (YYYY-MM-DD)
 
     Returns:
         tuple: (variance_sum, proof_df) where:
-            - variance_sum: Sum of variance (Jdash Amount - IPE_08 Amount)
+            - variance_sum: Sum of variance (Jdash Amount Used from Ops - IPE_08 Total Amount Used from Accounting)
             - proof_df: DataFrame with reconciliation details including variance
     """
     # Define Non-Marketing voucher types
@@ -744,8 +746,9 @@ def calculate_timing_difference_bridge(
         return 0.0, pd.DataFrame()
 
     # Find the amount column in IPE_08 (handle various naming conventions)
+    # Priority: Look for "Total Amount Used" or "usage_tv" (NOT "Remaining Amount" or "Discount Amount")
     ipe_amount_col = None
-    for col in ["TotalAmountUsed", "total_amount_used", "Remaining Amount", "remaining_amount"]:
+    for col in ["Total Amount Used", "total_amount_used", "TotalAmountUsed", "usage_tv", "Usage_TV"]:
         if col in df_ipe.columns:
             ipe_amount_col = col
             break
@@ -820,7 +823,7 @@ def calculate_timing_difference_bridge(
     # Fill missing Jdash amounts with 0
     merged_df["Jdash_Amount_Used"] = merged_df["Jdash_Amount_Used"].fillna(0.0)
 
-    # Step 4: Calculate Variance = Jdash['Amount Used'] - IPE_08['TotalAmountUsed']
+    # Step 4: Calculate Variance = Jdash['Amount Used'] - IPE_08['Total Amount Used']
     merged_df["Variance"] = merged_df["Jdash_Amount_Used"] - merged_df[ipe_amount_col]
 
     # Step 5: Output - Return the sum of variance and the proof DataFrame
