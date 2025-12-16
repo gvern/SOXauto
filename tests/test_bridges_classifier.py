@@ -1116,14 +1116,14 @@ def test_calculate_timing_difference_bridge_basic():
                 "id": "V001",
                 "business_use": "refund",
                 "is_active": 0,  # Inactive
-                "TotalAmountUsed": 100.0,
+                "Total Amount Used": 100.0,
                 "created_at": "2024-10-15",
             },
             {
                 "id": "V002",
                 "business_use": "apology_v2",
                 "is_active": 0,  # Inactive
-                "TotalAmountUsed": 200.0,
+                "Total Amount Used": 200.0,
                 "created_at": "2024-10-20",
             },
         ]
@@ -1141,7 +1141,7 @@ def test_calculate_timing_difference_bridge_basic():
         jdash_df, ipe_08_df, "2024-10-31"
     )
 
-    # Variance = Jdash['Amount Used'] - IPE_08['TotalAmountUsed']
+    # Variance = Jdash['Amount Used'] - IPE_08['Total Amount Used']
     # V001: 150 - 100 = 50
     # V002: 180 - 200 = -20
     # Total: 50 + (-20) = 30
@@ -1192,14 +1192,14 @@ def test_calculate_timing_difference_bridge_empty_jdash():
                 "id": "V001",
                 "business_use": "refund",
                 "is_active": 0,
-                "TotalAmountUsed": 100.0,
+                "Total Amount Used": 100.0,
                 "created_at": "2024-10-15",
             },
             {
                 "id": "V002",
                 "business_use": "apology_v2",
                 "is_active": 0,
-                "TotalAmountUsed": 200.0,
+                "Total Amount Used": 200.0,
                 "created_at": "2024-10-20",
             },
         ]
@@ -1226,14 +1226,14 @@ def test_calculate_timing_difference_bridge_filter_active_vouchers():
                 "id": "V001",
                 "business_use": "refund",
                 "is_active": 0,  # Inactive - included
-                "TotalAmountUsed": 100.0,
+                "Total Amount Used": 100.0,
                 "created_at": "2024-10-15",
             },
             {
                 "id": "V002",
                 "business_use": "refund",
                 "is_active": 1,  # Active - excluded
-                "TotalAmountUsed": 200.0,
+                "Total Amount Used": 200.0,
                 "created_at": "2024-10-15",
             },
         ]
@@ -1265,21 +1265,21 @@ def test_calculate_timing_difference_bridge_filter_non_marketing():
                 "id": "V001",
                 "business_use": "refund",  # Non-marketing
                 "is_active": 0,
-                "TotalAmountUsed": 100.0,
+                "Total Amount Used": 100.0,
                 "created_at": "2024-10-15",
             },
             {
                 "id": "V002",
                 "business_use": "marketing",  # Marketing - excluded
                 "is_active": 0,
-                "TotalAmountUsed": 200.0,
+                "Total Amount Used": 200.0,
                 "created_at": "2024-10-15",
             },
             {
                 "id": "V003",
                 "business_use": "jforce",  # Non-marketing
                 "is_active": 0,
-                "TotalAmountUsed": 150.0,
+                "Total Amount Used": 150.0,
                 "created_at": "2024-10-15",
             },
         ]
@@ -1314,21 +1314,21 @@ def test_calculate_timing_difference_bridge_filter_one_year():
                 "id": "V001",
                 "business_use": "refund",
                 "is_active": 0,
-                "TotalAmountUsed": 100.0,
+                "Total Amount Used": 100.0,
                 "created_at": "2024-10-15",  # Within 1 year
             },
             {
                 "id": "V002",
                 "business_use": "refund",
                 "is_active": 0,
-                "TotalAmountUsed": 200.0,
+                "Total Amount Used": 200.0,
                 "created_at": "2023-10-31",  # Exactly 1 year before cutoff (included)
             },
             {
                 "id": "V003",
                 "business_use": "refund",
                 "is_active": 0,
-                "TotalAmountUsed": 150.0,
+                "Total Amount Used": 150.0,
                 "created_at": "2023-10-01",  # More than 1 year ago - excluded
             },
         ]
@@ -1363,7 +1363,7 @@ def test_calculate_timing_difference_bridge_jdash_aggregation():
                 "id": "V001",
                 "business_use": "refund",
                 "is_active": 0,
-                "TotalAmountUsed": 100.0,
+                "Total Amount Used": 100.0,
                 "created_at": "2024-10-15",
             },
         ]
@@ -1396,14 +1396,14 @@ def test_calculate_timing_difference_bridge_unmatched_vouchers():
                 "id": "V001",
                 "business_use": "refund",
                 "is_active": 0,
-                "TotalAmountUsed": 100.0,
+                "Total Amount Used": 100.0,
                 "created_at": "2024-10-15",
             },
             {
                 "id": "V002",
                 "business_use": "refund",
                 "is_active": 0,
-                "TotalAmountUsed": 200.0,
+                "Total Amount Used": 200.0,
                 "created_at": "2024-10-20",
             },
         ]
@@ -1435,35 +1435,35 @@ def test_calculate_timing_difference_bridge_all_non_marketing_types():
                 "id": "V001",
                 "business_use": "apology_v2",
                 "is_active": 0,
-                "TotalAmountUsed": 100.0,
+                "Total Amount Used": 100.0,
                 "created_at": "2024-10-15",
             },
             {
                 "id": "V002",
                 "business_use": "jforce",
                 "is_active": 0,
-                "TotalAmountUsed": 200.0,
+                "Total Amount Used": 200.0,
                 "created_at": "2024-10-15",
             },
             {
                 "id": "V003",
                 "business_use": "refund",
                 "is_active": 0,
-                "TotalAmountUsed": 150.0,
+                "Total Amount Used": 150.0,
                 "created_at": "2024-10-15",
             },
             {
                 "id": "V004",
                 "business_use": "store_credit",
                 "is_active": 0,
-                "TotalAmountUsed": 50.0,
+                "Total Amount Used": 50.0,
                 "created_at": "2024-10-15",
             },
             {
                 "id": "V005",
                 "business_use": "Jpay store_credit",
                 "is_active": 0,
-                "TotalAmountUsed": 75.0,
+                "Total Amount Used": 75.0,
                 "created_at": "2024-10-15",
             },
         ]
@@ -1496,7 +1496,7 @@ def test_calculate_timing_difference_bridge_output_format():
                 "id": "V001",
                 "business_use": "refund",
                 "is_active": 0,
-                "TotalAmountUsed": 100.0,
+                "Total Amount Used": 100.0,
                 "created_at": "2024-10-15",
             },
         ]
@@ -1516,7 +1516,7 @@ def test_calculate_timing_difference_bridge_output_format():
     # Check required columns are present
     assert "id" in proof_df.columns
     assert "business_use" in proof_df.columns
-    assert "TotalAmountUsed" in proof_df.columns
+    assert "Total Amount Used" in proof_df.columns
     assert "Jdash_Amount_Used" in proof_df.columns
     assert "Variance" in proof_df.columns
     assert len(proof_df) == 1
@@ -1531,7 +1531,7 @@ def test_calculate_timing_difference_bridge_comprehensive():
                 "id": "V001",
                 "business_use": "refund",
                 "is_active": 0,
-                "TotalAmountUsed": 100.0,
+                "Total Amount Used": 100.0,
                 "created_at": "2024-10-15",
             },
             # Excluded: active
@@ -1539,7 +1539,7 @@ def test_calculate_timing_difference_bridge_comprehensive():
                 "id": "V002",
                 "business_use": "refund",
                 "is_active": 1,
-                "TotalAmountUsed": 200.0,
+                "Total Amount Used": 200.0,
                 "created_at": "2024-10-15",
             },
             # Excluded: marketing
@@ -1547,7 +1547,7 @@ def test_calculate_timing_difference_bridge_comprehensive():
                 "id": "V003",
                 "business_use": "marketing",
                 "is_active": 0,
-                "TotalAmountUsed": 300.0,
+                "Total Amount Used": 300.0,
                 "created_at": "2024-10-15",
             },
             # Included: inactive, non-marketing, within 1 year
@@ -1555,7 +1555,7 @@ def test_calculate_timing_difference_bridge_comprehensive():
                 "id": "V004",
                 "business_use": "apology_v2",
                 "is_active": 0,
-                "TotalAmountUsed": 150.0,
+                "Total Amount Used": 150.0,
                 "created_at": "2024-06-01",
             },
             # Included but no Jdash match
@@ -1563,7 +1563,7 @@ def test_calculate_timing_difference_bridge_comprehensive():
                 "id": "V005",
                 "business_use": "store_credit",
                 "is_active": 0,
-                "TotalAmountUsed": 75.0,
+                "Total Amount Used": 75.0,
                 "created_at": "2024-09-01",
             },
         ]
@@ -1597,6 +1597,72 @@ def test_calculate_timing_difference_bridge_comprehensive():
     # Verify excluded vouchers
     assert "V002" not in included_ids
     assert "V003" not in included_ids
+
+
+def test_calculate_timing_difference_bridge_column_priority():
+    """Test that the function prioritizes 'Total Amount Used' over 'Remaining Amount'."""
+    # Create IPE_08 data with both columns to ensure the right one is used
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "is_active": 0,
+                "Total Amount Used": 100.0,  # This should be used
+                "Remaining Amount": 500.0,  # This should be ignored
+                "Discount Amount": 600.0,   # This should also be ignored
+                "created_at": "2024-10-15",
+            },
+        ]
+    )
+
+    jdash_df = pd.DataFrame(
+        [
+            {"Voucher Id": "V001", "Amount Used": 150.0},
+        ]
+    )
+
+    variance_sum, proof_df = calculate_timing_difference_bridge(
+        jdash_df, ipe_08_df, "2024-10-31"
+    )
+
+    # Variance should be calculated using "Total Amount Used" (100.0), NOT "Remaining Amount" (500.0)
+    # Expected: 150.0 - 100.0 = 50.0
+    # NOT: 150.0 - 500.0 = -350.0 (if Remaining Amount was used)
+    assert variance_sum == 50.0
+    assert len(proof_df) == 1
+    assert proof_df.iloc[0]["Total Amount Used"] == 100.0
+
+
+def test_calculate_timing_difference_bridge_missing_total_amount_used():
+    """Test that function returns empty when 'Total Amount Used' column is missing."""
+    # Create IPE_08 data without 'Total Amount Used' column
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "is_active": 0,
+                "Remaining Amount": 500.0,  # Only has Remaining Amount (should not be used)
+                "Discount Amount": 600.0,
+                "created_at": "2024-10-15",
+            },
+        ]
+    )
+
+    jdash_df = pd.DataFrame(
+        [
+            {"Voucher Id": "V001", "Amount Used": 150.0},
+        ]
+    )
+
+    variance_sum, proof_df = calculate_timing_difference_bridge(
+        jdash_df, ipe_08_df, "2024-10-31"
+    )
+
+    # Should return empty result since required column is missing
+    assert variance_sum == 0.0
+    assert proof_df.empty
 
 
 # ========================================================================
