@@ -68,8 +68,9 @@ def classify_integration_type(
             if pd.notna(row[user_id_col])
             else ""
         )
-        # Strict match: only JUMIA/NAV31AFR.BATCH.SRVC is Integration
-        is_integration = user_id == "JUMIA/NAV31AFR.BATCH.SRVC"
+        # Normalize slashes for strict match: treat both / and \ as equivalent
+        normalized_user_id = user_id.replace("\\", "/")
+        is_integration = normalized_user_id == "JUMIA/NAV31AFR.BATCH.SRVC"
         out.at[idx, "Integration_Type"] = "Integration" if is_integration else "Manual"
 
     return out
@@ -88,13 +89,17 @@ def is_integration_user(user_id: str) -> bool:
     Example:
         >>> is_integration_user("JUMIA/NAV31AFR.BATCH.SRVC")
         True
+        >>> is_integration_user("JUMIA\\NAV31AFR.BATCH.SRVC")
+        True
         >>> is_integration_user("USER/01")
         False
     """
     if not user_id or pd.isna(user_id):
         return False
     user_id_upper = str(user_id).strip().upper()
-    return user_id_upper == "JUMIA/NAV31AFR.BATCH.SRVC"
+    # Normalize slashes for strict match: treat both / and \ as equivalent
+    normalized_user_id = user_id_upper.replace("\\", "/")
+    return normalized_user_id == "JUMIA/NAV31AFR.BATCH.SRVC"
 
 
 __all__ = ["classify_integration_type", "is_integration_user"]

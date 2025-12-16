@@ -91,12 +91,29 @@ class TestClassifyIntegrationType:
         result = classify_integration_type(df)
         assert result.loc[0, "Integration_Type"] == "Integration"
 
+    def test_backslash_separator(self):
+        """Test that backslash separator is normalized to forward slash."""
+        df = pd.DataFrame({
+            "User ID": ["JUMIA\\NAV31AFR.BATCH.SRVC"]
+        })
+        result = classify_integration_type(df)
+        assert result.loc[0, "Integration_Type"] == "Integration"
+
+    def test_backslash_separator_lowercase(self):
+        """Test backslash separator with lowercase."""
+        df = pd.DataFrame({
+            "User ID": ["jumia\\nav31afr.batch.srvc"]
+        })
+        result = classify_integration_type(df)
+        assert result.loc[0, "Integration_Type"] == "Integration"
+
 
 class TestIsIntegrationUser:
     """Tests for is_integration_user helper function."""
 
     def test_integration_pattern(self):
         assert is_integration_user("JUMIA/NAV31AFR.BATCH.SRVC") is True
+        assert is_integration_user("JUMIA\\NAV31AFR.BATCH.SRVC") is True  # Backslash separator
         assert is_integration_user("NAV13AFR.BATCH.SRVC") is False
 
     def test_manual_pattern(self):
