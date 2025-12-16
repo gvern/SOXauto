@@ -147,6 +147,7 @@ def calculate_vtc_adjustment(
     ipe_08_df: Optional[pd.DataFrame],
     categorized_cr_03_df: Optional[pd.DataFrame],
     fx_converter: Optional["FXConverter"] = None,
+    cutoff_date: Optional[str] = None,
 ) -> Tuple[float, pd.DataFrame, Dict[str, Any]]:
     """Calculate VTC (Voucher to Cash) refund reconciliation adjustment.
 
@@ -159,6 +160,7 @@ def calculate_vtc_adjustment(
             - business_use: Business use type
             - is_valid: Validity status (or Is_Valid)
             - is_active: Active status (0 for canceled)
+            - inactive_at: Date when voucher became inactive (for date filtering)
             - remaining_amount: Amount for the voucher
             - ID_COMPANY: Company code (required if fx_converter is provided)
         categorized_cr_03_df: DataFrame containing categorized NAV GL entries with columns:
@@ -166,6 +168,9 @@ def calculate_vtc_adjustment(
             - bridge_category: Category of the entry (e.g., 'Cancellation', 'VTC Manual')
         fx_converter: Optional FXConverter instance for USD conversion.
                      If None, returns amounts in local currency.
+        cutoff_date: Optional cutoff date (YYYY-MM-DD format) for filtering by reconciliation month.
+                     If provided, only vouchers where inactive_at falls within the cutoff month
+                     will be included.
 
     Returns:
         tuple: (adjustment_amount_usd, proof_df, vtc_metrics) where:
@@ -209,6 +214,32 @@ def calculate_vtc_adjustment(
     
     if "is_active" in filtered_ipe_08.columns:
         filter_condition &= (filtered_ipe_08["is_active"] == 0)
+    
+    # Apply date filter if cutoff_date is provided and inactive_at column exists
+    if cutoff_date is not None:
+        # Find the inactive_at column (handle various naming conventions)
+        inactive_at_col = None
+        for col in ["inactive_at", "Inactive_At", "inactive_date", "Inactive_Date"]:
+            if col in filtered_ipe_08.columns:
+                inactive_at_col = col
+                break
+        
+        if inactive_at_col:
+            # Convert cutoff_date to datetime
+            cutoff_dt = pd.to_datetime(cutoff_date)
+            # Get the start and end of the reconciliation month
+            month_start = cutoff_dt.replace(day=1)
+            # Calculate last day of month
+            if cutoff_dt.month == 12:
+                month_end = cutoff_dt.replace(year=cutoff_dt.year + 1, month=1, day=1) - pd.Timedelta(days=1)
+            else:
+                month_end = cutoff_dt.replace(month=cutoff_dt.month + 1, day=1) - pd.Timedelta(days=1)
+            
+            # Convert inactive_at column to datetime
+            inactive_at_series = pd.to_datetime(filtered_ipe_08[inactive_at_col], errors="coerce")
+            
+            # Filter: inactive_at must be within the reconciliation month
+            filter_condition &= (inactive_at_series >= month_start) & (inactive_at_series <= month_end)
     
     source_vouchers_df = filtered_ipe_08[filter_condition].copy()
 

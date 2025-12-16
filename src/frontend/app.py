@@ -49,12 +49,13 @@ VTC_LOGIC = """
     - `business_use` = "refund"
     - `is_valid` = "valid"  
     - `is_active` = 0 (canceled)
+    - `inactive_at` falls within the reconciliation month (e.g., September 1-30)
 3. **Filter CR_03 (NAV):** Identify cancellation entries
     - `bridge_category` starts with "Cancellation" OR equals "VTC"/"VTC Manual"
 4. **Anti-Join:** Find IPE_08 vouchers NOT present in CR_03 cancellations
 5. **Calculate:** Sum of unmatched voucher amounts
 
-*These are canceled refund vouchers in BOB without corresponding NAV cancellation entries.*
+*These are canceled refund vouchers in BOB (within the reconciliation month) without corresponding NAV cancellation entries.*
 """
 
 RECLASS_LOGIC = """
@@ -644,7 +645,12 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
 
             cat_cr03 = _categorize_nav_vouchers(data['CR_03'])
             # Now returns (adj_amt, proof_df_vtc, metrics)
-            adj_amt, proof_df_vtc, vtc_metrics = calculate_vtc_adjustment(data['IPE_08'], cat_cr03, fx_converter=fx_converter)
+            adj_amt, proof_df_vtc, vtc_metrics = calculate_vtc_adjustment(
+                data['IPE_08'], 
+                cat_cr03, 
+                fx_converter=fx_converter,
+                cutoff_date=params['cutoff_date']
+            )
 
             # Use intermediate metrics from calculation function
             refund_vouchers = vtc_metrics.get("refund_vouchers", 0)
