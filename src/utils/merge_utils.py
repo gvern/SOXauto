@@ -38,11 +38,17 @@ def audit_merge(
         dict: Audit results containing:
             - left_duplicates: Number of duplicate keys in left DataFrame
             - right_duplicates: Number of duplicate keys in right DataFrame
-            - left_total_rows: Total rows in left DataFrame
-            - right_total_rows: Total rows in right DataFrame
-            - left_unique_dup_keys: Number of unique key combinations in left that are duplicated
-            - right_unique_dup_keys: Number of unique key combinations in right that are duplicated
-            - has_duplicates: Boolean indicating if any duplicates were found
+            - left_duplicates: Number of duplicate key occurrences in the left DataFrame
+            - right_duplicates: Number of duplicate key occurrences in the right DataFrame
+            - left_total_rows: Total rows in the left DataFrame
+            - right_total_rows: Total rows in the right DataFrame
+            - has_duplicates: Boolean indicating if any duplicates were found in either DataFrame
+            - left_unique_dup_keys: Number of distinct join-key combinations that are duplicated in the left DataFrame
+            - right_unique_dup_keys: Number of distinct join-key combinations that are duplicated in the right DataFrame
+            - left_dup_keys_file: Optional path (as str or Path) to a CSV file with duplicated join keys from the left DataFrame;
+              present only when left-side duplicates are found and export succeeds
+            - right_dup_keys_file: Optional path (as str or Path) to a CSV file with duplicated join keys from the right DataFrame;
+              present only when right-side duplicates are found and export succeeds
             - left_duplicates_path: Optional path to CSV with left duplicate keys (or None)
             - right_duplicates_path: Optional path to CSV with right duplicate keys (or None)
 
