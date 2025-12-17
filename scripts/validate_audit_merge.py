@@ -5,6 +5,7 @@ This script demonstrates the functionality without requiring pytest.
 """
 
 import sys
+import tempfile
 from pathlib import Path
 import pandas as pd
 
@@ -32,16 +33,18 @@ def test_scenario_1_clean_merge():
         'gl_amount': [1000, 2000, 3000]
     })
     
-    result = audit_merge(
-        left, right,
-        on='customer_id',
-        name='clean_merge_test',
-        out_dir='/tmp/audit_merge_demo'
-    )
-    
-    print(f"\nResults: {result}")
-    assert result['has_duplicates'] is False, "Should have no duplicates"
-    print("✓ TEST 1 PASSED")
+    # Use platform-independent temporary directory
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        result = audit_merge(
+            left, right,
+            on='customer_id',
+            name='clean_merge_test',
+            out_dir=tmp_dir
+        )
+        
+        print(f"\nResults: {result}")
+        assert result['has_duplicates'] is False, "Should have no duplicates"
+        print("✓ TEST 1 PASSED")
 
 
 def test_scenario_2_left_duplicates():
@@ -61,27 +64,29 @@ def test_scenario_2_left_duplicates():
         'gl_balance': [1100, 2000, 3000]
     })
     
-    result = audit_merge(
-        left, right,
-        on='customer_id',
-        name='left_dup_test',
-        out_dir='/tmp/audit_merge_demo'
-    )
-    
-    print(f"\nResults: {result}")
-    assert result['left_duplicates'] == 2, "Should have 2 left duplicates"
-    assert result['right_duplicates'] == 0, "Should have no right duplicates"
-    assert result['has_duplicates'] is True
-    
-    # Check that CSV was created
-    csv_file = Path('/tmp/audit_merge_demo/left_dup_test.left_dup_keys.csv')
-    assert csv_file.exists(), "Should create CSV for left duplicates"
-    print(f"✓ Duplicate keys CSV created: {csv_file}")
-    
-    # Show the content
-    dup_data = pd.read_csv(csv_file)
-    print(f"\nDuplicate rows exported to CSV:")
-    print(dup_data)
+    # Use platform-independent temporary directory
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        result = audit_merge(
+            left, right,
+            on='customer_id',
+            name='left_dup_test',
+            out_dir=tmp_dir
+        )
+        
+        print(f"\nResults: {result}")
+        assert result['left_duplicates'] == 2, "Should have 2 left duplicates"
+        assert result['right_duplicates'] == 0, "Should have no right duplicates"
+        assert result['has_duplicates'] is True
+        
+        # Check that CSV was created
+        csv_file = Path(tmp_dir) / 'left_dup_test.left_dup_keys.csv'
+        assert csv_file.exists(), "Should create CSV for left duplicates"
+        print(f"✓ Duplicate keys CSV created: {csv_file}")
+        
+        # Show the content
+        dup_data = pd.read_csv(csv_file)
+        print(f"\nDuplicate rows exported to CSV:")
+        print(dup_data)
     
     print("✓ TEST 2 PASSED")
 
@@ -105,20 +110,22 @@ def test_scenario_3_cartesian_risk():
         'gl_amount': [400, 700, 2000, 3000]
     })
     
-    result = audit_merge(
-        left, right,
-        on='customer_id',
-        name='cartesian_risk_test',
-        out_dir='/tmp/audit_merge_demo'
-    )
-    
-    print(f"\nResults: {result}")
-    assert result['left_duplicates'] == 2, "Should have 2 left duplicates"
-    assert result['right_duplicates'] == 2, "Should have 2 right duplicates"
-    assert result['has_duplicates'] is True
-    
-    print("\n⚠️  WARNING: Merging these DataFrames would create a Cartesian product!")
-    print("   Customer 1: 2 left rows × 2 right rows = 4 merged rows (explosion!)")
+    # Use platform-independent temporary directory
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        result = audit_merge(
+            left, right,
+            on='customer_id',
+            name='cartesian_risk_test',
+            out_dir=tmp_dir
+        )
+        
+        print(f"\nResults: {result}")
+        assert result['left_duplicates'] == 2, "Should have 2 left duplicates"
+        assert result['right_duplicates'] == 2, "Should have 2 right duplicates"
+        assert result['has_duplicates'] is True
+        
+        print("\n⚠️  WARNING: Merging these DataFrames would create a Cartesian product!")
+        print("   Customer 1: 2 left rows × 2 right rows = 4 merged rows (explosion!)")
     
     print("✓ TEST 3 PASSED")
 
@@ -141,15 +148,18 @@ def test_scenario_4_multi_key():
         'inventory_cost': [80, 180, 280]
     })
     
-    result = audit_merge(
-        left, right,
-        on=['customer_id', 'product_id'],
-        name='multi_key_test',
-        out_dir='/tmp/audit_merge_demo'
-    )
+    # Use platform-independent temporary directory
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        result = audit_merge(
+            left, right,
+            on=['customer_id', 'product_id'],
+            name='multi_key_test',
+            out_dir=tmp_dir
+        )
+        
+        print(f"\nResults: {result}")
+        assert result['left_duplicates'] == 2, "Should detect duplicate composite key"
     
-    print(f"\nResults: {result}")
-    assert result['left_duplicates'] == 2, "Should detect duplicate composite key"
     print("✓ TEST 4 PASSED")
 
 
@@ -169,7 +179,7 @@ def main():
         print("# ALL TESTS PASSED ✓")
         print("#"*70)
         
-        print("\n📁 Output files created in: /tmp/audit_merge_demo/")
+        print("\n📁 Output files created in temporary directories")
         print("   - merge_audit.log (audit log)")
         print("   - *.left_dup_keys.csv (duplicate keys from left side)")
         print("   - *.right_dup_keys.csv (duplicate keys from right side)")
