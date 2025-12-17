@@ -174,17 +174,17 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
         result['data_sources'] = source_store
         
         # PROBE: NAV Raw Load (CR_03)
-        if 'CR_03' in data_store and data_store['CR_03'] is not None:
+        if 'CR_03' in data_store and data_store['CR_03'] is not None and not data_store['CR_03'].empty:
             probe_df(data_store['CR_03'], "NAV_raw_load_CR03", 
                     debug_dir=DEBUG_OUTPUT_DIR, metrics=["Amount"])
         
         # PROBE: JDash Load
-        if 'JDASH' in data_store and data_store['JDASH'] is not None:
+        if 'JDASH' in data_store and data_store['JDASH'] is not None and not data_store['JDASH'].empty:
             probe_df(data_store['JDASH'], "JDash_load", 
                     debug_dir=DEBUG_OUTPUT_DIR, metrics=["OrderedAmount", "OrderId"])
         
         # PROBE: IPE_08 Load
-        if 'IPE_08' in data_store and data_store['IPE_08'] is not None:
+        if 'IPE_08' in data_store and data_store['IPE_08'] is not None and not data_store['IPE_08'].empty:
             probe_df(data_store['IPE_08'], "IPE08_load", 
                     debug_dir=DEBUG_OUTPUT_DIR, metrics=["TotalAmountUsed", "VoucherId"])
         

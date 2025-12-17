@@ -3,6 +3,7 @@ PG-01.pages
 
 # Data and credentials (added by quick_wins.sh)
 data/
+outputs/
 credentials.json
 *.csv
 NOtes.md
