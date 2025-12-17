@@ -192,11 +192,11 @@ This utility is designed to integrate into:
 
 ### Created:
 1. `src/utils/merge_utils.py` (159 lines)
-2. `tests/test_merge_utils.py` (337 lines)
+2. `tests/test_merge_utils.py` (286 lines)
 3. `tests/test_audit_merge_smoke.py` (125 lines)
-4. `scripts/validate_audit_merge.py` (176 lines)
-5. `scripts/audit_merge_examples.py` (283 lines)
-6. `docs/development/MERGE_AUDIT_GUIDE.md` (244 lines)
+4. `scripts/validate_audit_merge.py` (191 lines)
+5. `scripts/audit_merge_examples.py` (289 lines)
+6. `docs/development/MERGE_AUDIT_GUIDE.md` (233 lines)
 
 ### Modified:
 1. `README.md` (added utility documentation)
