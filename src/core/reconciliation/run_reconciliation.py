@@ -37,6 +37,9 @@ from typing import Any, Dict, List
 
 import pandas as pd
 
+# Import debug probe utilities
+from src.utils.debug_probes import probe_df, audit_merge
+
 # Import extraction modules
 from src.core.extraction_pipeline import load_all_data
 
@@ -71,6 +74,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration constants
 MAX_ROWS_FOR_FULL_DATA = 1000  # Maximum rows to include in full DataFrame serialization
+DEBUG_OUTPUT_DIR = "outputs/_debug_sep2025_ng"  # Debug output directory for September 2025 NG run
 
 
 def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -169,6 +173,21 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
         result['evidence_paths'] = evidence_store
         result['data_sources'] = source_store
         
+        # PROBE: NAV Raw Load (CR_03)
+        if 'CR_03' in data_store and data_store['CR_03'] is not None:
+            probe_df(data_store['CR_03'], "NAV_raw_load_CR03", 
+                    debug_dir=DEBUG_OUTPUT_DIR, metrics=["Amount"])
+        
+        # PROBE: JDash Load
+        if 'JDASH' in data_store and data_store['JDASH'] is not None:
+            probe_df(data_store['JDASH'], "JDash_load", 
+                    debug_dir=DEBUG_OUTPUT_DIR, metrics=["OrderedAmount", "OrderId"])
+        
+        # PROBE: IPE_08 Load
+        if 'IPE_08' in data_store and data_store['IPE_08'] is not None:
+            probe_df(data_store['IPE_08'], "IPE08_load", 
+                    debug_dir=DEBUG_OUTPUT_DIR, metrics=["TotalAmountUsed", "VoucherId"])
+        
         # Store DataFrame summaries (not full DataFrames for JSON serialization)
         for item_id, df in data_store.items():
             result['dataframe_summaries'][item_id] = _get_dataframe_summary(df)
@@ -188,6 +207,10 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
             processed_data['IPE_08_filtered'] = ipe_08_filtered
             result['dataframe_summaries']['IPE_08_filtered'] = _get_dataframe_summary(ipe_08_filtered)
             
+            # PROBE: IPE_08 Scope Filtering
+            probe_df(ipe_08_filtered, "IPE08_scope_filtered", 
+                    debug_dir=DEBUG_OUTPUT_DIR, metrics=["TotalAmountUsed"])
+            
             # Add Non-Marketing summary
             non_marketing_summary = get_non_marketing_summary(data_store['IPE_08'])
             result['categorization']['ipe_08_non_marketing_summary'] = non_marketing_summary
@@ -197,6 +220,10 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
             cr_03_gl18412 = filter_gl_18412(data_store['CR_03'])
             processed_data['CR_03_GL18412'] = cr_03_gl18412
             result['dataframe_summaries']['CR_03_GL18412'] = _get_dataframe_summary(cr_03_gl18412)
+            
+            # PROBE: NAV Preprocessing (GL 18412 filter)
+            probe_df(cr_03_gl18412, "NAV_preprocessing_GL18412", 
+                    debug_dir=DEBUG_OUTPUT_DIR, metrics=["Amount"])
         
         # Run quality checks if enabled
         if validate_quality:
@@ -235,6 +262,11 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
             
             processed_data['CR_03_categorized'] = categorized_df
             result['dataframe_summaries']['CR_03_categorized'] = _get_dataframe_summary(categorized_df)
+            
+            # PROBE: NAV Categorization (check sum of Amount by Category)
+            if 'bridge_category' in categorized_df.columns:
+                probe_df(categorized_df, "NAV_categorization_with_bridge", 
+                        debug_dir=DEBUG_OUTPUT_DIR, metrics=["Amount"])
             
             # Get categorization summary
             cat_summary = get_categorization_summary(categorized_df)
@@ -392,6 +424,19 @@ def _run_bridge_analysis(
     # 1. VTC Adjustment Bridge
     if ipe_08_filtered is not None and not ipe_08_filtered.empty:
         try:
+            # PROBE: Before VTC Merge (audit merge keys)
+            if categorized_cr_03 is not None and not categorized_cr_03.empty:
+                # VTC uses voucher number as merge key
+                # Check if the key columns exist before auditing
+                if '[Voucher No_]' in categorized_cr_03.columns or 'VoucherId' in ipe_08_filtered.columns:
+                    audit_merge(
+                        categorized_cr_03, ipe_08_filtered,
+                        on='[Voucher No_]' if '[Voucher No_]' in categorized_cr_03.columns else 'VoucherId',
+                        merge_name="VTC_adjustment_merge",
+                        debug_dir=DEBUG_OUTPUT_DIR,
+                        how="inner"
+                    )
+            
             vtc_amount, vtc_proof_df, vtc_metrics = calculate_vtc_adjustment(
                 ipe_08_df=ipe_08_filtered,
                 categorized_cr_03_df=categorized_cr_03,
@@ -431,11 +476,29 @@ def _run_bridge_analysis(
         }
     elif ipe_08_filtered is not None and not ipe_08_filtered.empty:
         try:
+            # PROBE: Before Timing Diff Merge (audit merge on JDash/IPE keys)
+            # JDash and IPE_08 are typically joined on OrderId or VoucherId
+            merge_key = 'OrderId' if 'OrderId' in jdash_df.columns and 'OrderId' in ipe_08_filtered.columns else 'VoucherId'
+            if merge_key in jdash_df.columns and merge_key in ipe_08_filtered.columns:
+                audit_merge(
+                    jdash_df, ipe_08_filtered,
+                    on=merge_key,
+                    merge_name="Timing_diff_JDash_IPE08_merge",
+                    debug_dir=DEBUG_OUTPUT_DIR,
+                    how="inner"
+                )
+            
             timing_variance, timing_proof_df = calculate_timing_difference_bridge(
                 jdash_df=jdash_df,
                 ipe_08_df=ipe_08_filtered,
                 cutoff_date=cutoff_date,
             )
+            
+            # PROBE: After Timing Diff Bridge
+            if timing_proof_df is not None and not timing_proof_df.empty:
+                probe_df(timing_proof_df, "Timing_diff_bridge_result", 
+                        debug_dir=DEBUG_OUTPUT_DIR, metrics=["OrderedAmount"] if "OrderedAmount" in timing_proof_df.columns else None)
+            
             bridges['timing_difference'] = {
                 'variance': float(timing_variance) if pd.notna(timing_variance) else 0,
                 'proof_row_count': len(timing_proof_df) if timing_proof_df is not None else 0,
