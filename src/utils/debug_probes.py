@@ -17,7 +17,6 @@ Usage:
                 debug_dir="outputs/_debug_sep2025_ng")
 """
 
-import os
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
@@ -181,8 +180,8 @@ def audit_merge(
         
         # Estimate match rate (simplified - doesn't account for duplicates)
         # Find intersection of unique keys
-        left_key_set = set(left_unique.apply(lambda row: tuple(row), axis=1))
-        right_key_set = set(right_unique.apply(lambda row: tuple(row), axis=1))
+        left_key_set = set(left_unique.apply(tuple, axis=1))
+        right_key_set = set(right_unique.apply(tuple, axis=1))
         common_keys = left_key_set & right_key_set
         
         audit_results['matching_keys'] = len(common_keys)

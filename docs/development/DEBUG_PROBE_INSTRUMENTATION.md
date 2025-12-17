@@ -86,7 +86,7 @@ The following checkpoints have been instrumented in `run_reconciliation.py`:
 
 8. **Before Timing Diff Merge** - Audit merge keys before timing difference calculation
    - Merge Audit: `Timing_diff_JDash_IPE08_merge`
-   - Keys: `OrderId` or `VoucherId`
+   - Keys: `id` (from IPE_08) and voucher ID columns (e.g., 'Voucher Id', 'Voucher_Id', 'voucher_id', or 'VoucherId' from JDASH)
 
 9. **After Timing Diff Bridge** - After calculating timing difference bridge
    - Checkpoint: `Timing_diff_bridge_result`

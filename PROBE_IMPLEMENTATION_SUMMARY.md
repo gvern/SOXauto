@@ -9,15 +9,15 @@ Add debug probes to trace data flow for the "September NG" reconciliation run wi
 ## Implementation
 
 ### Files Created
-1. **`src/utils/debug_probes.py`** (242 lines)
+1. **`src/utils/debug_probes.py`** (238 lines)
    - `probe_df()` - DataFrame checkpoint inspection
    - `audit_merge()` - Merge operation auditing
    
-2. **`tests/test_debug_probes.py`** (163 lines)
+2. **`tests/test_debug_probes.py`** (206 lines)
    - Unit tests for probe utilities
-   - 6 test classes covering all functionality
+   - 2 test classes (`TestProbeDF` and `TestAuditMerge`) with multiple test methods covering all functionality
    
-3. **`tests/test_debug_probe_instrumentation.py`** (175 lines)
+3. **`tests/test_debug_probe_instrumentation.py`** (196 lines)
    - Integration tests for run_reconciliation instrumentation
    - 8 test cases validating probe placement
    
@@ -45,8 +45,8 @@ Add debug probes to trace data flow for the "September NG" reconciliation run wi
 | NAV Preprocessing | 224-226 | `probe_df` | Amount |
 | IPE_08 Scope Filtering | 211-212 | `probe_df` | TotalAmountUsed |
 | NAV Categorization | 267-269 | `probe_df` | Amount |
-| Before VTC Merge | In `_run_bridge_analysis` | `audit_merge` | [Voucher No_] |
-| Before Timing Diff Merge | In `_run_bridge_analysis` | `audit_merge` | OrderId |
+| Before VTC Merge | In `_run_bridge_analysis` | `audit_merge` | id ↔ [Voucher No_] |
+| Before Timing Diff Merge | In `_run_bridge_analysis` | `audit_merge` | id ↔ voucher id columns |
 | After Timing Diff Bridge | In `_run_bridge_analysis` | `probe_df` | OrderedAmount |
 
 ## Debug Output Location
