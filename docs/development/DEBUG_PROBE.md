@@ -12,6 +12,7 @@ The `debug_probe` module provides a lightweight utility for instrumenting data p
 - **Unique Key Counts**: Count unique values in key columns
 - **Logging**: Append JSON-formatted logs to `probes.log`
 - **Snapshots**: Optional CSV snapshots of DataFrames
+- **Financial Data Support**: Handles NaN and Infinity values in JSON serialization
 
 ## Installation
 
@@ -167,6 +168,30 @@ df = process_data(df)
 # After (just add one line)
 df = process_data(df)
 probe_df(df, "after_process", "/tmp/probes")  # Add this line
+```
+
+## Handling Financial Data
+
+The probe utility automatically handles special float values (NaN, Infinity, -Infinity) that commonly occur in financial data:
+
+- **NaN values**: Converted to `null` in JSON output
+- **Infinity values**: Converted to `null` in JSON output
+- **-Infinity values**: Converted to `null` in JSON output
+
+This ensures JSON serialization never fails when logging financial reconciliation data.
+
+```python
+import pandas as pd
+import numpy as np
+
+# DataFrame with special values
+df = pd.DataFrame({
+    "account": ["A", "B", "C"],
+    "amount": [100.0, float('nan'), float('inf')]
+})
+
+# This will log successfully, converting NaN/Inf to null in JSON
+probe = probe_df(df, "financial_data", "/tmp/probes", amount_col="amount")
 ```
 
 ## Performance Considerations

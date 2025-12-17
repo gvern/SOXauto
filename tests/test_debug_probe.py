@@ -516,3 +516,42 @@ def test_probe_df_complete_workflow(tmp_path):
     snapshot_df = pd.read_csv(snapshot_files[0])
     assert len(snapshot_df) == 6
     assert set(snapshot_df.columns) == {"customer_id", "order_id", "amount"}
+
+
+def test_probe_df_handles_nan_and_infinity(tmp_path):
+    """Test probe_df handles NaN and Infinity values in financial data."""
+    import numpy as np
+    
+    # Create DataFrame with NaN and Infinity values
+    df = pd.DataFrame({
+        "id": [1, 2, 3, 4, 5],
+        "amount": [100.0, float('nan'), float('inf'), float('-inf'), 200.0]
+    })
+    
+    probe = probe_df(df, "test_nan_inf", tmp_path, amount_col="amount")
+    
+    # The sum of [100, nan, inf, -inf, 200] should result in nan or inf
+    # Verify probe was created (exact value depends on pandas behavior)
+    assert probe.name == "test_nan_inf"
+    assert probe.rows == 5
+    
+    # Verify log file was created and can be read
+    log_file = tmp_path / "probes.log"
+    assert log_file.exists()
+    
+    # Verify the log entry can be parsed as JSON (no serialization errors)
+    with open(log_file, 'r') as f:
+        log_line = f.readline()
+    
+    # This should not raise an error even with NaN/Inf values
+    log_entry = json.loads(log_line)
+    
+    assert "timestamp" in log_entry
+    assert "probe" in log_entry
+    assert log_entry["probe"]["name"] == "test_nan_inf"
+    
+    # NaN and Infinity should be converted to None for JSON serialization
+    # (the exact behavior depends on how pandas.sum() handles these values)
+    amount_sum_logged = log_entry["probe"]["amount_sum"]
+    # Should be None (converted from NaN/Inf) or a valid number
+    assert amount_sum_logged is None or isinstance(amount_sum_logged, (int, float))

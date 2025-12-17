@@ -203,6 +203,21 @@ def probe_df(
             "probe": asdict(probe),
         }
         
+        # Handle NaN and Infinity values in financial data
+        # Convert them to None for JSON serialization
+        def sanitize_for_json(obj):
+            """Convert NaN and Infinity values to None for JSON serialization."""
+            if isinstance(obj, float):
+                if pd.isna(obj) or obj == float('inf') or obj == float('-inf'):
+                    return None
+            elif isinstance(obj, dict):
+                return {k: sanitize_for_json(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [sanitize_for_json(item) for item in obj]
+            return obj
+        
+        log_entry = sanitize_for_json(log_entry)
+        
         # Append to log file
         with open(log_file, 'a', encoding='utf-8') as f:
             f.write(json.dumps(log_entry, indent=None) + '\n')
