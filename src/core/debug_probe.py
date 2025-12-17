@@ -27,8 +27,7 @@ from pathlib import Path
 import pandas as pd
 import json
 import logging
-from datetime import datetime
-from typing import Any
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +199,7 @@ def probe_df(
     log_file = out_path / "probes.log"
     try:
         log_entry = {
-            "timestamp": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+            "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
             "probe": asdict(probe),
         }
         
@@ -215,10 +214,7 @@ def probe_df(
     # Save CSV snapshot if requested
     if snapshot:
         try:
-            # Use snapshot_cols if provided, otherwise use all columns
-            df_to_save = df[snapshot_cols] if snapshot_cols is not None else df
-            
-            # Validate snapshot_cols exist
+            # Validate snapshot_cols exist before using them
             if snapshot_cols is not None:
                 missing_cols = set(snapshot_cols) - set(df.columns)
                 if missing_cols:
@@ -228,9 +224,13 @@ def probe_df(
                     )
                     available_cols = [col for col in snapshot_cols if col in df.columns]
                     df_to_save = df[available_cols] if available_cols else df
+                else:
+                    df_to_save = df[snapshot_cols]
+            else:
+                df_to_save = df
             
             # Create snapshot filename with timestamp
-            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
             snapshot_file = out_path / f"snapshot_{name}_{timestamp}.csv"
             
             df_to_save.to_csv(snapshot_file, index=False)

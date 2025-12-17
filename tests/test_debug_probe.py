@@ -10,7 +10,6 @@ import json
 import pandas as pd
 import pytest
 from pathlib import Path
-from datetime import datetime
 
 # Add repo root to path
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -320,7 +319,7 @@ def test_probe_df_creates_directory(tmp_path):
     out_dir = tmp_path / "nested" / "path" / "probes"
     
     df = pd.DataFrame({"id": [1, 2, 3]})
-    probe = probe_df(df, "test_dir", out_dir)
+    probe_df(df, "test_dir", out_dir)
     
     assert out_dir.exists()
     assert out_dir.is_dir()
@@ -331,7 +330,7 @@ def test_probe_df_with_string_path(tmp_path):
     out_dir_str = str(tmp_path / "string_path")
     
     df = pd.DataFrame({"id": [1, 2, 3]})
-    probe = probe_df(df, "test_string", out_dir_str)
+    probe_df(df, "test_string", out_dir_str)
     
     assert Path(out_dir_str).exists()
 
@@ -343,7 +342,7 @@ def test_probe_df_with_string_path(tmp_path):
 def test_probe_df_creates_log_file(tmp_path):
     """Test probe_df creates probes.log file."""
     df = pd.DataFrame({"id": [1, 2, 3]})
-    probe = probe_df(df, "test_log", tmp_path)
+    probe_df(df, "test_log", tmp_path)
     
     log_file = tmp_path / "probes.log"
     assert log_file.exists()
@@ -355,7 +354,7 @@ def test_probe_df_log_format(tmp_path):
         "id": [1, 2, 3],
         "amount": [100, 200, 300]
     })
-    probe = probe_df(df, "test_format", tmp_path, amount_col="amount")
+    probe_df(df, "test_format", tmp_path, amount_col="amount")
     
     log_file = tmp_path / "probes.log"
     
@@ -376,8 +375,8 @@ def test_probe_df_appends_to_log(tmp_path):
     df1 = pd.DataFrame({"id": [1, 2]})
     df2 = pd.DataFrame({"id": [3, 4, 5]})
     
-    probe1 = probe_df(df1, "probe1", tmp_path)
-    probe2 = probe_df(df2, "probe2", tmp_path)
+    probe_df(df1, "probe1", tmp_path)
+    probe_df(df2, "probe2", tmp_path)
     
     log_file = tmp_path / "probes.log"
     
@@ -406,7 +405,7 @@ def test_probe_df_snapshot_basic(tmp_path):
         "value": [100, 200, 300]
     })
     
-    probe = probe_df(df, "test_snapshot", tmp_path, snapshot=True)
+    probe_df(df, "test_snapshot", tmp_path, snapshot=True)
     
     # Check if snapshot file was created
     snapshot_files = list(tmp_path.glob("snapshot_test_snapshot_*.csv"))
@@ -426,7 +425,7 @@ def test_probe_df_snapshot_with_cols(tmp_path):
         "name": ["A", "B", "C"]
     })
     
-    probe = probe_df(
+    probe_df(
         df, "test_snapshot_cols", tmp_path, 
         snapshot=True, 
         snapshot_cols=["id", "value"]
@@ -447,7 +446,7 @@ def test_probe_df_snapshot_missing_cols(tmp_path):
     })
     
     # Request columns that don't exist
-    probe = probe_df(
+    probe_df(
         df, "test_snapshot_missing", tmp_path, 
         snapshot=True, 
         snapshot_cols=["id", "missing_col"]
@@ -464,7 +463,7 @@ def test_probe_df_snapshot_missing_cols(tmp_path):
 def test_probe_df_no_snapshot_by_default(tmp_path):
     """Test probe_df doesn't create snapshot by default."""
     df = pd.DataFrame({"id": [1, 2, 3]})
-    probe = probe_df(df, "test_no_snapshot", tmp_path)
+    probe_df(df, "test_no_snapshot", tmp_path)
     
     snapshot_files = list(tmp_path.glob("snapshot_*.csv"))
     assert len(snapshot_files) == 0
@@ -500,7 +499,8 @@ def test_probe_df_complete_workflow(tmp_path):
     assert probe.rows == 6
     assert probe.cols == 5
     assert probe.nulls_total == 1  # One None in amount
-    assert probe.amount_sum == pytest.approx(826.00)  # Sum ignores None
+    # Business rule: null amounts are excluded from the sum (not treated as zero).
+    assert probe.amount_sum == pytest.approx(826.00)
     assert probe.min_date == "2024-01-15"
     assert probe.max_date == "2024-12-31"
     assert probe.unique_keys["customer_id"] == 3
