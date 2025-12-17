@@ -91,10 +91,11 @@ def probe_df(
         
     Returns:
         DFProbe: A dataclass containing all collected statistics
-        
-    Raises:
-        ValueError: If specified columns are not found in the DataFrame
-        
+
+    Notes:
+        If any of ``amount_col``, ``date_col``, ``key_cols``, or ``snapshot_cols``
+        refer to columns that are not present in ``df``, those metrics are skipped
+        and a warning is logged. No exception is raised for missing columns.
     Example:
         >>> import pandas as pd
         >>> from src.core.debug_probe import probe_df
