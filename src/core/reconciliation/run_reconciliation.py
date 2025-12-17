@@ -483,17 +483,44 @@ def _run_bridge_analysis(
     elif ipe_08_filtered is not None and not ipe_08_filtered.empty:
         try:
             # PROBE: Before Timing Diff Merge (audit merge on JDash/IPE keys)
-            # JDash and IPE_08 are typically joined on OrderId or VoucherId
-            merge_key = 'OrderId' if 'OrderId' in jdash_df.columns and 'OrderId' in ipe_08_filtered.columns else 'VoucherId'
-            if merge_key in jdash_df.columns and merge_key in ipe_08_filtered.columns:
+            # Align audit keys with calculate_timing_difference_bridge:
+            # - IPE_08 uses 'id'
+            # - JDASH may use one of several voucher ID column variants
+            voucher_key_candidates = ['Voucher Id', 'Voucher_Id', 'voucher_id', 'VoucherId']
+            voucher_col = next((col for col in voucher_key_candidates if col in jdash_df.columns), None)
+
+            if 'id' in ipe_08_filtered.columns and voucher_col is not None:
+                # Create a copy of JDASH with the voucher column renamed to 'id'
+                # so that the audit merge uses the same join key semantics as the bridge.
+                jdash_for_audit = jdash_df.rename(columns={voucher_col: 'id'})
                 audit_merge(
-                    jdash_df, ipe_08_filtered,
-                    on=merge_key,
+                    jdash_for_audit,
+                    ipe_08_filtered,
+                    on='id',
                     merge_name="Timing_diff_JDash_IPE08_merge",
                     debug_dir=DEBUG_OUTPUT_DIR,
-                    how="inner"
+                    how="inner",
                 )
-            
+            else:
+                # Fallback: retain legacy behavior when the preferred keys are not available.
+                if 'OrderId' in jdash_df.columns and 'OrderId' in ipe_08_filtered.columns:
+                    audit_merge(
+                        jdash_df,
+                        ipe_08_filtered,
+                        on='OrderId',
+                        merge_name="Timing_diff_JDash_IPE08_merge",
+                        debug_dir=DEBUG_OUTPUT_DIR,
+                        how="inner",
+                    )
+                elif 'VoucherId' in jdash_df.columns and 'VoucherId' in ipe_08_filtered.columns:
+                    audit_merge(
+                        jdash_df,
+                        ipe_08_filtered,
+                        on='VoucherId',
+                        merge_name="Timing_diff_JDash_IPE08_merge",
+                        debug_dir=DEBUG_OUTPUT_DIR,
+                        how="inner",
+                    )
             timing_variance, timing_proof_df = calculate_timing_difference_bridge(
                 jdash_df=jdash_df,
                 ipe_08_df=ipe_08_filtered,
