@@ -62,12 +62,14 @@ The C-PG-1 (Customer Prepayments - Payment Gateway #1) reconciliation is an 8-st
 - `Amount Used`
 
 **Invariant**: 
-- **Unique Voucher IDs** (Jdash aggregates by voucher)
+- **Duplicate Voucher IDs are aggregated by summing Amount Used** (handled in downstream processing)
 - Represents "Ordered/Used Amount from Operations perspective"
+- Raw Jdash data may contain duplicate Voucher IDs which are aggregated in `bridge_timing_diff()`
 
 **Notes**: 
 - Jdash provides the operational view of voucher usage
 - This is compared against accounting records (IPE_08) to identify timing differences
+- Aggregation logic: `jdash_df.groupby('Voucher Id')['Amount Used'].sum()` in timing bridge calculation
 
 ---
 
@@ -346,10 +348,10 @@ build_summary()
 
 ## Key Column Reference Table
 
-| Step | Function | Primary Key Column | Amount Column | Filter Column |
-|------|----------|-------------------|---------------|---------------|
-| 1 | extract_nav_gl() | `Document No` | `Amount` / `AmountLCY` | `Chart of Accounts No_` |
-| 2 | load_jdash() | `Voucher Id` | `Amount Used` | - |
+| Step | Function | Key Column(s) | Amount Column | Filter Column |
+|------|----------|---------------|---------------|---------------|
+| 1 | extract_nav_gl() | `Document No`, `[Voucher No_]`, `GL Account` | `Amount` / `AmountLCY` | `Chart of Accounts No_` |
+| 2 | load_jdash() | `Voucher Id` (aggregated) | `Amount Used` | - |
 | 3 | extract_ipe_usage() | `id` | `Total Amount Used` | `business_use`, `is_active` |
 | 4 | preprocess_nav() | `[Voucher No_]` | `Amount` | `Chart of Accounts No_` |
 | 5 | bridge_timing_diff() | `id` | `Variance` | `is_active`, `created_at` |
@@ -364,7 +366,7 @@ build_summary()
 | Step | Critical Invariant |
 |------|-------------------|
 | extract_nav_gl() | Sum(Amount) matches Excel GL for filtered accounts |
-| load_jdash() | Unique Voucher IDs |
+| load_jdash() | Duplicate Voucher IDs aggregated by sum in downstream processing |
 | extract_ipe_usage() | business_use IN NON_MARKETING_USES |
 | preprocess_nav() | All GL 18412 rows categorized |
 | bridge_timing_diff() | Variance = Jdash Ordered - IPE Delivered |
@@ -405,7 +407,13 @@ All Bridges ──→ build_summary() ──→ Digital Evidence Package
 
 4. **Integration Type Detection**: User ID == "JUMIA/NAV31AFR.BATCH.SRVC" → "Integration"; else "Manual"
 
-5. **Evidence Generation**: Each extraction step generates a Digital Evidence Package with 7 files including SHA-256 hash for tamper-proof audit trail
+5. **Voucher Identifier Columns** (different names across systems):
+   - NAV GL: `[Voucher No_]` (with brackets and underscore)
+   - Jdash: `Voucher Id` (with space)
+   - IPE_08/BOB: `id` (lowercase)
+   - All are normalized during join operations for reconciliation
+
+6. **Evidence Generation**: Each extraction step generates a Digital Evidence Package with 7 files including SHA-256 hash for tamper-proof audit trail
 
 ---
 
@@ -414,7 +422,7 @@ All Bridges ──→ build_summary() ──→ Digital Evidence Package
 When debugging the pipeline, verify these key points:
 
 - [ ] Extract Step 1: NAV GL sum matches Excel GL
-- [ ] Extract Step 2: Jdash has unique Voucher IDs
+- [ ] Extract Step 2: Jdash duplicate Voucher IDs are aggregated (sum) in timing bridge
 - [ ] Extract Step 3: IPE_08 filtered for NON_MARKETING only
 - [ ] Preprocess Step 4: All GL 18412 rows have bridge_category
 - [ ] Bridge Step 5: Timing variance uses `Total Amount Used` NOT `Remaining Amount`
