@@ -7,7 +7,6 @@ and other merge anomalies.
 
 import os
 import sys
-from pathlib import Path
 import pandas as pd
 import pytest
 
