@@ -261,7 +261,7 @@ def example_5_integration_in_workflow():
     })
     
     print("\nRunning safe reconciliation workflow...")
-    result = safe_reconciliation(ipe, gl, 'customer_id')
+    safe_reconciliation(ipe, gl, 'customer_id')
 
 
 def main():
