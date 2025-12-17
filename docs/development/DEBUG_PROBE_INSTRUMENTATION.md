@@ -82,7 +82,7 @@ The following checkpoints have been instrumented in `run_reconciliation.py`:
 ### Phase 4: Bridge Analysis
 7. **Before VTC Merge** - Audit merge keys before VTC adjustment calculation
    - Merge Audit: `VTC_adjustment_merge`
-   - Keys: `[Voucher No_]` or `VoucherId`
+   - Keys: `id` (from IPE_08) and `[Voucher No_]` (or its CR_03 variants)
 
 8. **Before Timing Diff Merge** - Audit merge keys before timing difference calculation
    - Merge Audit: `Timing_diff_JDash_IPE08_merge`
