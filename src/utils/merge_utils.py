@@ -40,13 +40,27 @@ def audit_merge(
             - right_duplicates: Number of duplicate keys in right DataFrame
             - left_total_rows: Total rows in left DataFrame
             - right_total_rows: Total rows in right DataFrame
+            - left_unique_dup_keys: Number of unique key combinations in left that are duplicated
+            - right_unique_dup_keys: Number of unique key combinations in right that are duplicated
             - has_duplicates: Boolean indicating if any duplicates were found
-            
+            - left_duplicates_path: Optional path to CSV with left duplicate keys (or None)
+            - right_duplicates_path: Optional path to CSV with right duplicate keys (or None)
+
     Example:
         >>> left_df = pd.DataFrame({'id': [1, 1, 2], 'value': [10, 20, 30]})
         >>> right_df = pd.DataFrame({'id': [1, 2, 2], 'amount': [100, 200, 300]})
         >>> audit_merge(left_df, right_df, on='id', name='test_merge', out_dir='./output')
-        {'left_duplicates': 1, 'right_duplicates': 1, ...}
+        {
+        ...     'left_duplicates': 1,
+        ...     'right_duplicates': 1,
+        ...     'left_total_rows': 3,
+        ...     'right_total_rows': 3,
+        ...     'left_unique_dup_keys': 1,
+        ...     'right_unique_dup_keys': 1,
+        ...     'has_duplicates': True,
+        ...     'left_duplicates_path': '<out_dir>/test_merge_left_duplicates.csv',
+        ...     'right_duplicates_path': '<out_dir>/test_merge_right_duplicates.csv',
+        ... }
     """
     # Convert on to list if it's a single string
     if isinstance(on, str):
