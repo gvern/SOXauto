@@ -171,7 +171,14 @@ The C-PG-1 (Customer Prepayments - Payment Gateway #1) reconciliation is an 8-st
 - `Variance` - Calculated difference
 
 **Amount Column**: 
-- `Variance = Jdash_Amount_Used - Total Amount Used`
+- `Variance` - Calculated difference column
+
+**Comparison Logic** (Critical):
+- **`Variance = Jdash (Ordered) - IPE_08 (Delivered)`**
+- Jdash represents "Amount Used from Operations perspective" (Ordered)
+- IPE_08 `Total Amount Used` represents "Amount Delivered from Accounting perspective"
+- Positive variance = More ordered than delivered (timing difference)
+- Negative variance = More delivered than ordered (reconciliation issue)
 
 **Invariant**: 
 - **Variance represents timing differences between ordered (Ops) and delivered (Accounting)**
@@ -181,9 +188,9 @@ The C-PG-1 (Customer Prepayments - Payment Gateway #1) reconciliation is an 8-st
 
 **Business Logic**:
 1. Filter IPE_08 for Non-Marketing, inactive vouchers created within 1 year
-2. Aggregate Jdash by Voucher Id
+2. Aggregate Jdash by Voucher Id summing `Amount Used`
 3. Left join IPE_08 with Jdash on Voucher ID
-4. Calculate variance: Jdash Amount - IPE Amount
+4. **Calculate variance**: `Variance = Jdash['Amount Used'] - IPE_08['Total Amount Used']`
 5. Sum variance for total timing difference
 
 **Formula**: `Timing Difference = SUM(Jdash Ordered - IPE_08 Delivered)`
@@ -425,7 +432,7 @@ When debugging the pipeline, verify these key points:
 - [ ] Extract Step 2: Jdash duplicate Voucher IDs are aggregated (sum) in timing bridge
 - [ ] Extract Step 3: IPE_08 filtered for NON_MARKETING only
 - [ ] Preprocess Step 4: All GL 18412 rows have bridge_category
-- [ ] Bridge Step 5: Timing variance uses `Total Amount Used` NOT `Remaining Amount`
+- [ ] Bridge Step 5: Timing variance formula is `Variance = Jdash (Ordered) - IPE_08 (Delivered)` using `Total Amount Used` NOT `Remaining Amount`
 - [ ] Bridge Step 6: VTC anti-join excludes NAV cancellations
 - [ ] Bridge Step 7: Customer posting groups are unique per customer
 - [ ] Summary Step 8: Total Explained <= Total Variance
