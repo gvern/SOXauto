@@ -11,8 +11,8 @@ The `debug_probe` module provides a lightweight utility for instrumenting data p
 - **Date Range**: Track min/max dates in your data
 - **Unique Key Counts**: Count unique values in key columns
 - **Logging**: Append JSON-formatted logs to `probes.log`
-- **Snapshots**: Optional CSV snapshots of DataFrames
-- **Financial Data Support**: Handles NaN and Infinity values in JSON serialization
+- **Snapshots**: Optional CSV snapshots of DataFrames with configurable row limits
+- **Financial Data Support**: Handles NaN, Infinity, and Decimal values in JSON serialization
 
 ## Installation
 
@@ -82,6 +82,7 @@ Probe a DataFrame and collect statistics.
 - `key_cols` (list[str] | None): Columns to count unique values
 - `snapshot` (bool): If True, save CSV snapshot (default: False)
 - `snapshot_cols` (list[str] | None): Columns to include in snapshot (default: all)
+- `snapshot_max_rows` (int): Maximum rows to save in snapshot (default: 10000)
 
 **Returns:**
 - `DFProbe`: Object containing all statistics
@@ -90,6 +91,8 @@ Probe a DataFrame and collect statistics.
 - Missing columns are handled gracefully with warnings logged
 - Non-numeric amount columns are skipped with warnings
 - Invalid dates are coerced to NaT and excluded from min/max calculation
+- NaN, Infinity, and Decimal values are automatically converted for JSON serialization
+- Large snapshots are automatically limited to prevent accidental disk space issues
 
 ## Output Files
 
@@ -172,33 +175,56 @@ probe_df(df, "after_process", "/tmp/probes")  # Add this line
 
 ## Handling Financial Data
 
-The probe utility automatically handles special float values (NaN, Infinity, -Infinity) that commonly occur in financial data:
+The probe utility automatically handles special values commonly found in financial datasets:
+
+### Special Float Values
 
 - **NaN values**: Converted to `null` in JSON output
 - **Infinity values**: Converted to `null` in JSON output
 - **-Infinity values**: Converted to `null` in JSON output
+
+### Decimal Types
+
+- **Decimal objects**: Automatically converted to `float` for JSON serialization
+- Common in financial data loaded from databases or accounting systems
 
 This ensures JSON serialization never fails when logging financial reconciliation data.
 
 ```python
 import pandas as pd
 import numpy as np
+from decimal import Decimal
 
 # DataFrame with special values
 df = pd.DataFrame({
-    "account": ["A", "B", "C"],
-    "amount": [100.0, float('nan'), float('inf')]
+    "account": ["A", "B", "C", "D"],
+    "amount": [Decimal("100.50"), float('nan'), float('inf'), 200.0]
 })
 
-# This will log successfully, converting NaN/Inf to null in JSON
+# This will log successfully, converting all special values appropriately
 probe = probe_df(df, "financial_data", "/tmp/probes", amount_col="amount")
+```
+
+### Snapshot Safety
+
+By default, snapshots are limited to 10,000 rows to prevent accidental massive disk writes:
+
+```python
+# Large DataFrame - only first 10,000 rows saved
+large_df = pd.DataFrame({"id": range(50000), "value": range(50000)})
+probe = probe_df(large_df, "large_data", "/tmp/probes", snapshot=True)
+
+# Override limit if you need more rows
+probe = probe_df(large_df, "large_data", "/tmp/probes", 
+                 snapshot=True, snapshot_max_rows=50000)
 ```
 
 ## Performance Considerations
 
 - Probes are lightweight and add minimal overhead
 - File I/O is done synchronously (consider using sparingly in production)
-- Snapshots can be large for big DataFrames (use `snapshot_cols` to limit size)
+- Snapshots are automatically limited to 10,000 rows by default
+- Use `snapshot_cols` to limit columns and `snapshot_max_rows` to limit rows
 
 ## Troubleshooting
 

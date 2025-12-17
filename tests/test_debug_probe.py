@@ -555,3 +555,85 @@ def test_probe_df_handles_nan_and_infinity(tmp_path):
     amount_sum_logged = log_entry["probe"]["amount_sum"]
     # Should be None (converted from NaN/Inf) or a valid number
     assert amount_sum_logged is None or isinstance(amount_sum_logged, (int, float))
+
+
+def test_probe_df_handles_decimal_types(tmp_path):
+    """Test probe_df handles Decimal types in financial data."""
+    from decimal import Decimal
+    
+    # Create DataFrame with Decimal values (common in financial datasets)
+    df = pd.DataFrame({
+        "id": [1, 2, 3],
+        "amount": [Decimal("100.50"), Decimal("200.75"), Decimal("300.25")]
+    })
+    
+    probe = probe_df(df, "test_decimal", tmp_path, amount_col="amount")
+    
+    # Verify probe was created
+    assert probe.name == "test_decimal"
+    assert probe.rows == 3
+    
+    # Verify log file was created and can be read
+    log_file = tmp_path / "probes.log"
+    assert log_file.exists()
+    
+    # Verify the log entry can be parsed as JSON (no serialization errors)
+    with open(log_file, 'r') as f:
+        log_line = f.readline()
+    
+    # This should not raise an error even with Decimal values
+    log_entry = json.loads(log_line)
+    
+    assert "timestamp" in log_entry
+    assert "probe" in log_entry
+    assert log_entry["probe"]["name"] == "test_decimal"
+    
+    # Decimal values should be converted to float for JSON serialization
+    amount_sum_logged = log_entry["probe"]["amount_sum"]
+    assert isinstance(amount_sum_logged, (int, float))
+
+
+def test_probe_df_snapshot_max_rows(tmp_path):
+    """Test probe_df limits snapshot rows to prevent massive disk writes."""
+    # Create a large DataFrame
+    df = pd.DataFrame({
+        "id": range(15000),
+        "value": range(15000)
+    })
+    
+    # Default max_rows is 10000
+    probe_df(df, "test_large", tmp_path, snapshot=True)
+    
+    # Verify snapshot was created with limited rows
+    snapshot_files = list(tmp_path.glob("snapshot_test_large_*.csv"))
+    assert len(snapshot_files) == 1
+    
+    snapshot_df = pd.read_csv(snapshot_files[0])
+    assert len(snapshot_df) == 10000  # Default limit
+    
+    # Test with custom max_rows
+    probe_df(df, "test_custom", tmp_path, snapshot=True, snapshot_max_rows=5000)
+    
+    snapshot_files = list(tmp_path.glob("snapshot_test_custom_*.csv"))
+    assert len(snapshot_files) == 1
+    
+    snapshot_df = pd.read_csv(snapshot_files[0])
+    assert len(snapshot_df) == 5000  # Custom limit
+
+
+def test_probe_df_snapshot_small_dataframe(tmp_path):
+    """Test probe_df doesn't limit snapshot for small DataFrames."""
+    # Create a small DataFrame
+    df = pd.DataFrame({
+        "id": [1, 2, 3],
+        "value": [100, 200, 300]
+    })
+    
+    # Should save all rows since it's under the limit
+    probe_df(df, "test_small", tmp_path, snapshot=True, snapshot_max_rows=10000)
+    
+    snapshot_files = list(tmp_path.glob("snapshot_test_small_*.csv"))
+    assert len(snapshot_files) == 1
+    
+    snapshot_df = pd.read_csv(snapshot_files[0])
+    assert len(snapshot_df) == 3  # All rows saved

@@ -28,6 +28,7 @@ import pandas as pd
 import json
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,7 @@ def probe_df(
     key_cols: list[str] | None = None,
     snapshot: bool = False,
     snapshot_cols: list[str] | None = None,
+    snapshot_max_rows: int = 10000,
 ) -> DFProbe:
     """
     Probe a DataFrame and collect statistics for pipeline instrumentation.
@@ -87,6 +89,7 @@ def probe_df(
         key_cols: Optional list of column names to count unique values
         snapshot: If True, save a CSV snapshot of the DataFrame
         snapshot_cols: Optional list of columns to include in snapshot (None = all)
+        snapshot_max_rows: Maximum number of rows to save in snapshot (default: 10000)
         
     Returns:
         DFProbe: A dataclass containing all collected statistics
@@ -206,8 +209,15 @@ def probe_df(
         # Handle NaN and Infinity values in financial data
         # Convert them to None for JSON serialization
         def sanitize_for_json(obj):
-            """Convert NaN and Infinity values to None for JSON serialization."""
-            if isinstance(obj, float):
+            """
+            Convert NaN, Infinity, and Decimal values for JSON serialization.
+            
+            - NaN, Infinity, -Infinity -> None
+            - Decimal -> float
+            """
+            if isinstance(obj, Decimal):
+                return float(obj)
+            elif isinstance(obj, float):
                 if pd.isna(obj) or obj == float('inf') or obj == float('-inf'):
                     return None
             elif isinstance(obj, dict):
@@ -243,6 +253,16 @@ def probe_df(
                     df_to_save = df[snapshot_cols]
             else:
                 df_to_save = df
+            
+            # Limit snapshot rows to prevent massive disk writes
+            original_rows = len(df_to_save)
+            if original_rows > snapshot_max_rows:
+                df_to_save = df_to_save.head(snapshot_max_rows)
+                logger.warning(
+                    f"Snapshot for '{name}' limited to {snapshot_max_rows} rows "
+                    f"(original: {original_rows} rows). "
+                    f"Increase snapshot_max_rows parameter if needed."
+                )
             
             # Create snapshot filename with timestamp
             timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
