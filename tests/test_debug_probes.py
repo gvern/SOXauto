@@ -6,7 +6,6 @@ expected debug output files.
 """
 
 import pandas as pd
-import pytest
 from pathlib import Path
 
 from src.utils.debug_probes import probe_df, audit_merge
