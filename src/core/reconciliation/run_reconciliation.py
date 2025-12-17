@@ -427,16 +427,22 @@ def _run_bridge_analysis(
             # PROBE: Before VTC Merge (audit merge keys)
             if categorized_cr_03 is not None and not categorized_cr_03.empty:
                 # VTC uses voucher number as merge key
-                # Check if the key columns exist before auditing
-                if '[Voucher No_]' in categorized_cr_03.columns or 'VoucherId' in ipe_08_filtered.columns:
+                # Determine a merge key that exists in BOTH DataFrames before auditing
+                merge_key = None
+                if '[Voucher No_]' in categorized_cr_03.columns and '[Voucher No_]' in ipe_08_filtered.columns:
+                    merge_key = '[Voucher No_]'
+                elif 'VoucherId' in categorized_cr_03.columns and 'VoucherId' in ipe_08_filtered.columns:
+                    merge_key = 'VoucherId'
+
+                if merge_key is not None:
                     audit_merge(
-                        categorized_cr_03, ipe_08_filtered,
-                        on='[Voucher No_]' if '[Voucher No_]' in categorized_cr_03.columns else 'VoucherId',
+                        categorized_cr_03,
+                        ipe_08_filtered,
+                        on=merge_key,
                         merge_name="VTC_adjustment_merge",
                         debug_dir=DEBUG_OUTPUT_DIR,
-                        how="inner"
+                        how="inner",
                     )
-            
             vtc_amount, vtc_proof_df, vtc_metrics = calculate_vtc_adjustment(
                 ipe_08_df=ipe_08_filtered,
                 categorized_cr_03_df=categorized_cr_03,
