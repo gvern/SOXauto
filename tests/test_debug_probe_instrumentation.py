@@ -5,7 +5,6 @@ Validates that probes are correctly placed and called during reconciliation.
 """
 
 import pandas as pd
-import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock, call
 
