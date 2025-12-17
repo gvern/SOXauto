@@ -312,7 +312,7 @@ extract_nav_gl()         load_jdash()         extract_ipe_usage()
   (CR_03, CR_04)           (Jdash CSV)          (IPE_08, DOC_USAGE)
   ↓                           ↓                          ↓
   Amount                 Amount Used           Total Amount Used
-  VoucherId              VoucherId              VoucherId
+  [Voucher No_]          Voucher Id            id
   GL Account             -                      business_use
   ↓                           ↓                          ↓
 ┌─────────────────────────────────────────────────────────────────┐
