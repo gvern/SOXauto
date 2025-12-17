@@ -245,6 +245,7 @@ PG-01/
 │   └── utils/                    # Shared utilities
 │       ├── __init__.py
 │       ├── aws_utils.py           # AWS service abstractions
+│       ├── merge_utils.py         # Merge audit (Cartesian product detection)
 │       └── okta_aws_auth.py      # Okta SSO integration
 │
 ├── docs/                         # Comprehensive documentation
@@ -388,6 +389,35 @@ python3 scripts/validate_ipe_config.py
 - Evidence generation
 - Validation engine
 - Bridge classification
+- Merge audit (Cartesian product detection)
+
+------
+
+## Merge Audit Utility
+
+SOXauto includes a pre-merge validation tool to detect **Cartesian products** (exploding joins) that can duplicate amount lines and cause financial discrepancies.
+
+### Quick Example
+
+```python
+from src.utils.merge_utils import audit_merge
+
+# Before merging, audit the operation
+result = audit_merge(
+    left=ipe_df,
+    right=gl_df,
+    on='customer_id',
+    name='reconciliation',
+    out_dir='./audit_output'
+)
+
+# Check for duplicates
+if result['has_duplicates']:
+    print(f"⚠️ WARNING: Duplicates detected!")
+    # Review exported CSV files before proceeding
+```
+
+For detailed documentation, see [`docs/development/MERGE_AUDIT_GUIDE.md`](docs/development/MERGE_AUDIT_GUIDE.md).
 
 ------
 
@@ -407,6 +437,7 @@ Comprehensive documentation available in `docs/`:
 ### Development
 
 - **[TESTING_GUIDE.md](docs/development/TESTING_GUIDE.md)** - Testing best practices
+- **[MERGE_AUDIT_GUIDE.md](docs/development/MERGE_AUDIT_GUIDE.md)** - Merge audit utility documentation
 - **[SECURITY_FIXES.md](docs/development/SECURITY_FIXES.md)** - Security audit findings
 - **[evidence_documentation.md](docs/development/evidence_documentation.md)** - Evidence system specs
 - **[RUNNING_EXTRACTIONS.md](docs/development/RUNNING_EXTRACTIONS.md)** - Running extractions with SQL parameters
