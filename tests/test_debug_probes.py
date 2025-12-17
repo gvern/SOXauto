@@ -5,7 +5,6 @@ Validates that probe_df and audit_merge work correctly and produce
 expected debug output files.
 """
 
-import os
 import pandas as pd
 import pytest
 from pathlib import Path
