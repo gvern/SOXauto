@@ -191,7 +191,7 @@ This utility is designed to integrate into:
 ## Files Modified/Created
 
 ### Created:
-1. `src/utils/merge_utils.py` (169 lines)
+1. `src/utils/merge_utils.py` (159 lines)
 2. `tests/test_merge_utils.py` (337 lines)
 3. `tests/test_audit_merge_smoke.py` (125 lines)
 4. `scripts/validate_audit_merge.py` (176 lines)
