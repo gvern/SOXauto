@@ -194,7 +194,7 @@ The script maintains backward compatibility:
 - ✅ F-string formatting
 - ✅ Proper error handling
 - ✅ No hardcoded credentials
-- ✅ Parameterized queries
+- ⚠️ Fixture script still needs refactor to use parameterized queries and strict entity whitelisting
 
 ---
 
