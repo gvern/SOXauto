@@ -443,9 +443,11 @@ def _run_bridge_analysis(
                         debug_dir=DEBUG_OUTPUT_DIR,
                         how="inner",
                     )
+            # CRITICAL: Pass cutoff_date to enable inactive_at date filtering
             vtc_amount, vtc_proof_df, vtc_metrics = calculate_vtc_adjustment(
                 ipe_08_df=ipe_08_filtered,
                 categorized_cr_03_df=categorized_cr_03,
+                cutoff_date=cutoff_date,
             )
             bridges['vtc_adjustment'] = {
                 'amount': float(vtc_amount) if pd.notna(vtc_amount) else 0,
