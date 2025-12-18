@@ -143,20 +143,36 @@ class ExtractionPipeline:
         """
         Load data from fixture file (fallback for development/testing).
         
+        Supports company-specific subfolders with fallback to root fixtures directory:
+        1. First tries: tests/fixtures/{company}/fixture_{item_id}.csv
+        2. Then tries: tests/fixtures/fixture_{item_id}.csv (shared/reference files)
+        3. Raises FileNotFoundError if not found in either location
+        
         Args:
             item_id: The IPE or CR identifier
         
         Returns:
             DataFrame from fixture file, or empty DataFrame if not found
         """
-        fixture_path = os.path.join(
+        # Priority 1: Try company-specific subfolder
+        if self.country_code:
+            company_fixture_path = os.path.join(
+                REPO_ROOT, "tests", "fixtures", self.country_code, f"fixture_{item_id}.csv"
+            )
+            if os.path.exists(company_fixture_path):
+                logger.info(f"Loading fixture for {item_id} from company subfolder: {company_fixture_path}")
+                return pd.read_csv(company_fixture_path, low_memory=False)
+        
+        # Priority 2: Fallback to root fixtures directory (for shared files like FX rates)
+        root_fixture_path = os.path.join(
             REPO_ROOT, "tests", "fixtures", f"fixture_{item_id}.csv"
         )
-        if os.path.exists(fixture_path):
-            logger.info(f"Loading fixture for {item_id}: {fixture_path}")
-            return pd.read_csv(fixture_path, low_memory=False)
+        if os.path.exists(root_fixture_path):
+            logger.info(f"Loading fixture for {item_id} from root fixtures: {root_fixture_path}")
+            return pd.read_csv(root_fixture_path, low_memory=False)
         
-        logger.warning(f"No fixture found for {item_id}")
+        # Not found in either location
+        logger.warning(f"No fixture found for {item_id} in company subfolder ({self.country_code}) or root fixtures")
         return pd.DataFrame()
     
     def filter_by_country(self, df: pd.DataFrame) -> pd.DataFrame:
