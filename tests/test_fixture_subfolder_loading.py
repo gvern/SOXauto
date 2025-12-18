@@ -6,6 +6,8 @@ fixtures from company-specific subfolders with fallback to root fixtures.
 """
 
 import pandas as pd
+import src.core.extraction_pipeline as ep_module
+import src.core.jdash_loader as jdash_module
 
 from src.core.extraction_pipeline import ExtractionPipeline
 from src.core.jdash_loader import load_jdash_data
@@ -36,7 +38,6 @@ class TestExtractionPipelineSubfolderLoading:
         params = {'cutoff_date': '2025-09-30', 'id_companies_active': f"('{company}')"}
         
         # Temporarily override REPO_ROOT for the test
-        import src.core.extraction_pipeline as ep_module
         original_repo_root = ep_module.REPO_ROOT
         try:
             ep_module.REPO_ROOT = str(tmp_path)
@@ -73,7 +74,6 @@ class TestExtractionPipelineSubfolderLoading:
         params = {'cutoff_date': '2025-09-30', 'id_companies_active': f"('{company}')"}
         
         # Temporarily override REPO_ROOT
-        import src.core.extraction_pipeline as ep_module
         original_repo_root = ep_module.REPO_ROOT
         try:
             ep_module.REPO_ROOT = str(tmp_path)
@@ -102,7 +102,6 @@ class TestExtractionPipelineSubfolderLoading:
         params = {'cutoff_date': '2025-09-30', 'id_companies_active': f"('{company}')"}
         
         # Temporarily override REPO_ROOT
-        import src.core.extraction_pipeline as ep_module
         original_repo_root = ep_module.REPO_ROOT
         try:
             ep_module.REPO_ROOT = str(tmp_path)
@@ -148,7 +147,6 @@ class TestExtractionPipelineSubfolderLoading:
         params = {'cutoff_date': '2025-09-30', 'id_companies_active': f"('{company}')"}
         
         # Temporarily override REPO_ROOT
-        import src.core.extraction_pipeline as ep_module
         original_repo_root = ep_module.REPO_ROOT
         try:
             ep_module.REPO_ROOT = str(tmp_path)
@@ -186,7 +184,6 @@ class TestJDashLoaderSubfolderLoading:
         jdash_data.to_csv(jdash_fixture_path, index=False)
         
         # Temporarily override REPO_ROOT
-        import src.core.jdash_loader as jdash_module
         original_repo_root = jdash_module.REPO_ROOT
         try:
             jdash_module.REPO_ROOT = str(tmp_path)
@@ -220,7 +217,6 @@ class TestJDashLoaderSubfolderLoading:
         jdash_data.to_csv(jdash_fixture_path, index=False)
         
         # Temporarily override REPO_ROOT
-        import src.core.jdash_loader as jdash_module
         original_repo_root = jdash_module.REPO_ROOT
         try:
             jdash_module.REPO_ROOT = str(tmp_path)
@@ -261,7 +257,6 @@ class TestJDashLoaderSubfolderLoading:
         root_jdash.to_csv(root_fixture_path, index=False)
         
         # Temporarily override REPO_ROOT
-        import src.core.jdash_loader as jdash_module
         original_repo_root = jdash_module.REPO_ROOT
         try:
             jdash_module.REPO_ROOT = str(tmp_path)
