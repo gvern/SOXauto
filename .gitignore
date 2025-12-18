@@ -76,6 +76,9 @@ archives/
 # Test fixtures (if containing sensitive data)
 fixtures/
 **/fixtures/
+# But allow README files in fixtures directories
+!**/fixtures/README.md
+!**/fixtures/*/README.md
 
 # Process documentation (keep locally, exclude from repo)
 docs/project-history/

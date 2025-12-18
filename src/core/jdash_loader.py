@@ -19,7 +19,8 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
 def load_jdash_data(
     source: Optional[Union[str, Any]] = None,
-    fixture_fallback: bool = True
+    fixture_fallback: bool = True,
+    company: Optional[str] = None
 ) -> Tuple[pd.DataFrame, str]:
     """
     Load and normalize JDASH (voucher usage) data.
@@ -30,9 +31,14 @@ def load_jdash_data(
     - DataFrame (passed through)
     - None (uses fixture fallback if enabled)
     
+    Supports company-specific subfolders with fallback to root fixtures:
+    1. First tries: tests/fixtures/{company}/fixture_JDASH.csv
+    2. Then tries: tests/fixtures/fixture_JDASH.csv (shared/reference files)
+    
     Args:
         source: Data source - can be file path, file-like object, DataFrame, or None
         fixture_fallback: If True, falls back to local fixture when source is None
+        company: Optional company code (e.g., 'EC_NG', 'JD_GH') for company-specific fixtures
     
     Returns:
         Tuple of (DataFrame, source_description) where:
@@ -42,6 +48,8 @@ def load_jdash_data(
     Example:
         >>> df, source = load_jdash_data("/path/to/jdash.csv")
         >>> print(f"Loaded {len(df)} rows from {source}")
+        >>> # Load company-specific fixture
+        >>> df, source = load_jdash_data(company="EC_NG")
     """
     # Case 1: DataFrame passed directly
     if isinstance(source, pd.DataFrame):
@@ -64,12 +72,23 @@ def load_jdash_data(
         except Exception as e:
             logger.warning(f"Failed to load JDASH from file object: {e}")
     
-    # Case 4: Fallback to fixture
+    # Case 4: Fallback to fixture with company subfolder support
     if fixture_fallback:
-        fixture_path = os.path.join(REPO_ROOT, "tests", "fixtures", "fixture_JDASH.csv")
-        if os.path.exists(fixture_path):
+        # Priority 1: Try company-specific subfolder
+        if company:
+            company_fixture_path = os.path.join(REPO_ROOT, "tests", "fixtures", company, "fixture_JDASH.csv")
+            if os.path.exists(company_fixture_path):
+                try:
+                    df = pd.read_csv(company_fixture_path, low_memory=False)
+                    return _normalize_jdash_columns(df), f"Local Fixture ({company})"
+                except Exception as e:
+                    logger.warning(f"Failed to load JDASH fixture from company subfolder: {e}")
+        
+        # Priority 2: Fallback to root fixtures directory
+        root_fixture_path = os.path.join(REPO_ROOT, "tests", "fixtures", "fixture_JDASH.csv")
+        if os.path.exists(root_fixture_path):
             try:
-                df = pd.read_csv(fixture_path, low_memory=False)
+                df = pd.read_csv(root_fixture_path, low_memory=False)
                 return _normalize_jdash_columns(df), "Local Fixture"
             except Exception as e:
                 logger.warning(f"Failed to load JDASH fixture: {e}")

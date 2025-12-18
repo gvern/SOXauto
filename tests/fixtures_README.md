@@ -2,45 +2,35 @@
 
 This directory contains test fixture data files used by the test suite and demo scripts.
 
-## Directory Structure
+## Fixture Organization (Company Subfolders)
 
-The fixtures directory is organized by entity/country code to support multi-country testing:
+**NEW**: Fixtures are now organized by company/entity to support multi-entity testing.
+
+### Directory Structure
 
 ```
 tests/fixtures/
-├── EC_NG/          # Nigeria entity fixtures
-│   ├── fixture_CR_03.csv
-│   ├── fixture_CR_04.csv
-│   ├── fixture_CR_05.csv
+├── EC_NG/                    # Nigeria-specific fixtures
 │   ├── fixture_IPE_07.csv
 │   ├── fixture_IPE_08.csv
-│   ├── fixture_DOC_VOUCHER_USAGE.csv
-│   ├── fixture_IPE_REC_ERRORS.csv
-│   └── JDASH.csv   # Manually placed JDash data
-├── JD_GH/          # Ghana entity fixtures
 │   ├── fixture_CR_03.csv
-│   ├── ...
-│   └── JDASH.csv
-└── ...
+│   └── fixture_JDASH.csv
+├── JD_GH/                    # Ghana-specific fixtures
+│   ├── fixture_IPE_07.csv
+│   ├── fixture_IPE_08.csv
+│   └── fixture_JDASH.csv
+└── fixture_CR_05.csv         # Shared/reference files (FX rates, etc.)
 ```
 
-## Fetching Live Fixtures
+### Loading Priority
 
-To fetch live data from SQL Server and populate entity-specific folders:
+When running reconciliation with `--company EC_NG`:
+1. **First**: Looks for `tests/fixtures/EC_NG/fixture_{item_id}.csv`
+2. **Then**: Falls back to `tests/fixtures/fixture_{item_id}.csv` (for shared files)
+3. **Finally**: Returns empty DataFrame if not found in either location
 
-```bash
-# Fetch fixtures for Nigeria (EC_NG)
-python scripts/fetch_live_fixtures.py --entity EC_NG
-
-# Fetch fixtures for Ghana (JD_GH)
-python scripts/fetch_live_fixtures.py --entity JD_GH
-```
-
-**Important:** The script will:
-- Create `tests/fixtures/{entity}/` if it doesn't exist
-- Save SQL extracts as `fixture_{IPE_ID}.csv` in the entity folder
-- **NOT delete** any files from the folder
-- **Overwrite** existing files **with the same `fixture_{IPE_ID}.csv` name** (intended behavior for refreshing SQL extracts; files with different names such as `JDASH.csv` are preserved)
+**Shared files** (like FX rates) can be placed in the root `tests/fixtures/` directory
+and will be accessible to all companies.
 
 ## Required Fixture Files
 
@@ -134,6 +124,28 @@ To create fixture files:
 
 3. **Manual Creation:** Create CSV files following the column structure above
 
+### Company-Specific Fixtures
+
+For company-specific data (IPE_07, IPE_08, CR_03, JDASH):
+```bash
+# Create company subfolder
+mkdir -p tests/fixtures/EC_NG
+
+# Place company-specific fixtures there
+tests/fixtures/EC_NG/fixture_IPE_07.csv
+tests/fixtures/EC_NG/fixture_IPE_08.csv
+tests/fixtures/EC_NG/fixture_CR_03.csv
+tests/fixtures/EC_NG/fixture_JDASH.csv
+```
+
+### Shared Reference Files
+
+For shared data (FX rates, global mappings):
+```bash
+# Place in root fixtures directory
+tests/fixtures/fixture_CR_05.csv  # FX rates for all companies
+```
+
 ## File Locations
 
 Place fixture files in entity-specific subdirectories:
@@ -162,3 +174,20 @@ EC_KE,142.0
 - Numeric columns should not contain currency symbols
 - Date columns should use ISO format (YYYY-MM-DD)
 - Boolean fields use 0/1 or 'true'/'false' depending on the field
+
+## Running Headless Tests with Company Fixtures
+
+To run headless reconciliation using company-specific fixtures:
+
+```bash
+# Run with EC_NG fixtures
+python scripts/run_headless_test.py --company EC_NG --cutoff-date 2025-09-30
+
+# This will load fixtures from:
+# - tests/fixtures/EC_NG/fixture_IPE_07.csv (company-specific)
+# - tests/fixtures/EC_NG/fixture_IPE_08.csv (company-specific)
+# - tests/fixtures/fixture_CR_05.csv (shared FX rates)
+```
+
+**Backward Compatibility**: The system still supports the old single-folder structure.
+If no company subfolders exist, all fixtures are loaded from `tests/fixtures/`.

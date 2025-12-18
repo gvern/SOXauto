@@ -18,6 +18,7 @@ from src.core.runners.mssql_runner import IPERunner
 from src.core.catalog.cpg1 import get_item_by_id
 from src.utils.aws_utils import AWSSecretsManager
 from src.core.evidence_locator import get_latest_evidence_zip
+from src.core.jdash_loader import load_jdash_data
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +182,7 @@ class ExtractionPipeline:
             REPO_ROOT, "tests", "fixtures", f"fixture_{item_id}.csv"
         )
         if os.path.exists(fixture_path):
-            logger.info(f"Loading fixture for {item_id}: {fixture_path}")
+            logger.info(f"Loading fixture for {item_id} from root fixtures: {fixture_path}")
             return pd.read_csv(fixture_path, low_memory=False)
         
         logger.warning(f"No fixture found for {item_id} (checked entity-specific and root)")
@@ -338,13 +339,24 @@ def load_all_data(
         
         # Priority 3: Fallback to local fixture
         if df is None:
-            df = pipeline._load_fixture(item_id)
-            if not df.empty:
-                source = "Local Fixture"
-                logger.info(f"{item_id}: Loaded from fixture ({len(df)} rows)")
+            # Special handling for JDASH - use dedicated loader with company parameter
+            if item_id == "JDASH":
+                df, jdash_source = load_jdash_data(company=country_code, fixture_fallback=True)
+                if not df.empty:
+                    source = f"Local Fixture - {jdash_source}"
+                    logger.info(f"{item_id}: Loaded via jdash_loader ({len(df)} rows)")
+                else:
+                    source = "No Data"
+                    df = pd.DataFrame()
             else:
-                source = "No Data"
-                df = pd.DataFrame()
+                # Use standard fixture loading for other items
+                df = pipeline._load_fixture(item_id)
+                if not df.empty:
+                    source = "Local Fixture"
+                    logger.info(f"{item_id}: Loaded from fixture ({len(df)} rows)")
+                else:
+                    source = "No Data"
+                    df = pd.DataFrame()
         
         # Apply country filter for display purposes
         df = pipeline.filter_by_country(df)
