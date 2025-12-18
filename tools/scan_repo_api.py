@@ -17,7 +17,7 @@ DEFAULT_EXCLUDES = {
     "venv", ".venv", "env", ".env",
     "node_modules",
     "dist", "build", ".tox", ".eggs",
-    ".idea", ".vscode",
+    ".idea", ".vscode", "_archive"
 }
 
 
