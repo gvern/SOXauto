@@ -172,13 +172,15 @@ The script maintains backward compatibility:
 2. Verify JDash files are preserved during extraction
 3. Test with multiple entities (EC_NG, JD_GH)
 4. Consider adding more entity-specific configuration if needed
-5. **Follow-up PRs**: Update `scripts/generate_evidence_packages.py` and `scripts/debug_live_category.py` to use the new entity-specific `tests/fixtures/{entity}/` structure instead of the flat fixtures directory
+4. Consider adding more entity-specific configuration if needed
+5. Update `scripts/generate_evidence_packages.py` in a follow-up PR to use the new entity-specific `tests/fixtures/<entity>/` structure instead of the flat fixtures directory.
 
 ## Related Files
 
 - `src/core/runners/mssql_runner.py` - Unchanged (runner logic intact)
 - `src/core/catalog/cpg1.py` - Unchanged (IPE definitions intact)
 - `tests/fixtures_README.md` - Updated with new structure
+- `scripts/generate_evidence_packages.py` - Still uses flat `tests/fixtures/` layout; scheduled for refactor to entity-specific folders in a follow-up PR
 - `.gitignore` - Already excludes `fixtures/` and `*.csv`
 - `scripts/debug_live_category.py` - Still references flat `tests/fixtures/fixture_CR_03.csv`; may need updating to support entity-specific fixture folders similar to `scripts/fetch_live_fixtures.py`
 - `scripts/debug_live_category.py` - Still references flat `tests/fixtures/fixture_CR_03.csv`; may need updating to support entity-specific fixture folders similar to `scripts/fetch_live_fixtures.py`
