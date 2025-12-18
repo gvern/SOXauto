@@ -114,8 +114,14 @@ Fixture files are not committed to the repository due to data sensitivity (.giti
 
 To create fixture files:
 
-1. **From Production Data:** Extract sample data from the SQL Server queries defined in `src/core/catalog/cpg1.py`
+1. **From Production Data (Recommended):** Use the `fetch_live_fixtures.py` script:
+   ```bash
+   python scripts/fetch_live_fixtures.py --entity EC_NG
+   ```
+   This will extract sample data from the SQL Server queries defined in `src/core/catalog/cpg1.py` and save them to `tests/fixtures/EC_NG/`.
+
 2. **From Demo Script:** Run `python scripts/run_demo.py` which will auto-generate minimal fixtures
+
 3. **Manual Creation:** Create CSV files following the column structure above
 
 ### Company-Specific Fixtures
@@ -142,10 +148,10 @@ tests/fixtures/fixture_CR_05.csv  # FX rates for all companies
 
 ## File Locations
 
-Place fixture files in:
-- `tests/fixtures/{COMPANY}/` - For company-specific data (e.g., EC_NG, JD_GH)
-- `tests/fixtures/` - For shared reference files (e.g., FX rates)
-- Test scripts will auto-create fixtures in these directories if missing
+Place fixture files in entity-specific subdirectories:
+- `tests/fixtures/{entity}/` - For entity-specific test data (e.g., `tests/fixtures/EC_NG/`, `tests/fixtures/JD_GH/`)
+- Each entity folder should contain all required fixture files for that entity
+- JDash files should be manually placed in the entity folder before running `fetch_live_fixtures.py`
 
 ## FX Conversion Testing
 
