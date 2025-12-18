@@ -8,7 +8,6 @@ Verifies the QA requirements from the issue:
 """
 
 import os
-import tempfile
 from unittest.mock import patch, MagicMock
 import pandas as pd
 import pytest
