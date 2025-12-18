@@ -6,7 +6,6 @@ fixtures from company-specific subfolders with fallback to root fixtures.
 """
 
 import os
-import tempfile
 import shutil
 import pandas as pd
 import pytest
