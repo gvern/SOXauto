@@ -5,7 +5,6 @@ Validates that the extraction pipeline and jdash loader correctly load
 fixtures from company-specific subfolders with fallback to root fixtures.
 """
 
-import shutil
 import pandas as pd
 import pytest
 
