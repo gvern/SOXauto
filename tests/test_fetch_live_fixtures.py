@@ -1,6 +1,5 @@
 import os
 import sys
-import pytest
 from pathlib import Path
 
 # Ensure the scripts module can be imported
@@ -59,3 +58,37 @@ def test_fetch_live_fixtures_different_entities():
         # Each entity should have its own unique path
         assert str(output_dir).endswith(f"tests/fixtures/{entity}")
         assert entity in str(output_dir)
+
+
+def test_fetch_live_fixtures_entity_whitelist():
+    """Test that ALLOWED_ENTITIES whitelist exists and contains expected entities."""
+    import scripts.fetch_live_fixtures as fetch_live_fixtures
+    
+    # Verify ALLOWED_ENTITIES exists
+    assert hasattr(fetch_live_fixtures, 'ALLOWED_ENTITIES')
+    assert isinstance(fetch_live_fixtures.ALLOWED_ENTITIES, list)
+    
+    # Verify common entities are in whitelist
+    expected_entities = ['EC_NG', 'JD_GH', 'EC_KE', 'JM_EG']
+    for entity in expected_entities:
+        assert entity in fetch_live_fixtures.ALLOWED_ENTITIES, \
+            f"Entity {entity} should be in ALLOWED_ENTITIES"
+
+
+def test_fetch_live_fixtures_date_constants():
+    """Test that date configuration constants are defined."""
+    import scripts.fetch_live_fixtures as fetch_live_fixtures
+    
+    # Verify date constants exist
+    assert hasattr(fetch_live_fixtures, 'CUTOFF_DATE')
+    assert hasattr(fetch_live_fixtures, 'YEAR_START')
+    assert hasattr(fetch_live_fixtures, 'YEAR_END')
+    assert hasattr(fetch_live_fixtures, 'YEAR')
+    assert hasattr(fetch_live_fixtures, 'MONTH')
+    
+    # Verify they are not empty
+    assert fetch_live_fixtures.CUTOFF_DATE
+    assert fetch_live_fixtures.YEAR_START
+    assert fetch_live_fixtures.YEAR_END
+    assert isinstance(fetch_live_fixtures.YEAR, int)
+    assert isinstance(fetch_live_fixtures.MONTH, int)

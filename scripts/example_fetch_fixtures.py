@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 
-def fetch_fixtures_for_entity(entity: str):
+def fetch_fixtures_for_entity(entity: str) -> None:
     """
     Fetch live fixtures for a specific entity.
     
@@ -54,7 +54,7 @@ def fetch_fixtures_for_entity(entity: str):
         print(f"Stderr: {e.stderr}")
 
 
-def main():
+def main() -> None:
     """Main function to demonstrate fetching fixtures for multiple entities."""
     print("""
 ╔════════════════════════════════════════════════════════════╗

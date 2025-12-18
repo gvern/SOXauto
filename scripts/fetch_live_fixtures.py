@@ -15,6 +15,31 @@ from src.core.catalog.cpg1 import get_item_by_id
 from src.utils.aws_utils import AWSSecretsManager
 
 # === CONFIGURATION ===
+# Allowed entity codes (whitelist for security)
+ALLOWED_ENTITIES = [
+    'EC_NG',  # Nigeria
+    'JD_GH',  # Ghana
+    'EC_KE',  # Kenya
+    'JM_EG',  # Egypt
+    'EC_MA',  # Morocco
+    'EC_CI',  # Ivory Coast
+    'EC_SN',  # Senegal
+    'EC_TN',  # Tunisia
+    'EC_UG',  # Uganda
+    'EC_ZA',  # South Africa
+]
+
+# Date configuration for SQL queries
+CUTOFF_DATE = "2025-09-30"
+YEAR_START = "2025-09-01"
+YEAR_END = "2025-09-30"
+YEAR = 2025
+MONTH = 9
+
+# GL Accounts to extract
+GL_ACCOUNTS = "('15010','18303','18304','18406','18408','18409','18411','18416','18417','18419','18421','18320','18307','18308','18309','18312','18310','18314','18380','18635','18317','18318','18319')"
+
+# Items to fetch from catalog
 ITEMS_TO_FETCH = [
     "CR_04",
     "CR_03",
@@ -25,7 +50,26 @@ ITEMS_TO_FETCH = [
     "IPE_REC_ERRORS"
 ]
 
-async def main(entity: str = "EC_NG"):
+async def main(entity: str = "EC_NG") -> None:
+    """
+    Fetch live fixtures from SQL Server and save to entity-specific folders.
+    
+    This function connects to the SQL Server database (via mocked connection in this script)
+    and extracts IPE/CR data for the specified entity. Data is saved as CSV files in 
+    tests/fixtures/{entity}/ directory. Existing files like JDASH.csv are preserved.
+    
+    Args:
+        entity: Entity code (e.g., 'EC_NG', 'JD_GH'). Must be in ALLOWED_ENTITIES whitelist.
+        
+    Raises:
+        ValueError: If entity is not in the ALLOWED_ENTITIES whitelist.
+    """
+    # Security: Validate entity against whitelist to prevent SQL injection
+    if entity not in ALLOWED_ENTITIES:
+        raise ValueError(
+            f"Invalid entity '{entity}'. Allowed entities: {', '.join(ALLOWED_ENTITIES)}"
+        )
+    
     print(f"🚀 STARTING LIVE EXTRACTION via Service Account (With Evidence) for entity: {entity}...")
     
     # Dynamic output path: tests/fixtures/{entity}/
@@ -35,12 +79,12 @@ async def main(entity: str = "EC_NG"):
     
     # Configure PARAMS with entity-specific settings
     PARAMS = {
-        "cutoff_date": "2025-09-30",
-        "year_start": "2025-09-01",
-        "year_end": "2025-09-30",
-        "year": 2025,
-        "month": 9,
-        "gl_accounts": "('15010','18303','18304','18406','18408','18409','18411','18416','18417','18419','18421','18320','18307','18308','18309','18312','18310','18314','18380','18635','18317','18318','18319')",
+        "cutoff_date": CUTOFF_DATE,
+        "year_start": YEAR_START,
+        "year_end": YEAR_END,
+        "year": YEAR,
+        "month": MONTH,
+        "gl_accounts": GL_ACCOUNTS,
         "id_companies_active": f"('{entity}')"
     }
     
