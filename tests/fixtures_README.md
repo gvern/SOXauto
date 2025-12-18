@@ -2,6 +2,46 @@
 
 This directory contains test fixture data files used by the test suite and demo scripts.
 
+## Directory Structure
+
+The fixtures directory is organized by entity/country code to support multi-country testing:
+
+```
+tests/fixtures/
+├── EC_NG/          # Nigeria entity fixtures
+│   ├── fixture_CR_03.csv
+│   ├── fixture_CR_04.csv
+│   ├── fixture_CR_05.csv
+│   ├── fixture_IPE_07.csv
+│   ├── fixture_IPE_08.csv
+│   ├── fixture_DOC_VOUCHER_USAGE.csv
+│   ├── fixture_IPE_REC_ERRORS.csv
+│   └── JDASH.csv   # Manually placed JDash data
+├── JD_GH/          # Ghana entity fixtures
+│   ├── fixture_CR_03.csv
+│   ├── ...
+│   └── JDASH.csv
+└── ...
+```
+
+## Fetching Live Fixtures
+
+To fetch live data from SQL Server and populate entity-specific folders:
+
+```bash
+# Fetch fixtures for Nigeria (EC_NG)
+python scripts/fetch_live_fixtures.py --entity EC_NG
+
+# Fetch fixtures for Ghana (JD_GH)
+python scripts/fetch_live_fixtures.py --entity JD_GH
+```
+
+**Important:** The script will:
+- Create `tests/fixtures/{entity}/` if it doesn't exist
+- Save SQL extracts as `fixture_{IPE_ID}.csv` in the entity folder
+- **NOT delete** any files from the folder
+- **Overwrite** existing files **with the same `fixture_{IPE_ID}.csv` name** (intended behavior for refreshing SQL extracts; files with different names such as `JDASH.csv` are preserved)
+
 ## Required Fixture Files
 
 The following CSV fixture files are required for running tests and demos:
@@ -84,15 +124,22 @@ Fixture files are not committed to the repository due to data sensitivity (.giti
 
 To create fixture files:
 
-1. **From Production Data:** Extract sample data from the SQL Server queries defined in `src/core/catalog/cpg1.py`
+1. **From Production Data (Recommended):** Use the `fetch_live_fixtures.py` script:
+   ```bash
+   python scripts/fetch_live_fixtures.py --entity EC_NG
+   ```
+   This will extract sample data from the SQL Server queries defined in `src/core/catalog/cpg1.py` and save them to `tests/fixtures/EC_NG/`.
+
 2. **From Demo Script:** Run `python scripts/run_demo.py` which will auto-generate minimal fixtures
+
 3. **Manual Creation:** Create CSV files following the column structure above
 
 ## File Locations
 
-Place fixture files in:
-- `tests/fixtures/` - For pytest test suite
-- Test scripts will auto-create fixtures in this directory if missing
+Place fixture files in entity-specific subdirectories:
+- `tests/fixtures/{entity}/` - For entity-specific test data (e.g., `tests/fixtures/EC_NG/`, `tests/fixtures/JD_GH/`)
+- Each entity folder should contain all required fixture files for that entity
+- JDash files should be manually placed in the entity folder before running `fetch_live_fixtures.py`
 
 ## FX Conversion Testing
 
