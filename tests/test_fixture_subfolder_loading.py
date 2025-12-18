@@ -6,7 +6,6 @@ fixtures from company-specific subfolders with fallback to root fixtures.
 """
 
 import pandas as pd
-import pytest
 
 from src.core.extraction_pipeline import ExtractionPipeline
 from src.core.jdash_loader import load_jdash_data
