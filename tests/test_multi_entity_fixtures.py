@@ -10,7 +10,6 @@ Verifies the QA requirements from the issue:
 import os
 from unittest.mock import patch, MagicMock
 import pandas as pd
-import pytest
 
 from src.core.extraction_pipeline import ExtractionPipeline, load_all_data
 from src.core.reconciliation.run_reconciliation import run_reconciliation
