@@ -20,7 +20,6 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 from src.core.extraction_pipeline import ExtractionPipeline, load_all_data
-import pandas as pd
 
 
 def demonstrate_multi_entity_fixture_loading():
