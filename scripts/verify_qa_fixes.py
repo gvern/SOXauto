@@ -13,7 +13,6 @@ Usage:
 
 import os
 import sys
-from pathlib import Path
 
 # Add project root to path
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
