@@ -50,6 +50,19 @@ ITEMS_TO_FETCH = [
     "IPE_REC_ERRORS"
 ]
 
+def get_output_dir(entity: str) -> Path:
+    """
+    Get the output directory path for a given entity.
+    
+    Args:
+        entity: Entity code (e.g., 'EC_NG', 'JD_GH')
+        
+    Returns:
+        Path object for the entity-specific fixtures directory
+    """
+    return Path(__file__).parent.parent / "tests" / "fixtures" / entity
+
+
 async def main(entity: str = "EC_NG") -> None:
     """
     Fetch live fixtures from SQL Server and save to entity-specific folders.
@@ -73,7 +86,7 @@ async def main(entity: str = "EC_NG") -> None:
     print(f"🚀 STARTING LIVE EXTRACTION via Service Account (With Evidence) for entity: {entity}...")
     
     # Dynamic output path: tests/fixtures/{entity}/
-    output_dir = Path(__file__).parent.parent / "tests" / "fixtures" / entity
+    output_dir = get_output_dir(entity)
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"📁 Output directory: {output_dir}")
     

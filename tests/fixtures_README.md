@@ -39,7 +39,8 @@ python scripts/fetch_live_fixtures.py --entity JD_GH
 **Important:** The script will:
 - Create `tests/fixtures/{entity}/` if it doesn't exist
 - Save SQL extracts as `fixture_{IPE_ID}.csv` in the entity folder
-- **NOT delete** existing files (e.g., manually placed JDASH.csv files are preserved)
+- **NOT delete** any files from the folder
+- **Overwrite** existing files **with the same `fixture_{IPE_ID}.csv` name** (intended behavior for refreshing SQL extracts; files with different names such as `JDASH.csv` are preserved)
 
 ## Required Fixture Files
 
