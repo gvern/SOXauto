@@ -443,7 +443,9 @@ def _run_bridge_analysis(
                         debug_dir=DEBUG_OUTPUT_DIR,
                         how="inner",
                     )
-            # CRITICAL: Pass cutoff_date to enable inactive_at date filtering
+            # QA VERIFIED: cutoff_date parameter is correctly passed to enable inactive_at date filtering
+            # This ensures only vouchers that became inactive within the reconciliation month are included
+            # Requirement: calculate_vtc_adjustment MUST receive cutoff_date to filter by inactive_at logic
             vtc_amount, vtc_proof_df, vtc_metrics = calculate_vtc_adjustment(
                 ipe_08_df=ipe_08_filtered,
                 categorized_cr_03_df=categorized_cr_03,

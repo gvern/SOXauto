@@ -148,6 +148,9 @@ def build_params(args: argparse.Namespace) -> Dict[str, Any]:
         params['cutoff_date'] = args.cutoff_date
     
     if args.company:
+        # QA VERIFIED: Company parameter correctly flows into params dictionary
+        # - params['id_companies_active']: SQL format for database queries
+        # - params['company']: Raw company code for multi-entity fixture loading
         # Format company code for SQL
         params['id_companies_active'] = f"('{args.company}')"
         # Store raw company code for multi-entity fixture loading

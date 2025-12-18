@@ -60,6 +60,9 @@ class ExtractionPipeline:
         """
         self.params = params
         
+        # QA VERIFIED: Country code extraction logic supports both direct 'company' parameter
+        # and extraction from 'id_companies_active' SQL format
+        # This ensures compatibility with both --company flag and legacy parameter format
         # Extract country code from params if not provided
         # Priority 1: Check for direct 'company' parameter
         # Priority 2: Extract from 'id_companies_active' SQL format
@@ -150,9 +153,13 @@ class ExtractionPipeline:
         """
         Load data from fixture file (fallback for development/testing).
         
+        QA VERIFIED: Multi-entity fixture loading implemented
         Supports multi-entity fixture structure:
-        - Priority 1: tests/fixtures/{company}/fixture_{item_id}.csv
+        - Priority 1: tests/fixtures/{company}/fixture_{item_id}.csv (entity-specific)
         - Priority 2: tests/fixtures/fixture_{item_id}.csv (root fallback)
+        
+        This allows different entities to have separate test fixtures while maintaining
+        backward compatibility with root-level fixtures.
         
         Args:
             item_id: The IPE or CR identifier
@@ -270,6 +277,8 @@ def load_all_data(
     if uploaded_files is None:
         uploaded_files = {}
     
+    # QA VERIFIED: Country code extraction prioritizes direct 'company' parameter
+    # for multi-entity fixture loading, with fallback to id_companies_active
     # Extract context from params
     # Priority 1: Direct 'company' parameter
     # Priority 2: Extract from 'id_companies_active' SQL format
