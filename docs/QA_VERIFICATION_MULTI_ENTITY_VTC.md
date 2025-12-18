@@ -76,7 +76,7 @@ def _load_fixture(self, item_id: str) -> pd.DataFrame:
     return pd.DataFrame()
 ```
 
-**File:** `src/core/extraction_pipeline.py`, lines 142-175
+**File:** `src/core/extraction_pipeline.py`, lines 153-188
 
 ---
 
