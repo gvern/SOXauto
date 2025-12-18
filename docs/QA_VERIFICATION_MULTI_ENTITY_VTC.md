@@ -236,7 +236,7 @@ result = run_reconciliation(params)
 | File | Lines | Change Type | Impact |
 |------|-------|-------------|--------|
 | `src/core/reconciliation/run_reconciliation.py` | 449 | Critical Fix | VTC date filtering |
-| `src/core/extraction_pipeline.py` | 142-175, 63-75, 273-280 | Enhancement | Multi-entity fixtures |
+| `src/core/extraction_pipeline.py` | 142-175, 69-77, 273-280 | Enhancement | Multi-entity fixtures |
 | `scripts/run_headless_test.py` | 150-155 | Enhancement | Parameter flow |
 | `tests/test_multi_entity_fixtures.py` | NEW | Test Coverage | Comprehensive tests |
 | `scripts/verify_qa_fixes.py` | NEW | Verification | QA demonstration |
