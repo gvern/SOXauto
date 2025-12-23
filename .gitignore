@@ -72,6 +72,7 @@ Bridge_source/
 # Archive directories
 archives/
 **/archives/
+_archive/
 
 # Test fixtures (if containing sensitive data)
 fixtures/
