@@ -9,13 +9,54 @@ import logging
 import os
 import pandas as pd
 import pyodbc
+import time
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, Callable
+from functools import wraps
 from src.utils.aws_utils import AWSSecretsManager
 from src.core.evidence.manager import DigitalEvidenceManager, IPEEvidenceGenerator
 
 # Logging configuration
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_input(value: str, max_length: int = 255, allow_chars: str = None) -> str:
+    """
+    Sanitize user input to prevent injection attacks.
+    
+    Args:
+        value: Input string to sanitize
+        max_length: Maximum allowed length (default: 255)
+        allow_chars: Regex pattern of allowed characters (default: alphanumeric + common safe chars)
+    
+    Returns:
+        Sanitized string
+    """
+    import re
+    
+    if not isinstance(value, str):
+        value = str(value)
+    
+    # Truncate to max length
+    value = value[:max_length]
+    
+    # Default safe character set: alphanumeric, spaces, hyphens, underscores, dots
+    if allow_chars is None:
+        allow_chars = r'[^a-zA-Z0-9\s\-_.:/]'
+    
+    # Remove potentially dangerous characters
+    sanitized = re.sub(allow_chars, '', value)
+    
+    # Remove any SQL injection patterns
+    dangerous_patterns = [
+        r"('|(\-\-)|(;)|(\|\|)|(\*))",
+        r"(\b(ALTER|CREATE|DELETE|DROP|EXEC(UTE)?|INSERT( +INTO)?|MERGE|SELECT|UPDATE|UNION( +ALL)?)\b)"
+    ]
+    
+    for pattern in dangerous_patterns:
+        sanitized = re.sub(pattern, '', sanitized, flags=re.IGNORECASE)
+    
+    return sanitized.strip()
 
 
 class IPEValidationError(Exception):
@@ -26,6 +67,68 @@ class IPEValidationError(Exception):
 class IPEConnectionError(Exception):
     """Exception raised when database connection fails."""
     pass
+
+
+def retry_on_network_error(max_retries: int = 3, backoff_factor: float = 2.0, initial_delay: float = 1.0):
+    """
+    Decorator to retry database operations on transient network errors.
+    
+    Args:
+        max_retries: Maximum number of retry attempts (default: 3)
+        backoff_factor: Multiplier for exponential backoff (default: 2.0)
+        initial_delay: Initial delay in seconds before first retry (default: 1.0)
+    
+    Returns:
+        Decorated function with retry logic
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            delay = initial_delay
+            
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except (pyodbc.Error, pyodbc.OperationalError, pyodbc.InterfaceError) as e:
+                    last_exception = e
+                    error_msg = str(e).lower()
+                    
+                    # Check if error is transient/retriable
+                    transient_errors = [
+                        'timeout', 'connection', 'network', 'broken pipe',
+                        'lost connection', 'server has gone away', 'communication link failure',
+                        'connection reset', 'connection refused', 'host unreachable'
+                    ]
+                    
+                    is_transient = any(err in error_msg for err in transient_errors)
+                    
+                    if not is_transient or attempt == max_retries:
+                        # Non-transient error or final attempt - raise immediately
+                        logger.error(f"Database operation failed (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                        raise
+                    
+                    # Log retry attempt
+                    logger.warning(
+                        f"Transient network error detected (attempt {attempt + 1}/{max_retries + 1}): {e}. "
+                        f"Retrying in {delay:.1f}s..."
+                    )
+                    
+                    # Wait before retry with exponential backoff
+                    time.sleep(delay)
+                    delay *= backoff_factor
+                    
+                except Exception as e:
+                    # Non-database errors - raise immediately without retry
+                    logger.error(f"Non-retriable error in database operation: {e}")
+                    raise
+            
+            # Should not reach here, but raise last exception if we do
+            if last_exception:
+                raise last_exception
+        
+        return wrapper
+    return decorator
 
 
 class IPERunner:
@@ -57,6 +160,15 @@ class IPERunner:
         
         # Default cutoff date: first day of current month
         if cutoff_date:
+            # Validate cutoff_date format (YYYY-MM-DD) to prevent injection
+            import re
+            if not re.match(r'^\d{4}-\d{2}-\d{2}$', cutoff_date):
+                raise ValueError(f"Invalid cutoff_date format: {cutoff_date}. Expected YYYY-MM-DD")
+            # Additional validation: ensure it's a valid date
+            try:
+                datetime.strptime(cutoff_date, '%Y-%m-%d')
+            except ValueError as e:
+                raise ValueError(f"Invalid cutoff_date value: {cutoff_date}. {e}")
             self.cutoff_date = cutoff_date
         else:
             today = datetime.now()
@@ -71,16 +183,31 @@ class IPERunner:
         self.evidence_manager = evidence_manager or DigitalEvidenceManager()
         self.evidence_generator = None
         
-        # Store metadata for evidence package
+        # Store metadata for evidence package - sanitize inputs
+        import re
+        if country:
+            # Country should be 2-letter code (e.g., 'NG', 'KE')
+            if not re.match(r'^[A-Z]{2}$', country):
+                logger.warning("Invalid country code format, sanitizing")
+                country = _sanitize_input(country, max_length=2, allow_chars=r'[^A-Z]')
+        
+        if period:
+            # Period should be YYYYMM format (e.g., '202509')
+            if not re.match(r'^\d{6}$', period):
+                logger.warning("Invalid period format, sanitizing")
+                period = _sanitize_input(period, max_length=6, allow_chars=r'[^0-9]')
+        
         self.country = country
         self.period = period
         self.full_params = full_params or {}
         
         logger.info(f"IPERunner initialized for {self.ipe_id} - Cutoff date: {self.cutoff_date}")
     
+    @retry_on_network_error(max_retries=3, backoff_factor=2.0, initial_delay=1.0)
     def _get_database_connection(self) -> pyodbc.Connection:
         """
         Establish database connection using credentials from Secret Manager or environment variable.
+        Automatically retries on transient network errors with exponential backoff.
         
         Fallback order:
         1. DB_CONNECTION_STRING environment variable (if set)
@@ -90,7 +217,7 @@ class IPERunner:
             pyodbc connection to the database
             
         Raises:
-            IPEConnectionError: If connection fails
+            IPEConnectionError: If connection fails after all retries
         """
         try:
             # Check for environment variable fallback first
@@ -113,9 +240,11 @@ class IPERunner:
             logger.error(error_msg)
             raise IPEConnectionError(error_msg)
     
+    @retry_on_network_error(max_retries=3, backoff_factor=2.0, initial_delay=1.0)
     def _execute_query_with_parameters(self, query: str, parameters: Optional[Tuple] = None) -> pd.DataFrame:
         """
         Execute SQL query with secure parameterized values.
+        Automatically retries on transient network errors with exponential backoff.
         
         Args:
             query: SQL query to execute
@@ -339,11 +468,18 @@ class IPERunner:
                 'parameters': parameters,
             }
             
-            # Add any additional parameters passed to the runner
+            # Add any additional parameters passed to the runner (sanitize for logging)
             if self.full_params:
-                full_params_dict.update(self.full_params)
-            
-            # Extract common parameters from full_params if available
+                sanitized_params = {}
+                for key, value in self.full_params.items():
+                    # Sanitize keys and values for safe logging
+                    safe_key = _sanitize_input(str(key), max_length=100)
+                    if isinstance(value, str):
+                        safe_value = _sanitize_input(value, max_length=500)
+                    else:
+                        safe_value = value  # Numbers, dates, etc. are safe
+                    sanitized_params[safe_key] = safe_value
+                full_params_dict.update(sanitized_params)
             
             # Save exact query with ALL parameters BEFORE execution
             self.evidence_generator.save_executed_query(
@@ -433,15 +569,24 @@ class IPERunner:
             )
             self.evidence_generator = IPEEvidenceGenerator(evidence_dir, self.ipe_id)
 
-            pseudo_query = f"-- DEMO MODE --\n-- Data loaded from: {source_name}"
+            # Sanitize source_name to prevent injection in evidence logs
+            safe_source_name = _sanitize_input(source_name, max_length=200)
+            pseudo_query = "-- DEMO MODE --\n-- Data loaded from: " + safe_source_name
             
-            # Build full parameters for demo
+            # Build full parameters for demo (sanitize for evidence package)
             demo_params = {
-                'source': source_name, 
-                'cutoff_date': self.cutoff_date
+                'source': safe_source_name,  # Already sanitized above
+                'cutoff_date': self.cutoff_date  # Validated in __init__
             }
             if self.full_params:
-                demo_params.update(self.full_params)
+                # Sanitize additional parameters
+                for key, value in self.full_params.items():
+                    safe_key = _sanitize_input(str(key), max_length=100)
+                    if isinstance(value, str):
+                        safe_value = _sanitize_input(value, max_length=500)
+                    else:
+                        safe_value = value
+                    demo_params[safe_key] = safe_value
             
             self.evidence_generator.save_executed_query(
                 pseudo_query,
@@ -475,158 +620,6 @@ class IPERunner:
             if self.evidence_generator:
                 try:
                     self.validation_results['overall_status'] = 'ERROR'
-                    self.evidence_generator.save_validation_results(self.validation_results)
-                    self.evidence_generator.finalize_evidence_package()
-                except Exception:
-                    pass
-            raise        """
-        Demo execution path: uses a provided DataFrame instead of querying the DB
-        and generates a complete evidence package.
-        """
-        try:
-            logger.info(f"[{self.ipe_id}] ==> STARTING IPE DEMO EXECUTION")
-            execution_metadata = {
-                'ipe_id': self.ipe_id,
-                'description': self.description,
-                'cutoff_date': self.cutoff_date,
-                'execution_start': datetime.now().isoformat(),
-                'sox_compliance_required': False,
-                'mode': 'DEMO',
-                'demo_source': source_name
-            }
-
-            evidence_dir = self.evidence_manager.create_evidence_package(
-                self.ipe_id, execution_metadata
-            )
-            self.evidence_generator = IPEEvidenceGenerator(evidence_dir, self.ipe_id)
-
-            pseudo_query = f"-- DEMO MODE --\n-- Data loaded from: {source_name}"
-            self.evidence_generator.save_executed_query(
-                pseudo_query,
-                parameters={'source': source_name, 'cutoff_date': self.cutoff_date}
-            )
-
-            df = demo_dataframe.copy()
-            df['_ipe_id'] = self.ipe_id
-            df['_extraction_date'] = datetime.now().isoformat()
-            df['_cutoff_date'] = self.cutoff_date
-            self.extracted_data = df
-
-            self.evidence_generator.save_data_snapshot(df)
-
-            self.validation_results = {
-                'completeness': {'status': 'SKIPPED', 'reason': 'Demo mode: DB validation not applicable'},
-                'accuracy_positive': {'status': 'SKIPPED', 'reason': 'Demo mode'},
-                'accuracy_negative': {'status': 'SKIPPED', 'reason': 'Demo mode'},
-                'overall_status': 'SUCCESS',
-                'execution_time': datetime.now().isoformat(),
-            }
-
-            self.evidence_generator.save_validation_results(self.validation_results)
-            evidence_zip = self.evidence_generator.finalize_evidence_package()
-            logger.info(f"[{self.ipe_id}] ==> DEMO EXECUTION COMPLETE - Evidence: {evidence_zip}")
-
-            return df
-
-        except Exception as e:
-            logger.error(f"[{self.ipe_id}] Error during demo run: {e}")
-            # Attempt to finalize evidence package even on error for debugging
-            if self.evidence_generator:
-                try:
-                    self.validation_results['overall_status'] = 'ERROR'
-                    self.evidence_generator.save_validation_results(self.validation_results)
-                    self.evidence_generator.finalize_evidence_package()
-                except Exception:
-                    pass
-            raise        """
-        Demo execution path: load data from a local file instead of querying the DB,
-        and generate a near-complete evidence package (without integrity hash by default).
-
-        Args:
-            demo_file_path: Path to a CSV/Excel file containing sample data for this IPE
-            include_hash: When True, also generate the integrity hash (default False for demo)
-
-        Returns:
-            DataFrame loaded from the demo file
-        """
-        try:
-            logger.info(f"[{self.ipe_id}] ==> STARTING IPE DEMO EXECUTION")
-
-            # 1) Create SOX evidence package (mark demo mode in metadata)
-            execution_metadata = {
-                'ipe_id': self.ipe_id,
-                'description': self.description,
-                'cutoff_date': self.cutoff_date,
-                'execution_start': datetime.now().isoformat(),
-                'sox_compliance_required': False,
-                'mode': 'DEMO',
-                'demo_file_path': os.path.abspath(demo_file_path)
-            }
-
-            evidence_dir = self.evidence_manager.create_evidence_package(
-                self.ipe_id, execution_metadata
-            )
-            self.evidence_generator = IPEEvidenceGenerator(evidence_dir, self.ipe_id)
-
-            # 2) Save a pseudo-query as provenance
-            pseudo_query = f"-- DEMO LOAD FROM FILE\n-- IPE: {self.ipe_id}\nLOAD DATA FROM '{os.path.basename(demo_file_path)}'"
-            self.evidence_generator.save_executed_query(
-                pseudo_query,
-                parameters={'file_path': os.path.abspath(demo_file_path), 'cutoff_date': self.cutoff_date}
-            )
-
-            # 3) Load data from file (CSV or Excel)
-            if not os.path.exists(demo_file_path):
-                raise FileNotFoundError(f"Demo file not found: {demo_file_path}")
-
-            ext = os.path.splitext(demo_file_path)[1].lower()
-            if ext in [".csv", ".txt"]:
-                df = pd.read_csv(demo_file_path)
-            elif ext in [".xlsx", ".xlsm", ".xls"]:
-                # Try first sheet by default
-                df = pd.read_excel(demo_file_path)
-            else:
-                # Fallback: try CSV
-                df = pd.read_csv(demo_file_path)
-
-            # Add traceability metadata
-            df['_ipe_id'] = self.ipe_id
-            df['_extraction_date'] = datetime.now().isoformat()
-            df['_cutoff_date'] = self.cutoff_date
-            self.extracted_data = df
-
-            # 4) Save snapshot and summary
-            self.evidence_generator.save_data_snapshot(df)
-
-            # 5) Demo validations: mark as PASS with demo context
-            self.validation_results = {
-                'completeness': {'status': 'SKIPPED', 'reason': 'Demo mode: DB validation queries not executed'},
-                'accuracy_positive': {'status': 'SKIPPED', 'reason': 'Demo mode'},
-                'accuracy_negative': {'status': 'SKIPPED', 'reason': 'Demo mode'},
-                'overall_status': 'SUCCESS',
-                'execution_time': datetime.now().isoformat(),
-            }
-
-            # Optionally include integrity hash for demo
-            if include_hash:
-                try:
-                    integrity_hash = self.evidence_generator.generate_integrity_hash(df)
-                    self.validation_results['data_integrity_hash'] = integrity_hash
-                except Exception as e:
-                    logger.warning(f"[{self.ipe_id}] Demo hash generation failed: {e}")
-
-            self.evidence_generator.save_validation_results(self.validation_results)
-
-            # 6) Finalize evidence package to include execution log and ZIP
-            evidence_zip = self.evidence_generator.finalize_evidence_package()
-            logger.info(f"[{self.ipe_id}] ==> DEMO EXECUTION COMPLETE - Evidence: {evidence_zip}")
-
-            return df
-
-        except Exception as e:
-            self.validation_results['overall_status'] = 'ERROR'
-            if self.evidence_generator:
-                try:
                     self.evidence_generator.save_validation_results(self.validation_results)
                     self.evidence_generator.finalize_evidence_package()
                 except Exception:
