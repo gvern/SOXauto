@@ -220,7 +220,7 @@ CPG1_CATALOG: List[CatalogItem] = [
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SC_ACCOUNTSTATEMENTS]", system="Seller Center", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_BS_ANAPLAN_IMPORT_IFRS_MAPPING]", system="NAV", domain="FinRec"),
         ],
-        
+        sql_query=_load_sql("IPE_11"),
     ),
     CatalogItem(
         item_id="IPE_10",
@@ -423,7 +423,7 @@ On a monthly basis the group head of shared accounting formalizes the outcome of
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
-        
+        sql_query=_load_sql("IPE_34"),
     ),
     CatalogItem(
         item_id="IPE_12",
@@ -449,7 +449,7 @@ On a monthly basis the group head of shared accounting formalizes the outcome of
         sources=[
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
-        
+        sql_query=_load_sql("IPE_12"),
     ),
     # =================================================================
     # == CR_04: NAV GL Balances
