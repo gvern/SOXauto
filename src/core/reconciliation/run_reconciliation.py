@@ -51,17 +51,16 @@ from src.core.scope_filtering import (
     get_non_marketing_summary,
 )
 
-# Import categorization pipeline
-from src.bridges.cat_pipeline import categorize_nav_vouchers, get_categorization_summary
-
-# Import bridge functions
-from src.bridges.classifier import (
+# Import categorization pipeline and bridge functions
+from src.bridges import (
+    categorize_nav_vouchers,
+    get_categorization_summary,
     classify_bridges,
     calculate_vtc_adjustment,
     calculate_customer_posting_group_bridge,
     calculate_timing_difference_bridge,
+    load_rules,
 )
-from src.bridges.catalog import load_rules
 
 # Import catalog for quality rules
 from src.core.catalog.cpg1 import get_item_by_id

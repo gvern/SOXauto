@@ -5,7 +5,7 @@ import os
 # Ajout du path src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.bridges.classifier import _categorize_nav_vouchers
+from src.bridges import categorize_nav_vouchers
 
 def main():
     # 1. Charger un petit échantillon du vrai fichier
@@ -19,8 +19,8 @@ def main():
     print(f"Chargé {len(df)} lignes.")
     
     # 2. Exécuter la classification
-    print("Exécution de _categorize_nav_vouchers...")
-    res = _categorize_nav_vouchers(df)
+    print("Exécution de categorize_nav_vouchers...")
+    res = categorize_nav_vouchers(df)
     
     # 3. Analyser les résultats
     print("\n--- RÉSULTATS ---")

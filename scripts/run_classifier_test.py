@@ -16,15 +16,14 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from src.bridges.classifier import (
-    _categorize_nav_vouchers,
+from src.bridges import (
+    categorize_nav_vouchers,
+    get_categorization_summary,
     calculate_vtc_adjustment,
     calculate_customer_posting_group_bridge,
     calculate_timing_difference_bridge,
-    summarize_nav_vouchers,
-    summarize_target_values,
-    compare_nav_vs_target,
-    build_account_summary_row,
+    classify_bridges,
+    load_rules,
 )
 from src.utils.fx_utils import FXConverter
 
@@ -195,12 +194,21 @@ def run_task2_vtc(fixtures, categorized_cr03=None, fx_converter=None, cutoff_dat
     if categorized_cr03 is None:
         if not quiet:
             print("\n[Step 1] Categorizing NAV vouchers from CR_03...")
-        categorized = _categorize_nav_vouchers(fixtures["CR_03"])
+        categorized = categorize_nav_vouchers(
+            fixtures["CR_03"],
+            ipe_08_df=fixtures.get("IPE_08"),
+            doc_voucher_usage_df=fixtures.get("DOC_VOUCHER_USAGE")
+        )
     else:
         categorized = categorized_cr03
     if not quiet:
         print(f"✓ Categorized {len(categorized)} voucher entries")
-        print_df(categorized, "Categorization Results", limit)
+        # Use get_categorization_summary to show stats
+        summary = get_categorization_summary(categorized)
+        print("Categorization Summary:")
+        for key, value in summary.items():
+            print(f"  {key}: {value}")
+        print_df(categorized, "Categorization Results (Sample)", limit)
 
     if not quiet:
         print("\n[Step 2] Calculating VTC adjustment...")
@@ -405,12 +413,11 @@ def main():
         print("   Continuing with local currency calculations...")
         fx_converter = None
 
-    categorized_cr03 = _categorize_nav_vouchers(
+    # Categorize NAV vouchers using public API
+    categorized_cr03 = categorize_nav_vouchers(
         fixtures["CR_03"],
         ipe_08_df=fixtures.get("IPE_08"),
         doc_voucher_usage_df=fixtures.get("DOC_VOUCHER_USAGE"),
-        start_date=month_start,
-        end_date=cutoff_date,
     )
 
     # 1. TASK 1: Timing Difference (L'analyse temporelle globale)
@@ -449,34 +456,22 @@ def main():
     hr("SUMMARY OF ALL BRIDGES/ADJUSTMENTS")
     print_summary(task1, task2, task3, task4)
 
-    # --- NAV vs TARGET SUMMARIES ---
-    hr("NAV VS TARGET RECONCILIATION")
-    nav_summary = summarize_nav_vouchers(
-        categorized_cr03, fx_converter=fx_converter, country_code=country
-    )
-    target_summary = summarize_target_values(
-        fixtures.get("IPE_08"),
-        fixtures.get("DOC_VOUCHER_USAGE"),
-        cutoff_date,
-        country,
-        fx_converter=fx_converter,
-    )
-    comparison_df = compare_nav_vs_target(nav_summary, target_summary)
-    account_summary = build_account_summary_row(
-        fixtures.get("CR_04"),
-        nav_summary,
-        target_summary,
-        country,
-        cutoff_date,
-        timing_difference_amount=task1[0],
-        vtc_adjustment_amount=task2[0],
-        fx_converter=fx_converter,
-    )
-
-    print_df(nav_summary, "NAV Classified Totals", limit=args.limit)
-    print_df(target_summary, "Target Values Totals", limit=args.limit)
-    print_df(comparison_df, "NAV vs Target Variance", limit=args.limit)
-    print_df(account_summary, "Account 18412 Summary", limit=5)
+    # --- FINAL CATEGORIZATION SUMMARY ---
+    hr("CATEGORIZATION SUMMARY")
+    categorization_summary = get_categorization_summary(categorized_cr03)
+    print("\nNAV Voucher Categorization Results:")
+    print(f"  Total Rows: {categorization_summary.get('total_rows', 0)}")
+    print(f"  Categorized: {categorization_summary.get('categorized_count', 0)}")
+    print(f"  Uncategorized: {categorization_summary.get('uncategorized_count', 0)}")
+    print("\nBreakdown by Category:")
+    for category, count in categorization_summary.get('by_category', {}).items():
+        print(f"  {category}: {count}")
+    print("\nBreakdown by Voucher Type:")
+    for vtype, count in categorization_summary.get('by_voucher_type', {}).items():
+        print(f"  {vtype}: {count}")
+    print("\nBreakdown by Integration Type:")
+    for itype, count in categorization_summary.get('by_integration_type', {}).items():
+        print(f"  {itype}: {count}")
 
     print("\n✓ Test completed successfully!\n")
 

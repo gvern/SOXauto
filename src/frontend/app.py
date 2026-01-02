@@ -17,13 +17,13 @@ if REPO_ROOT not in sys.path:
 from src.core.runners.mssql_runner import IPERunner
 from src.core.catalog.cpg1 import get_item_by_id
 from src.utils.aws_utils import AWSSecretsManager
-from src.bridges.classifier import (
-    _categorize_nav_vouchers,
-    _filter_ipe08_scope,
+from src.bridges import (
+    categorize_nav_vouchers,
     calculate_vtc_adjustment,
     calculate_customer_posting_group_bridge,
     calculate_timing_difference_bridge,
 )
+from src.core.scope_filtering import filter_ipe08_scope
 from src.utils.fx_utils import FXConverter
 
 
@@ -435,7 +435,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
         pre_cols[0].metric("JDASH Rows Loaded", f"{len(jdash_df):,}")
         pre_cols[0].caption(f"Source: {jdash_source}")
         pre_cols[1].metric("IPE Scope Filter", "Non-Marketing + GL 18412")
-        pre_cols[1].caption("`_filter_ipe08_scope` enforces account and business_use rules.")
+        pre_cols[1].caption("`filter_ipe08_scope` enforces account and business_use rules.")
         pre_cols[2].metric("Cutoff Date", params["cutoff_date"])
         pre_cols[2].caption("All preprocessing buckets data into Month N vs N+1 windows.")
 
@@ -446,7 +446,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             ),
             (
                 "BOB Scope Enforcement",
-                "`_filter_ipe08_scope()` restricts IPE_08 to Non-Marketing vouchers, includes GL 18412, and keeps only valid, country-specific liabilities."
+                "`filter_ipe08_scope()` restricts IPE_08 to Non-Marketing vouchers, includes GL 18412, and keeps only valid, country-specific liabilities."
             ),
             (
                 "Cutoff Bucketing",
@@ -604,7 +604,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
                 st.info(TIMING_DIFF_LOGIC)
 
             # Calculate intermediate metrics for transparency
-            filtered_ipe08 = _filter_ipe08_scope(data["IPE_08"])
+            filtered_ipe08 = filter_ipe08_scope(data["IPE_08"])
             total_ipe08_vouchers = len(data["IPE_08"])
             non_marketing_vouchers = len(filtered_ipe08)
 
@@ -643,7 +643,11 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             with st.expander("📖 Logic Explanation", expanded=False):
                 st.info(VTC_LOGIC)
 
-            cat_cr03 = _categorize_nav_vouchers(data['CR_03'])
+            cat_cr03 = categorize_nav_vouchers(
+                data['CR_03'],
+                ipe_08_df=data.get('IPE_08'),
+                doc_voucher_usage_df=data.get('DOC_VOUCHER_USAGE')
+            )
             # Now returns (adj_amt, proof_df_vtc, metrics)
             adj_amt, proof_df_vtc, vtc_metrics = calculate_vtc_adjustment(
                 data['IPE_08'], 

@@ -63,7 +63,7 @@ def demonstrate_vtc_date_parameter():
     print("=" * 80)
     
     print("\n1. Checking function signature:")
-    from src.bridges.classifier import calculate_vtc_adjustment
+    from src.bridges import calculate_vtc_adjustment
     import inspect
     
     sig = inspect.signature(calculate_vtc_adjustment)

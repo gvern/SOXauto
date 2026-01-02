@@ -13,8 +13,7 @@ if REPO_ROOT not in sys.path:
 
 from src.core.runners.mssql_runner import IPERunner
 from src.core.catalog.cpg1 import get_item_by_id
-from src.bridges.catalog import load_rules
-from src.bridges.classifier import classify_bridges
+from src.bridges import load_rules, classify_bridges
 
 # --- Path Configuration ---
 HISTORICAL_DATA_PATH = os.path.join(REPO_ROOT, "tests", "fixtures", "historical_data")
