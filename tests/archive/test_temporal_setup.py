@@ -163,7 +163,7 @@ def test_activity_signatures():
 def test_core_business_logic_imports():
     """Test that core business logic functions can be imported."""
     # These are the functions that activities wrap
-    from src.bridges.classifier import (
+    from src.bridges import (
         calculate_timing_difference_bridge,
         calculate_vtc_adjustment,
         calculate_customer_posting_group_bridge,

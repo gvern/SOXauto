@@ -7,11 +7,11 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
     sys.path.append(REPO_ROOT)
 
-from src.bridges.catalog import load_rules
-from src.bridges.classifier import (
+from src.bridges import (
+    load_rules,
     classify_bridges,
+    categorize_nav_vouchers,
     calculate_vtc_adjustment,
-    _categorize_nav_vouchers,
     calculate_customer_posting_group_bridge,
     calculate_timing_difference_bridge,
 )
@@ -747,7 +747,7 @@ def test_calculate_vtc_adjustment_with_date_filter_december():
 def test_categorize_nav_vouchers_empty_df():
     """Test that empty DataFrames are handled correctly."""
     empty_df = pd.DataFrame()
-    result = _categorize_nav_vouchers(empty_df)
+    result = categorize_nav_vouchers(empty_df)
     assert "bridge_category" in result.columns
     assert "voucher_type" in result.columns
     assert "Integration_Type" in result.columns
@@ -756,7 +756,7 @@ def test_categorize_nav_vouchers_empty_df():
 
 def test_categorize_nav_vouchers_none_df():
     """Test that None input is handled correctly."""
-    result = _categorize_nav_vouchers(None)
+    result = categorize_nav_vouchers(None)
     assert result is not None
     assert "bridge_category" in result.columns
     assert "voucher_type" in result.columns
@@ -802,7 +802,7 @@ def test_categorize_nav_vouchers_step1_integration_type():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "Integration_Type"] == "Integration"
     assert result.loc[1, "Integration_Type"] == "Manual"
     assert result.loc[2, "Integration_Type"] == "Manual"
@@ -826,7 +826,7 @@ def test_categorize_nav_vouchers_step2_issuance_integrated_refund():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - Refund"
     assert result.loc[0, "voucher_type"] == "Refund"
     assert result.loc[0, "Integration_Type"] == "Integration"
@@ -844,7 +844,7 @@ def test_categorize_nav_vouchers_step2_issuance_integrated_apology():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - Apology"
     assert result.loc[0, "voucher_type"] == "Apology"
     assert result.loc[0, "Integration_Type"] == "Integration"
@@ -862,7 +862,7 @@ def test_categorize_nav_vouchers_step2_issuance_integrated_jforce():
             }
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - JForce"
     assert result.loc[0, "voucher_type"] == "JForce"
 
@@ -887,7 +887,7 @@ def test_categorize_nav_vouchers_step2_issuance_manual_store_credit():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - Store Credit"
     assert result.loc[0, "voucher_type"] == "Store Credit"
     assert result.loc[0, "Integration_Type"] == "Manual"
@@ -908,7 +908,7 @@ def test_categorize_nav_vouchers_step2_issuance_manual_refund():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - Refund"
     assert result.loc[0, "voucher_type"] == "Refund"
     assert result.loc[0, "Integration_Type"] == "Manual"
@@ -927,7 +927,7 @@ def test_categorize_nav_vouchers_step2_issuance_generic():
             }
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance"
     assert result.loc[0, "Integration_Type"] == "Manual"
 
@@ -955,7 +955,7 @@ def test_categorize_nav_vouchers_step3_usage_integrated():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Usage"
     assert result.loc[0, "Integration_Type"] == "Integration"
     assert result.loc[1, "bridge_category"] == "Usage"
@@ -974,7 +974,7 @@ def test_categorize_nav_vouchers_step3_cancellation_apology_voucher_accrual():
             }
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Cancellation - Apology"
     assert result.loc[0, "voucher_type"] == "Apology"
 
@@ -998,7 +998,7 @@ def test_categorize_nav_vouchers_step3_usage_with_voucher_lookup():
             {"id": "V002", "business_use": "apology"},
         ]
     )
-    result = _categorize_nav_vouchers(cr_03_df, ipe_08_df=ipe_08_df)
+    result = categorize_nav_vouchers(cr_03_df, ipe_08_df=ipe_08_df)
     assert result.loc[0, "bridge_category"] == "Usage"
     assert result.loc[0, "voucher_type"] == "refund"
 
@@ -1022,7 +1022,7 @@ def test_categorize_nav_vouchers_step3_usage_fallback_doc_no():
             {"id": "V001", "business_use": "store_credit", "Transaction_No": "TXN001"},
         ]
     )
-    result = _categorize_nav_vouchers(
+    result = categorize_nav_vouchers(
         cr_03_df, doc_voucher_usage_df=doc_voucher_usage_df
     )
     assert result.loc[0, "bridge_category"] == "Usage"
@@ -1046,7 +1046,7 @@ def test_categorize_nav_vouchers_step4_expired_apology():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Expired - Apology"
     assert result.loc[0, "voucher_type"] == "Apology"
     assert result.loc[0, "Integration_Type"] == "Manual"
@@ -1064,7 +1064,7 @@ def test_categorize_nav_vouchers_step4_expired_refund():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Expired - Refund"
     assert result.loc[0, "voucher_type"] == "Refund"
 
@@ -1087,7 +1087,7 @@ def test_categorize_nav_vouchers_step4_expired_store_credit():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Expired - Store Credit"
     assert result.loc[0, "voucher_type"] == "Store Credit"
     assert result.loc[1, "bridge_category"] == "Expired - Store Credit"
@@ -1105,7 +1105,7 @@ def test_categorize_nav_vouchers_step4_expired_generic():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Expired"
 
 
@@ -1126,7 +1126,7 @@ def test_categorize_nav_vouchers_step5_vtc_manual_rnd():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "VTC"
     assert result.loc[0, "voucher_type"] == "Refund"
     assert result.loc[0, "Integration_Type"] == "Manual"
@@ -1145,7 +1145,7 @@ def test_categorize_nav_vouchers_step5_vtc_pyt_gtb():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "VTC"
     assert result.loc[0, "voucher_type"] == "Refund"
 
@@ -1168,7 +1168,7 @@ def test_categorize_nav_vouchers_step6_manual_cancellation():
             }
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Cancellation - Store Credit"
     assert result.loc[0, "voucher_type"] == "Store Credit"
     assert result.loc[0, "Integration_Type"] == "Manual"
@@ -1191,7 +1191,7 @@ def test_categorize_nav_vouchers_step7_manual_usage_itempricecredit():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Usage"
     assert result.loc[0, "Integration_Type"] == "Manual"
 
@@ -1214,7 +1214,7 @@ def test_categorize_nav_vouchers_step7_manual_usage_with_voucher_lookup():
             {"id": "V003", "business_use": "store_credit"},
         ]
     )
-    result = _categorize_nav_vouchers(cr_03_df, ipe_08_df=ipe_08_df)
+    result = categorize_nav_vouchers(cr_03_df, ipe_08_df=ipe_08_df)
     assert result.loc[0, "bridge_category"] == "Usage"
     assert result.loc[0, "voucher_type"] == "store_credit"
 
@@ -1236,7 +1236,7 @@ def test_categorize_nav_vouchers_non_18412_account():
             }
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert (
         pd.isna(result.loc[0, "bridge_category"])
         or result.loc[0, "bridge_category"] is None
@@ -1286,7 +1286,7 @@ def test_categorize_nav_vouchers_mixed_scenarios():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - Refund"
     assert result.loc[1, "bridge_category"] == "Usage"
     assert result.loc[2, "bridge_category"] == "VTC"
@@ -1315,7 +1315,7 @@ def test_categorize_nav_vouchers_case_insensitivity():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "VTC"
     assert result.loc[1, "bridge_category"] == "Issuance - Refund"
 
@@ -1332,7 +1332,7 @@ def test_categorize_nav_vouchers_returns_enriched_columns():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert "bridge_category" in result.columns
     assert "voucher_type" in result.columns
     assert "Integration_Type" in result.columns
@@ -1543,7 +1543,13 @@ def test_calculate_timing_difference_bridge_filter_non_marketing():
 
 
 def test_calculate_timing_difference_bridge_filter_one_year():
-    """Test that only vouchers created within 1 year of cutoff are included."""
+    """Test that only vouchers created within 1 year rolling window are included.
+    
+    With cutoff = 2024-10-31:
+    - Start date = 2023-11-01 (1st of next month - 1 year)
+    - End date = 2024-10-31 (cutoff)
+    - This implements spec: "from 1 Oct N-1 to 30 Sep N" rolling forward
+    """
     ipe_08_df = pd.DataFrame(
         [
             {
@@ -1551,21 +1557,21 @@ def test_calculate_timing_difference_bridge_filter_one_year():
                 "business_use": "refund",
                 "is_active": 0,
                 "Total Amount Used": 100.0,
-                "created_at": "2024-10-15",  # Within 1 year
+                "created_at": "2024-10-15",  # Within window
             },
             {
                 "id": "V002",
                 "business_use": "refund",
                 "is_active": 0,
                 "Total Amount Used": 200.0,
-                "created_at": "2023-10-31",  # Exactly 1 year before cutoff (included)
+                "created_at": "2023-11-01",  # Boundary: exactly at start (included)
             },
             {
                 "id": "V003",
                 "business_use": "refund",
                 "is_active": 0,
                 "Total Amount Used": 150.0,
-                "created_at": "2023-10-01",  # More than 1 year ago - excluded
+                "created_at": "2023-10-31",  # Before window start (excluded)
             },
         ]
     )
@@ -1582,7 +1588,8 @@ def test_calculate_timing_difference_bridge_filter_one_year():
         jdash_df, ipe_08_df, "2024-10-31"
     )
 
-    # V001 and V002 should be included
+    # V001 and V002 should be included (within [2023-11-01, 2024-10-31])
+    # V003 excluded (2023-10-31 < 2023-11-01)
     # V001: 120 - 100 = 20
     # V002: 220 - 200 = 20
     # Total: 40
@@ -1901,6 +1908,135 @@ def test_calculate_timing_difference_bridge_missing_total_amount_used():
     assert proof_df.empty
 
 
+def test_calculate_timing_difference_bridge_jdash_column_name_with_space():
+    """Test that Jdash with 'Voucher Id' (space) is handled correctly in groupby and merge.
+    
+    This test would fail if groupby uses detected column name but merge expects hardcoded name.
+    Regression test for column name canonicalization.
+    
+    CRITICAL: This test locks in the fix for the column name mismatch bug where groupby
+    might use 'Voucher Id' but merge expects 'Voucher_Id', causing KeyError or wrong results.
+    """
+    # Create IPE_08 data
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "is_active": 0,
+                "Total Amount Used": 100.0,
+                "created_at": "2024-10-15",
+            },
+            {
+                "id": "V002",
+                "business_use": "store_credit",
+                "is_active": 0,
+                "Total Amount Used": 200.0,
+                "created_at": "2024-10-20",
+            },
+        ]
+    )
+
+    # Create Jdash with 'Voucher Id' (with space) - most common real export format
+    # Multiple rows for same voucher to test groupby works correctly
+    jdash_df = pd.DataFrame(
+        [
+            {"Voucher Id": "V001", "Amount Used": 50.0},
+            {"Voucher Id": "V001", "Amount Used": 30.0},  # V001 total: 80
+            {"Voucher Id": "V002", "Amount Used": 250.0},
+        ]
+    )
+
+    variance_sum, proof_df = calculate_timing_difference_bridge(
+        jdash_df, ipe_08_df, "2024-10-31"
+    )
+
+    # Verify aggregation worked correctly
+    # V001: Jdash 80 - IPE 100 = -20
+    # V002: Jdash 250 - IPE 200 = 50
+    # Total: -20 + 50 = 30
+    assert variance_sum == 30.0, f"Expected variance_sum=30.0, got {variance_sum}"
+    assert len(proof_df) == 2, f"Expected 2 rows, got {len(proof_df)}"
+    
+    # Verify both vouchers are in result (proves merge worked)
+    assert "V001" in proof_df["id"].values, "V001 missing from proof_df"
+    assert "V002" in proof_df["id"].values, "V002 missing from proof_df"
+    
+    # Verify amounts are correct (proves groupby aggregated correctly)
+    v001_row = proof_df[proof_df["id"] == "V001"].iloc[0]
+    assert v001_row["Jdash_Amount_Used"] == 80.0, f"V001 Jdash amount should be 80 (50+30), got {v001_row['Jdash_Amount_Used']}"
+    assert v001_row["Variance"] == -20.0, f"V001 Variance should be -20, got {v001_row['Variance']}"
+    
+    v002_row = proof_df[proof_df["id"] == "V002"].iloc[0]
+    assert v002_row["Jdash_Amount_Used"] == 250.0, f"V002 Jdash amount should be 250, got {v002_row['Jdash_Amount_Used']}"
+    assert v002_row["Variance"] == 50.0, f"V002 Variance should be 50, got {v002_row['Variance']}"
+
+
+def test_calculate_timing_difference_bridge_jdash_column_name_underscore():
+    """Test that Jdash with 'Voucher_Id' (underscore) is handled correctly.
+    
+    Ensures column detection and canonicalization works for underscore variant.
+    """
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "is_active": 0,
+                "Total Amount Used": 100.0,
+                "created_at": "2024-10-15",
+            },
+        ]
+    )
+
+    # Jdash with underscore variant
+    jdash_df = pd.DataFrame(
+        [
+            {"Voucher_Id": "V001", "Amount_Used": 150.0},
+        ]
+    )
+
+    variance_sum, proof_df = calculate_timing_difference_bridge(
+        jdash_df, ipe_08_df, "2024-10-31"
+    )
+
+    # Variance = 150 - 100 = 50
+    assert variance_sum == 50.0
+    assert len(proof_df) == 1
+    assert proof_df.iloc[0]["Jdash_Amount_Used"] == 150.0
+
+
+def test_calculate_timing_difference_bridge_jdash_column_name_lowercase():
+    """Test that Jdash with 'voucher_id' (lowercase) is handled correctly."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use": "jforce",
+                "is_active": 0,
+                "Total Amount Used": 100.0,
+                "created_at": "2024-10-15",
+            },
+        ]
+    )
+
+    # Jdash with lowercase variant
+    jdash_df = pd.DataFrame(
+        [
+            {"voucher_id": "V001", "amount_used": 120.0},
+        ]
+    )
+
+    variance_sum, proof_df = calculate_timing_difference_bridge(
+        jdash_df, ipe_08_df, "2024-10-31"
+    )
+
+    # Variance = 120 - 100 = 20
+    assert variance_sum == 20.0
+    assert len(proof_df) == 1
+    assert proof_df.iloc[0]["Jdash_Amount_Used"] == 120.0
+
+
 # ========================================================================
 # Tests for Production Data Patterns (Ghana CR_03 Issue Fix)
 # ========================================================================
@@ -1918,7 +2054,7 @@ def test_categorize_nav_vouchers_production_integration_user_nav13():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "Integration_Type"] == "Integration"
     assert result.loc[0, "bridge_category"] == "Issuance - Refund"
     assert result.loc[0, "voucher_type"] == "Refund"
@@ -1936,7 +2072,7 @@ def test_categorize_nav_vouchers_production_rf_prefix_pattern():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - Refund"
     assert result.loc[0, "voucher_type"] == "Refund"
 
@@ -1954,10 +2090,11 @@ def test_categorize_nav_vouchers_production_vtc_bank_account_negative():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "Integration_Type"] == "Manual"
     # Negative amount + Bank Account should be Issuance (not VTC - positive amounts only)
-    assert result.loc[0, "bridge_category"] == "Issuance"
+    # Updated expectation: "Customer refund payment" contains "refund", so it's classified as "Issuance - Refund"
+    assert result.loc[0, "bridge_category"] == "Issuance - Refund"
 
 
 def test_categorize_nav_vouchers_production_vtc_bank_account_positive():
@@ -1973,7 +2110,7 @@ def test_categorize_nav_vouchers_production_vtc_bank_account_positive():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "Integration_Type"] == "Manual"
     assert result.loc[0, "bridge_category"] == "VTC"
     assert result.loc[0, "voucher_type"] == "Refund"
@@ -1991,7 +2128,7 @@ def test_categorize_nav_vouchers_production_pyt_jforce():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - JForce"
     assert result.loc[0, "voucher_type"] == "JForce"
 
@@ -2008,7 +2145,7 @@ def test_categorize_nav_vouchers_production_case_insensitivity():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "Integration_Type"] == "Integration"
     assert result.loc[0, "bridge_category"] == "Issuance - Refund"
 
@@ -2048,7 +2185,7 @@ def test_categorize_nav_vouchers_production_combined_scenario():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
 
     # Row 0: Integration + RF_ = Issuance - Refund
     assert result.loc[0, "Integration_Type"] == "Integration"
@@ -2079,7 +2216,7 @@ def test_categorize_nav_vouchers_production_rf_space_pattern():
             },
         ]
     )
-    result = _categorize_nav_vouchers(df)
+    result = categorize_nav_vouchers(df)
     assert result.loc[0, "bridge_category"] == "Issuance - Refund"
     assert result.loc[0, "voucher_type"] == "Refund"
 
@@ -2091,7 +2228,7 @@ def test_categorize_nav_vouchers_production_rf_space_pattern():
 
 def test_filter_ipe08_scope_basic():
     """Test basic filtering of IPE_08 with non-marketing vouchers."""
-    from src.bridges.classifier import _filter_ipe08_scope
+    from src.core.scope_filtering import filter_ipe08_scope
 
     ipe_08_df = pd.DataFrame(
         [
@@ -2116,7 +2253,7 @@ def test_filter_ipe08_scope_basic():
         ]
     )
 
-    result = _filter_ipe08_scope(ipe_08_df)
+    result = filter_ipe08_scope(ipe_08_df)
 
     # Only V001 and V003 should remain (non-marketing)
     assert len(result) == 2
@@ -2127,7 +2264,7 @@ def test_filter_ipe08_scope_basic():
 
 def test_filter_ipe08_scope_all_non_marketing_types():
     """Test that all non-marketing types are retained."""
-    from src.bridges.classifier import _filter_ipe08_scope
+    from src.core.scope_filtering import filter_ipe08_scope
 
     ipe_08_df = pd.DataFrame(
         [
@@ -2143,7 +2280,7 @@ def test_filter_ipe08_scope_all_non_marketing_types():
         ]
     )
 
-    result = _filter_ipe08_scope(ipe_08_df)
+    result = filter_ipe08_scope(ipe_08_df)
 
     # All should be retained
     assert len(result) == 5
@@ -2152,7 +2289,7 @@ def test_filter_ipe08_scope_all_non_marketing_types():
 
 def test_filter_ipe08_scope_date_conversion():
     """Test that date columns are converted to datetime."""
-    from src.bridges.classifier import _filter_ipe08_scope
+    from src.core.scope_filtering import filter_ipe08_scope
 
     ipe_08_df = pd.DataFrame(
         [
@@ -2167,7 +2304,7 @@ def test_filter_ipe08_scope_date_conversion():
         ]
     )
 
-    result = _filter_ipe08_scope(ipe_08_df)
+    result = filter_ipe08_scope(ipe_08_df)
 
     # Check that dates are datetime objects
     assert pd.api.types.is_datetime64_any_dtype(result["Order_Creation_Date"])
@@ -2177,26 +2314,26 @@ def test_filter_ipe08_scope_date_conversion():
 
 def test_filter_ipe08_scope_empty_input():
     """Test that empty DataFrame is handled correctly."""
-    from src.bridges.classifier import _filter_ipe08_scope
+    from src.core.scope_filtering import filter_ipe08_scope
 
     ipe_08_df = pd.DataFrame()
-    result = _filter_ipe08_scope(ipe_08_df)
+    result = filter_ipe08_scope(ipe_08_df)
 
     assert result.empty
 
 
 def test_filter_ipe08_scope_none_input():
     """Test that None input is handled correctly."""
-    from src.bridges.classifier import _filter_ipe08_scope
+    from src.core.scope_filtering import filter_ipe08_scope
 
-    result = _filter_ipe08_scope(None)
+    result = filter_ipe08_scope(None)
 
     assert result.empty
 
 
 def test_filter_ipe08_scope_missing_business_use_column():
     """Test handling when business_use column is missing."""
-    from src.bridges.classifier import _filter_ipe08_scope
+    from src.core.scope_filtering import filter_ipe08_scope
 
     ipe_08_df = pd.DataFrame(
         [
@@ -2205,7 +2342,7 @@ def test_filter_ipe08_scope_missing_business_use_column():
         ]
     )
 
-    result = _filter_ipe08_scope(ipe_08_df)
+    result = filter_ipe08_scope(ipe_08_df)
 
     # All rows retained when column is missing
     assert len(result) == 2  # All rows retained when column is missing
@@ -2213,7 +2350,7 @@ def test_filter_ipe08_scope_missing_business_use_column():
 
 def test_filter_ipe08_scope_date_columns_missing():
     """Test that missing date columns don't cause errors."""
-    from src.bridges.classifier import _filter_ipe08_scope
+    from src.core.scope_filtering import filter_ipe08_scope
 
     ipe_08_df = pd.DataFrame(
         [
@@ -2222,7 +2359,7 @@ def test_filter_ipe08_scope_date_columns_missing():
         ]
     )
 
-    result = _filter_ipe08_scope(ipe_08_df)
+    result = filter_ipe08_scope(ipe_08_df)
 
     # Should work fine without date columns
     assert len(result) == 2
@@ -2230,7 +2367,7 @@ def test_filter_ipe08_scope_date_columns_missing():
 
 def test_filter_ipe08_scope_preserves_other_columns():
     """Test that other columns are preserved after filtering."""
-    from src.bridges.classifier import _filter_ipe08_scope
+    from src.core.scope_filtering import filter_ipe08_scope
 
     ipe_08_df = pd.DataFrame(
         [
@@ -2251,7 +2388,7 @@ def test_filter_ipe08_scope_preserves_other_columns():
         ]
     )
 
-    result = _filter_ipe08_scope(ipe_08_df)
+    result = filter_ipe08_scope(ipe_08_df)
 
     # All columns should be preserved
     assert "id" in result.columns
@@ -2264,7 +2401,7 @@ def test_filter_ipe08_scope_preserves_other_columns():
 
 def test_filter_ipe08_scope_business_use_formatted_column():
     """Test that business_use_formatted column is also supported for backward compatibility."""
-    from src.bridges.classifier import _filter_ipe08_scope
+    from src.core.scope_filtering import filter_ipe08_scope
 
     ipe_08_df = pd.DataFrame(
         [
@@ -2286,7 +2423,7 @@ def test_filter_ipe08_scope_business_use_formatted_column():
         ]
     )
 
-    result = _filter_ipe08_scope(ipe_08_df)
+    result = filter_ipe08_scope(ipe_08_df)
 
     # Only V001 and V003 should remain (non-marketing)
     assert len(result) == 2

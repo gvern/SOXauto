@@ -252,22 +252,22 @@ class TestClassifierFunctions:
 
     def test_calculate_vtc_adjustment_available(self):
         """Verify calculate_vtc_adjustment is importable"""
-        from src.bridges.classifier import calculate_vtc_adjustment
+        from src.bridges import calculate_vtc_adjustment
         assert callable(calculate_vtc_adjustment)
 
     def test_classify_bridges_available(self):
         """Verify classify_bridges is importable"""
-        from src.bridges.classifier import classify_bridges
+        from src.bridges import classify_bridges
         assert callable(classify_bridges)
 
     def test_calculate_customer_posting_group_bridge_available(self):
         """Verify calculate_customer_posting_group_bridge is importable"""
-        from src.bridges.classifier import calculate_customer_posting_group_bridge
+        from src.bridges import calculate_customer_posting_group_bridge
         assert callable(calculate_customer_posting_group_bridge)
 
     def test_calculate_timing_difference_bridge_available(self):
         """Verify calculate_timing_difference_bridge is importable"""
-        from src.bridges.classifier import calculate_timing_difference_bridge
+        from src.bridges import calculate_timing_difference_bridge
         assert callable(calculate_timing_difference_bridge)
 
 

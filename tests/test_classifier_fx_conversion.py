@@ -13,9 +13,9 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
     sys.path.append(REPO_ROOT)
 
-from src.bridges.classifier import (
+from src.bridges import (
+    categorize_nav_vouchers,
     calculate_vtc_adjustment,
-    _categorize_nav_vouchers,
     calculate_timing_difference_bridge,
 )
 from src.utils.fx_utils import FXConverter

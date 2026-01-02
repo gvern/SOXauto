@@ -6,25 +6,25 @@ Tests the individual classifiers and the main categorization pipeline.
 
 import pandas as pd
 
-from src.bridges.cat_nav_classifier import (
+from src.bridges.categorization.cat_nav_classifier import (
     classify_integration_type,
     is_integration_user,
 )
-from src.bridges.cat_issuance_classifier import (
+from src.bridges.categorization.cat_issuance_classifier import (
     classify_issuance,
 )
-from src.bridges.cat_usage_classifier import (
+from src.bridges.categorization.cat_usage_classifier import (
     classify_usage,
     classify_manual_usage,
 )
-from src.bridges.cat_vtc_classifier import (
+from src.bridges.categorization.cat_vtc_classifier import (
     classify_vtc,
 )
-from src.bridges.cat_expired_classifier import (
+from src.bridges.categorization.cat_expired_classifier import (
     classify_expired,
     classify_manual_cancellation,
 )
-from src.bridges.cat_pipeline import (
+from src.bridges.categorization.cat_pipeline import (
     categorize_nav_vouchers,
     get_categorization_summary,
 )
@@ -168,7 +168,7 @@ class TestClassifyIssuance:
             "User ID": ["JUMIA/NAV31AFR.BATCH.SRVC"]
         })
         # First classify integration type
-        from src.bridges.cat_nav_classifier import classify_integration_type
+        from src.bridges.categorization.cat_nav_classifier import classify_integration_type
         df = classify_integration_type(df)
         # Then classify issuance
         result = classify_issuance(df)
@@ -535,7 +535,8 @@ class TestCategorizationPipeline:
         ])
         result = categorize_nav_vouchers(df)
         # Negative amount + Bank Account should be Issuance (Manual), not VTC
-        assert result.loc[0, "bridge_category"] == "Issuance"
+        # The description contains "refund" so it gets the specific sub-category
+        assert result.loc[0, "bridge_category"] == "Issuance - Refund"
         assert result.loc[0, "Integration_Type"] == "Manual"
 
 
@@ -567,39 +568,5 @@ class TestGetCategorizationSummary:
 
 
 # =============================================================================
-# Backward Compatibility Tests
+# End of Tests
 # =============================================================================
-
-class TestBackwardCompatibility:
-    """Tests to ensure backward compatibility with original _categorize_nav_vouchers."""
-
-    def test_same_output_for_basic_scenarios(self):
-        """Test that new pipeline produces same output as original for basic scenarios."""
-        from src.bridges.classifier import _categorize_nav_vouchers as original_categorize
-
-        df = pd.DataFrame([
-            {
-                "Chart of Accounts No_": "18412",
-                "Amount": -100.0,
-                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
-                "Document Description": "Refund voucher",
-            },
-            {
-                "Chart of Accounts No_": "18412",
-                "Amount": 50.0,
-                "User ID": "JUMIA/NAV31AFR.BATCH.SRVC",
-                "Document Description": "Item price credit",
-            },
-        ])
-
-        original_result = original_categorize(df.copy())
-        new_result = categorize_nav_vouchers(df.copy())
-
-        # Compare results - verify all three output columns
-        assert original_result.loc[0, "bridge_category"] == new_result.loc[0, "bridge_category"]
-        assert original_result.loc[1, "bridge_category"] == new_result.loc[1, "bridge_category"]
-        assert original_result.loc[0, "Integration_Type"] == new_result.loc[0, "Integration_Type"]
-        assert original_result.loc[1, "Integration_Type"] == new_result.loc[1, "Integration_Type"]
-        # Also verify voucher_type consistency
-        assert original_result.loc[0, "voucher_type"] == new_result.loc[0, "voucher_type"]
-        assert original_result.loc[1, "voucher_type"] == new_result.loc[1, "voucher_type"]

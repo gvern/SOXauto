@@ -365,7 +365,7 @@ class TestIntegration:
 
     def test_scope_filtering_consistency_with_classifier(self):
         """Test that scope filtering is consistent with classifier behavior."""
-        from src.bridges.classifier import _filter_ipe08_scope as classifier_filter
+        from src.core.scope_filtering import filter_ipe08_scope as classifier_filter
         
         df = pd.DataFrame([
             {"id": "V001", "business_use": "refund", "amount": 100},
