@@ -304,7 +304,7 @@ def is_private_name(name: str) -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Extract functions/classes (including nested) from a Python repo into JSON.")
     parser.add_argument("--repo", type=str, default=".", help="Path to repository root (scan starts here)")
-    parser.add_argument("--out", type=str, default="api_index.json", help="Output JSON file path")
+    parser.add_argument("--out", type=str, default="artifacts/api_index.json", help="Output JSON file path")
     parser.add_argument("--exclude", nargs="*", default=None, help="Directory names to exclude")
     parser.add_argument("--include-private", action="store_true", help="Include names starting with '_'")
     args = parser.parse_args()
