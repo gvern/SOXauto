@@ -297,6 +297,49 @@ def iter_python_files(repo_root: Path, exclude_names: set[str]) -> List[Path]:
     return py_files
 
 
+def iter_sql_files(repo_root: Path, exclude_names: set[str]) -> List[Path]:
+    sql_files: List[Path] = []
+    for root, dirs, files in os.walk(repo_root):
+        root_path = Path(root)
+        dirs[:] = [d for d in dirs if d not in exclude_names]
+        if should_skip_path(root_path, exclude_names):
+            continue
+        for f in files:
+            if f.endswith(".sql"):
+                p = root_path / f
+                if not should_skip_path(p, exclude_names):
+                    sql_files.append(p)
+    return sql_files
+
+
+def scan_sql_file(repo_root: Path, sql_path: Path) -> Dict[str, Any]:
+    """Create an item entry for a SQL file."""
+    try:
+        content = read_text(sql_path)
+        line_count = len(content.splitlines())
+    except Exception:
+        line_count = None
+    
+    return {
+        "kind": "sql_file",
+        "name": "",
+        "qualname": "",
+        "enclosing": [],
+        "module": "",
+        "file": str(sql_path.relative_to(repo_root)),
+        "lineno": 1,
+        "end_lineno": line_count,
+        "decorators": [],
+        "parameters": [],
+        "return_annotation": None,
+        "doc": {
+            "summary": None,
+            "returns": None,
+            "raw": None,
+        },
+    }
+
+
 def is_private_name(name: str) -> bool:
     return name.startswith("_") and name not in {"__init__", "__call__"}
 
@@ -314,6 +357,7 @@ def main() -> None:
     exclude_names = set(args.exclude) if args.exclude is not None else set(DEFAULT_EXCLUDES)
 
     py_files = iter_python_files(repo_root, exclude_names)
+    sql_files = iter_sql_files(repo_root, exclude_names)
 
     all_items: List[Dict[str, Any]] = []
     errors: List[Dict[str, Any]] = []
@@ -334,10 +378,17 @@ def main() -> None:
             items = filtered
 
         all_items.extend(items)
+    
+    # Add SQL files
+    for sql_path in sql_files:
+        sql_item = scan_sql_file(repo_root, sql_path)
+        all_items.append(sql_item)
 
     result = {
         "repo": str(repo_root),
-        "scanned_files_count": len(py_files),
+        "scanned_files_count": len(py_files) + len(sql_files),
+        "scanned_python_files": len(py_files),
+        "scanned_sql_files": len(sql_files),
         "items_count": len(all_items),
         "generated_by": "scan_repo_api.py",
         "items": all_items,
