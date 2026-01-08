@@ -7,7 +7,7 @@ ensuring output schema stability and deterministic behavior.
 
 import pandas as pd
 import pytest
-from src.bridges.calculations.business_line_reclass import (
+from src.bridges.categorization.business_line_reclass import (
     identify_business_line_reclass_candidates,
 )
 

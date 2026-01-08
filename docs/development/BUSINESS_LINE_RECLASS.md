@@ -155,7 +155,7 @@ The "largest balance" heuristic may NOT be correct because:
 ### Basic Usage
 
 ```python
-from src.bridges.calculations.business_line_reclass import (
+from src.bridges.categorization.business_line_reclass import (
     identify_business_line_reclass_candidates
 )
 import pandas as pd
@@ -246,7 +246,7 @@ Customer Ledger Entries are extracted using **IPE_07**, which is the canonical s
 When using IPE_07 data with `identify_business_line_reclass_candidates()`, map the columns as follows:
 
 ```python
-from src.bridges.calculations.business_line_reclass import (
+from src.bridges.categorization.business_line_reclass import (
     identify_business_line_reclass_candidates
 )
 
@@ -285,7 +285,7 @@ Example:
 
 ```python
 from src.core.runners.mssql_runner import MSSQLRunner
-from src.bridges.calculations.business_line_reclass import (
+from src.bridges.categorization.business_line_reclass import (
     identify_business_line_reclass_candidates
 )
 
@@ -375,7 +375,7 @@ candidates = identify_business_line_reclass_candidates(
 ```python
 from temporalio import activity
 from src.core.runners.mssql_runner import MSSQLRunner
-from src.bridges.calculations.business_line_reclass import (
+from src.bridges.categorization.business_line_reclass import (
     identify_business_line_reclass_candidates
 )
 

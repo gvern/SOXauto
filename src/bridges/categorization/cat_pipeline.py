@@ -34,6 +34,9 @@ from src.bridges.categorization.cat_expired_classifier import (
     classify_expired,
     classify_manual_cancellation,
 )
+from src.bridges.categorization.business_line_reclass import (
+    identify_business_line_reclass_candidates,
+)
 
 
 def categorize_nav_vouchers(
@@ -302,4 +305,5 @@ def get_categorization_summary(df: pd.DataFrame) -> dict:
 __all__ = [
     "categorize_nav_vouchers",
     "get_categorization_summary",
+    "identify_business_line_reclass_candidates",
 ]

@@ -48,7 +48,6 @@ from src.bridges.classifier import classify_bridges
 
 # Bridge calculations (from calculations package)
 from src.bridges.calculations import (
-    identify_business_line_reclass_candidates,
     calculate_business_line_bridge,
     calculate_customer_posting_group_bridge,
     calculate_vtc_adjustment,
@@ -59,6 +58,7 @@ from src.bridges.calculations import (
 from src.bridges.categorization import (
     categorize_nav_vouchers,
     get_categorization_summary,
+    identify_business_line_reclass_candidates,
 )
 
 __all__ = [
