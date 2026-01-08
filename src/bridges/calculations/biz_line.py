@@ -9,6 +9,8 @@ but requires business rules to be defined before implementation.
 from typing import Any, Dict, Optional, Tuple
 import pandas as pd
 
+from src.utils.pandas_utils import cast_amount_columns
+
 
 def calculate_business_line_bridge(
     ipe_31_df: Optional[pd.DataFrame] = None,

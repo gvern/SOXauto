@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from src.core.reconciliation.cpg1 import CPG1ReconciliationConfig
+from src.utils.pandas_utils import coerce_numeric_series
 
 
 logger = logging.getLogger(__name__)
@@ -106,7 +107,9 @@ class SummaryBuilder:
                     break
             
             if amount_col:
-                return float(cr_04_df[amount_col].sum())
+                # Use centralized casting utility to ensure numeric dtype
+                amount_series = coerce_numeric_series(cr_04_df[amount_col], fillna=0.0)
+                return float(amount_series.sum())
             else:
                 logger.warning("No amount column found in CR_04")
                 return None
@@ -137,7 +140,9 @@ class SummaryBuilder:
                     for col in amount_cols:
                         if col in df.columns:
                             try:
-                                component_total = float(df[col].sum())
+                                # Use centralized casting utility to ensure numeric dtype
+                                amount_series = coerce_numeric_series(df[col], fillna=0.0)
+                                component_total = float(amount_series.sum())
                                 component_totals[ipe_id] = component_total
                                 target_sum += component_total
                                 break

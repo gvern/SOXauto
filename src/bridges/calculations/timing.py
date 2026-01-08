@@ -11,6 +11,7 @@ import pandas as pd
 import warnings
 
 from src.utils.date_utils import normalize_date
+from src.utils.pandas_utils import coerce_numeric_series
 
 
 def compute_rolling_window(cutoff_date: str) -> Tuple[pd.Timestamp, pd.Timestamp]:
@@ -228,6 +229,9 @@ def calculate_timing_difference_bridge(
 
     if ipe_amount_col is None:
         return 0.0, pd.DataFrame()
+    
+    # Ensure IPE amount column is numeric using centralized utility
+    df_ipe[ipe_amount_col] = coerce_numeric_series(df_ipe[ipe_amount_col], fillna=0.0)
 
     # Step 2: Prepare Source B (Jdash) - Aggregate by Voucher Id summing Amount Used
     if jdash_df is None or jdash_df.empty:
@@ -281,6 +285,11 @@ def calculate_timing_difference_bridge(
         df_jdash.groupby("voucher_id", as_index=False)["jdash_amount_used"]
         .sum()
         .rename(columns={"jdash_amount_used": "Jdash_Amount_Used"})
+    )
+    
+    # Ensure Jdash amount is numeric using centralized utility
+    jdash_agg["Jdash_Amount_Used"] = coerce_numeric_series(
+        jdash_agg["Jdash_Amount_Used"], fillna=0.0
     )
 
     # Step 3: Reconciliation Logic - Left Join of Filtered IPE_08 with Jdash on Voucher ID
