@@ -373,6 +373,8 @@ def _get_default_ipes() -> List[str]:
         'IPE_08',     # Voucher liabilities
         'IPE_10',     # Customer prepayments
         'IPE_31',     # Collection Accounts (for bridge classification)
+        'IPE_12',     # Packages delivered not reconciled - Target values
+        'IPE_34',     # Marketplace refund liabilities 
         'DOC_VOUCHER_USAGE',  # Voucher usage for timing bridge
         # Note: JDASH is optional but recommended for timing difference bridge
     ]
