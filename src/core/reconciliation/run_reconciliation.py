@@ -68,6 +68,9 @@ from src.core.catalog.cpg1 import get_item_by_id
 # Import summary builder for reconciliation metrics
 from src.core.reconciliation.summary_builder import SummaryBuilder
 
+# Import date utilities
+from src.utils.date_utils import validate_yyyy_mm_dd
+
 
 logger = logging.getLogger(__name__)
 
@@ -348,12 +351,12 @@ def _validate_params(params: Dict[str, Any]) -> List[str]:
     if 'id_companies_active' not in params:
         errors.append("Missing required parameter: 'id_companies_active'")
     
-    # Validate cutoff_date format
+    # Validate cutoff_date format using centralized utility
     if 'cutoff_date' in params:
         try:
-            datetime.strptime(params['cutoff_date'], '%Y-%m-%d')
-        except ValueError:
-            errors.append("'cutoff_date' must be in YYYY-MM-DD format")
+            validate_yyyy_mm_dd(params['cutoff_date'])
+        except ValueError as e:
+            errors.append(f"Invalid cutoff_date: {e}")
     
     return errors
 

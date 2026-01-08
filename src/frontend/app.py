@@ -25,6 +25,7 @@ from src.bridges import (
 )
 from src.core.scope_filtering import filter_ipe08_scope
 from src.utils.fx_utils import FXConverter
+from src.utils.date_utils import format_yyyy_mm_dd
 
 
 # --- LOGIC DESCRIPTIONS FOR BRIDGES ---
@@ -384,9 +385,9 @@ def main():
         year = cutoff_date.year
         month = cutoff_date.month
         params = {
-            "cutoff_date": cutoff_date.strftime("%Y-%m-%d"),
+            "cutoff_date": format_yyyy_mm_dd(cutoff_date),
             "year_start": f"{year}-{month:02d}-01",
-            "year_end": cutoff_date.strftime("%Y-%m-%d"),
+            "year_end": format_yyyy_mm_dd(cutoff_date),
             "year": year,
             "month": month,
             "gl_accounts": "('15010','18303','18304','18406','18408','18409','18411','18412','18416','18417','18419','18421','18320','18307','18308','18309','18312','18310','18314','18380','18635','18317','18318','18319')",

@@ -15,6 +15,7 @@ from typing import Dict, Any, Optional, Tuple, Callable
 from functools import wraps
 from src.utils.aws_utils import AWSSecretsManager
 from src.core.evidence.manager import DigitalEvidenceManager, IPEEvidenceGenerator
+from src.utils.date_utils import validate_yyyy_mm_dd
 
 # Logging configuration
 logger = logging.getLogger(__name__)
@@ -160,15 +161,11 @@ class IPERunner:
         
         # Default cutoff date: first day of current month
         if cutoff_date:
-            # Validate cutoff_date format (YYYY-MM-DD) to prevent injection
-            import re
-            if not re.match(r'^\d{4}-\d{2}-\d{2}$', cutoff_date):
-                raise ValueError(f"Invalid cutoff_date format: {cutoff_date}. Expected YYYY-MM-DD")
-            # Additional validation: ensure it's a valid date
+            # Validate cutoff_date format using centralized utility
             try:
-                datetime.strptime(cutoff_date, '%Y-%m-%d')
+                validate_yyyy_mm_dd(cutoff_date)
             except ValueError as e:
-                raise ValueError(f"Invalid cutoff_date value: {cutoff_date}. {e}")
+                raise ValueError(f"Invalid cutoff_date: {e}")
             self.cutoff_date = cutoff_date
         else:
             today = datetime.now()
