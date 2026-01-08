@@ -10,6 +10,7 @@ import pandas as pd
 
 from src.core.scope_filtering import filter_ipe08_scope
 from src.utils.fx_utils import FXConverter
+from src.utils.date_utils import normalize_date, month_start, month_end
 
 
 def calculate_vtc_adjustment(
@@ -94,21 +95,16 @@ def calculate_vtc_adjustment(
                 break
         
         if inactive_at_col:
-            # Convert cutoff_date to datetime
-            cutoff_dt = pd.to_datetime(cutoff_date)
-            # Get the start and end of the reconciliation month
-            month_start = cutoff_dt.replace(day=1)
-            # Calculate last day of month
-            if cutoff_dt.month == 12:
-                month_end = cutoff_dt.replace(year=cutoff_dt.year + 1, month=1, day=1) - pd.Timedelta(days=1)
-            else:
-                month_end = cutoff_dt.replace(month=cutoff_dt.month + 1, day=1) - pd.Timedelta(days=1)
+            # Use centralized date utilities for month boundaries
+            cutoff_dt = normalize_date(cutoff_date)
+            month_start_dt = month_start(cutoff_dt)
+            month_end_dt = month_end(cutoff_dt)
             
             # Convert inactive_at column to datetime
             inactive_at_series = pd.to_datetime(filtered_ipe_08[inactive_at_col], errors="coerce")
             
             # Filter: inactive_at must be within the reconciliation month
-            filter_condition &= (inactive_at_series >= month_start) & (inactive_at_series <= month_end)
+            filter_condition &= (inactive_at_series >= month_start_dt) & (inactive_at_series <= month_end_dt)
     
     source_vouchers_df = filtered_ipe_08[filter_condition].copy()
 

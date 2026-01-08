@@ -10,6 +10,8 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 import warnings
 
+from src.utils.date_utils import normalize_date
+
 
 def compute_rolling_window(cutoff_date: str) -> Tuple[pd.Timestamp, pd.Timestamp]:
     """
@@ -39,7 +41,7 @@ def compute_rolling_window(cutoff_date: str) -> Tuple[pd.Timestamp, pd.Timestamp
         This implements the spec: "from 1 Oct N-1 to 30 Sep N (inclusive)"
         rolling forward based on the actual cutoff date.
     """
-    cutoff_dt = pd.to_datetime(cutoff_date).normalize()
+    cutoff_dt = normalize_date(cutoff_date)
     
     # Calculate start date: 1st of (cutoff_month + 1) - 1 year
     # Example: cutoff = 2025-09-30 → next_month = 2025-10-01 → start = 2024-10-01
