@@ -11,6 +11,7 @@ import pandas as pd
 from src.core.scope_filtering import filter_ipe08_scope
 from src.utils.fx_utils import FXConverter
 from src.utils.date_utils import normalize_date, month_start, month_end
+from src.utils.pandas_utils import coerce_numeric_series
 
 
 def calculate_vtc_adjustment(
@@ -118,6 +119,11 @@ def calculate_vtc_adjustment(
     if amount_col is None:
         # No amount column found, return empty result
         return 0.0, pd.DataFrame(), {"total_count": 0, "breakdown_by_type": {}}
+    
+    # Ensure amount column is numeric using centralized utility
+    source_vouchers_df[amount_col] = coerce_numeric_series(
+        source_vouchers_df[amount_col], fillna=0.0
+    )
 
     if categorized_cr_03_df is None or categorized_cr_03_df.empty:
         # All source vouchers are unmatched
@@ -163,16 +169,17 @@ def calculate_vtc_adjustment(
                 break
 
         if company_col is not None:
+            # amount_col is already coerced to numeric when added to source_vouchers_df
             # Convert to USD
             proof_df["Amount_USD"] = fx_converter.convert_series_to_usd(
                 proof_df[amount_col], proof_df[company_col]
             )
             adjustment_amount = proof_df["Amount_USD"].sum()
         else:
-            # No company column, cannot convert - use LCY
+            # No company column, cannot convert - use LCY (already coerced above)
             adjustment_amount = proof_df[amount_col].sum()
     else:
-        # No FX converter provided - use local currency
+        # No FX converter provided - use local currency (already coerced above)
         adjustment_amount = proof_df[amount_col].sum()
 
     # --- VTC Metrics ---

@@ -11,6 +11,7 @@ import pandas as pd
 import warnings
 
 from src.utils.date_utils import normalize_date
+from src.utils.pandas_utils import coerce_numeric_series
 
 
 def compute_rolling_window(cutoff_date: str) -> Tuple[pd.Timestamp, pd.Timestamp]:
@@ -228,6 +229,9 @@ def calculate_timing_difference_bridge(
 
     if ipe_amount_col is None:
         return 0.0, pd.DataFrame()
+    
+    # Ensure IPE amount column is numeric using centralized utility
+    df_ipe[ipe_amount_col] = coerce_numeric_series(df_ipe[ipe_amount_col], fillna=0.0)
 
     # Step 2: Prepare Source B (Jdash) - Aggregate by Voucher Id summing Amount Used
     if jdash_df is None or jdash_df.empty:
@@ -275,6 +279,11 @@ def calculate_timing_difference_bridge(
         
         return variance_sum, proof_df
 
+    # Ensure Jdash amount is numeric BEFORE aggregation (handles string amounts with commas)
+    df_jdash["jdash_amount_used"] = coerce_numeric_series(
+        df_jdash["jdash_amount_used"], fillna=0.0
+    )
+    
     # Aggregate Jdash by voucher_id summing jdash_amount_used (using canonical names)
     # Rename immediately to output format (Jdash_Amount_Used) for consistency downstream
     jdash_agg = (

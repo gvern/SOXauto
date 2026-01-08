@@ -221,6 +221,62 @@ class TestSummaryBuilder:
         
         assert metrics['variance'] == 1000.0
         assert metrics['status'] == 'VARIANCE_DETECTED'
+    
+    def test_calculate_actuals_with_string_amounts(self):
+        """Test actuals calculation with string amounts containing commas."""
+        cr_04_df = pd.DataFrame({
+            'BALANCE_AT_DATE': ['1,000.50', '2,000', '  3,500.75  '],
+            'GROUP_COA_ACCOUNT_NO': ['18412', '13003', '18350'],
+        })
+        
+        builder = SummaryBuilder({'CR_04': cr_04_df})
+        actuals = builder._calculate_actuals()
+        
+        # Should handle comma-separated strings correctly
+        assert actuals == pytest.approx(6501.25, rel=1e-5)
+    
+    def test_calculate_actuals_with_nan_and_empty_strings(self):
+        """Test actuals calculation with NaN and empty strings."""
+        cr_04_df = pd.DataFrame({
+            'BALANCE_AT_DATE': ['1,000', None, '', '2,000'],
+            'GROUP_COA_ACCOUNT_NO': ['18412', '13003', '18350', '13005'],
+        })
+        
+        builder = SummaryBuilder({'CR_04': cr_04_df})
+        actuals = builder._calculate_actuals()
+        
+        # NaN and empty strings should be treated as 0.0
+        assert actuals == 3000.0
+    
+    def test_calculate_actuals_with_all_invalid_data(self):
+        """Test actuals calculation with all invalid (non-numeric) data."""
+        cr_04_df = pd.DataFrame({
+            'BALANCE_AT_DATE': ['invalid', 'data', 'here'],
+            'GROUP_COA_ACCOUNT_NO': ['18412', '13003', '18350'],
+        })
+        
+        builder = SummaryBuilder({'CR_04': cr_04_df})
+        actuals = builder._calculate_actuals()
+        
+        # Should return None when all data is invalid
+        assert actuals is None
+    
+    def test_calculate_target_values_with_messy_data(self):
+        """Test target values calculation with messy string data."""
+        data_store = {
+            'IPE_07': pd.DataFrame({'Amount': ['1,000', '2,000', '']}),
+            'IPE_10': pd.DataFrame({'remaining_amount': ['  500  ', '250.50', None]}),
+            'IPE_08': pd.DataFrame({'remaining_amount': ['1,234.56', '2,000']}),
+        }
+        
+        builder = SummaryBuilder(data_store)
+        target_sum, component_totals = builder._calculate_target_values()
+        
+        # Should handle all messy formats correctly
+        assert target_sum == pytest.approx(6985.06, rel=1e-5)
+        assert component_totals['IPE_07'] == 3000.0
+        assert component_totals['IPE_10'] == 750.50
+        assert component_totals['IPE_08'] == 3234.56
 
 
 class TestCalculateReconciliationMetrics:
