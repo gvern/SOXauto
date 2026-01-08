@@ -14,7 +14,8 @@ Generic Bridge Classification:
     - classify_bridges: Generic rule-based bridge classification engine
 
 Bridge Calculations:
-    - calculate_business_line_bridge: Calculate business line (Biz Line) bridge (placeholder v1)
+    - identify_business_line_reclass_candidates: Identify business line reclass candidates (CLE-based)
+    - calculate_business_line_bridge: Calculate business line (Biz Line) bridge (placeholder v1, deprecated)
     - calculate_customer_posting_group_bridge: Calculate customer posting group bridge
     - calculate_vtc_adjustment: Calculate VTC (Voucher to Cash) adjustment bridge
     - calculate_timing_difference_bridge: Calculate timing difference bridge
@@ -34,6 +35,9 @@ Usage Example:
     
     >>> from src.bridges import calculate_vtc_adjustment
     >>> variance, proof_df, metrics = calculate_vtc_adjustment(ipe_08_df, cr_03_df, cutoff_date)
+    
+    >>> from src.bridges import identify_business_line_reclass_candidates
+    >>> candidates = identify_business_line_reclass_candidates(cle_df, "2025-09-30")
 """
 
 # Core registry - Bridge business rules
@@ -44,6 +48,7 @@ from src.bridges.classifier import classify_bridges
 
 # Bridge calculations (from calculations package)
 from src.bridges.calculations import (
+    identify_business_line_reclass_candidates,
     calculate_business_line_bridge,
     calculate_customer_posting_group_bridge,
     calculate_vtc_adjustment,
@@ -63,6 +68,7 @@ __all__ = [
     # Generic Bridge Classification
     "classify_bridges",
     # Bridge Calculations
+    "identify_business_line_reclass_candidates",
     "calculate_business_line_bridge",
     "calculate_customer_posting_group_bridge",
     "calculate_vtc_adjustment",
