@@ -579,6 +579,104 @@ class TestTimingBridgeEdgeCases:
         # Variance = 100 - (-50) = 150
         assert variance_sum == 150.0
         assert len(proof_df) == 1
+    
+    def test_string_amounts_with_commas(self):
+        """Test handling of string amounts with commas (CSV upload scenario)."""
+        ipe_08_df = pd.DataFrame([
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "is_active": 0,
+                "Total Amount Used": "1,234.56",  # String with commas
+                "created_at": "2024-10-15",
+            },
+            {
+                "id": "V002",
+                "business_use": "jforce",
+                "is_active": 0,
+                "Total Amount Used": "2,000",  # String with commas
+                "created_at": "2024-11-01",
+            },
+        ])
+        
+        jdash_df = pd.DataFrame([
+            {"Voucher Id": "V001", "Amount Used": "1,500"},
+            {"Voucher Id": "V002", "Amount Used": "2,100.50"},
+        ])
+        
+        variance_sum, proof_df = calculate_timing_difference_bridge(
+            jdash_df, ipe_08_df, "2025-09-30"
+        )
+        
+        # Should handle comma-separated strings correctly
+        # Variance = (1500 - 1234.56) + (2100.50 - 2000) = 265.44 + 100.50 = 365.94
+        assert variance_sum == pytest.approx(365.94, rel=1e-5)
+        assert len(proof_df) == 2
+    
+    def test_mixed_numeric_and_string_amounts(self):
+        """Test handling of mixed numeric and string amounts."""
+        ipe_08_df = pd.DataFrame([
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "is_active": 0,
+                "Total Amount Used": 1000.0,  # Numeric
+                "created_at": "2024-10-15",
+            },
+            {
+                "id": "V002",
+                "business_use": "jforce",
+                "is_active": 0,
+                "Total Amount Used": "2,500",  # String
+                "created_at": "2024-11-01",
+            },
+        ])
+        
+        jdash_df = pd.DataFrame([
+            {"Voucher Id": "V001", "Amount Used": "1,100"},  # String
+            {"Voucher Id": "V002", "Amount Used": 2600.0},  # Numeric
+        ])
+        
+        variance_sum, proof_df = calculate_timing_difference_bridge(
+            jdash_df, ipe_08_df, "2025-09-30"
+        )
+        
+        # Variance = (1100 - 1000) + (2600 - 2500) = 100 + 100 = 200
+        assert variance_sum == 200.0
+        assert len(proof_df) == 2
+    
+    def test_empty_strings_and_nans(self):
+        """Test handling of empty strings and NaN values."""
+        ipe_08_df = pd.DataFrame([
+            {
+                "id": "V001",
+                "business_use": "refund",
+                "is_active": 0,
+                "Total Amount Used": "",  # Empty string
+                "created_at": "2024-10-15",
+            },
+            {
+                "id": "V002",
+                "business_use": "jforce",
+                "is_active": 0,
+                "Total Amount Used": None,  # NaN
+                "created_at": "2024-11-01",
+            },
+        ])
+        
+        jdash_df = pd.DataFrame([
+            {"Voucher Id": "V001", "Amount Used": 100.0},
+            {"Voucher Id": "V002", "Amount Used": ""},  # Empty string
+        ])
+        
+        variance_sum, proof_df = calculate_timing_difference_bridge(
+            jdash_df, ipe_08_df, "2025-09-30"
+        )
+        
+        # Empty strings and NaN should be treated as 0.0
+        # Variance = (100 - 0) + (0 - 0) = 100
+        assert variance_sum == 100.0
+        assert len(proof_df) == 2
 
 
 if __name__ == "__main__":
