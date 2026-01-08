@@ -14,6 +14,7 @@ from src.bridges import (
     calculate_vtc_adjustment,
     calculate_customer_posting_group_bridge,
     calculate_timing_difference_bridge,
+    identify_business_line_reclass_candidates,
 )
 from src.utils.fx_utils import FXConverter
 
@@ -2430,3 +2431,30 @@ def test_filter_ipe08_scope_business_use_formatted_column():
     assert "V001" in result["id"].values
     assert "V003" in result["id"].values
     assert "V002" not in result["id"].values
+
+
+# ========================================================================
+# Tests for identify_business_line_reclass_candidates (Business Line Reclass Bridge)
+# ========================================================================
+
+
+def test_identify_business_line_reclass_candidates_import():
+    """Test that identify_business_line_reclass_candidates can be imported and called."""
+    import pandas as pd
+    
+    # Test basic import works
+    assert callable(identify_business_line_reclass_candidates)
+    
+    # Test empty DataFrame returns empty result
+    empty_df = pd.DataFrame(columns=["customer_id", "business_line_code", "amount_lcy"])
+    result = identify_business_line_reclass_candidates(empty_df, "2025-09-30")
+    assert result.empty
+    
+    # Test simple multi-BL case returns candidates
+    df = pd.DataFrame([
+        {"customer_id": "C001", "business_line_code": "BL01", "amount_lcy": 1000.0},
+        {"customer_id": "C001", "business_line_code": "BL02", "amount_lcy": 200.0},
+    ])
+    result = identify_business_line_reclass_candidates(df, "2025-09-30")
+    assert len(result) == 2
+    assert (result["proposed_primary_business_line"] == "BL01").all()
