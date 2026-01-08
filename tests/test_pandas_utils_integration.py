@@ -9,11 +9,9 @@ Tests realistic scenarios:
 """
 
 import pandas as pd
-import numpy as np
 import pytest
 
 from src.utils.pandas_utils import (
-    coerce_numeric_series,
     cast_amount_columns,
     ensure_required_numeric,
 )
@@ -290,6 +288,10 @@ class TestReconciliationPipelineIntegration:
             'bridge_category': ['Cancellation', 'VTC Manual']
         }
         df_cr03 = pd.DataFrame(cr03_data)
+        
+        # Basic sanity checks on CR_03 data to ensure scenario setup is valid
+        assert df_cr03['Amount'].sum() == pytest.approx(-3234.56)
+        assert set(df_cr03['bridge_category']) == {"Cancellation", "VTC Manual"}
         
         # Clean IPE_08 amounts
         df_ipe08_clean = ensure_required_numeric(

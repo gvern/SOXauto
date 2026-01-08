@@ -279,17 +279,17 @@ def calculate_timing_difference_bridge(
         
         return variance_sum, proof_df
 
+    # Ensure Jdash amount is numeric BEFORE aggregation (handles string amounts with commas)
+    df_jdash["jdash_amount_used"] = coerce_numeric_series(
+        df_jdash["jdash_amount_used"], fillna=0.0
+    )
+    
     # Aggregate Jdash by voucher_id summing jdash_amount_used (using canonical names)
     # Rename immediately to output format (Jdash_Amount_Used) for consistency downstream
     jdash_agg = (
         df_jdash.groupby("voucher_id", as_index=False)["jdash_amount_used"]
         .sum()
         .rename(columns={"jdash_amount_used": "Jdash_Amount_Used"})
-    )
-    
-    # Ensure Jdash amount is numeric using centralized utility
-    jdash_agg["Jdash_Amount_Used"] = coerce_numeric_series(
-        jdash_agg["Jdash_Amount_Used"], fillna=0.0
     )
 
     # Step 3: Reconciliation Logic - Left Join of Filtered IPE_08 with Jdash on Voucher ID
