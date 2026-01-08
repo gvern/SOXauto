@@ -33,6 +33,8 @@
 | **evidence_documentation.md** | SOX evidence structure (7-file system) | Auditors & Developers |
 | **EVIDENCE_PACKAGE_PRESENTATION.md** | Evidence package details | Compliance & Auditors |
 | **RECONCILIATION_FLOW_DIAGRAM.md** | C-PG-1 process flow | All team members |
+| **PANDAS_UTILS.md** | Pandas data type casting utilities | Developers |
+| **DATE_UTILS.md** | Date handling utilities | Developers |
  
 
 ---
@@ -172,6 +174,12 @@ docs/development/
 
 **...see data flow architecture?**
 → `RECONCILIATION_FLOW_DIAGRAM.md`
+
+**...handle numeric data types correctly?**
+→ `PANDAS_UTILS.md`
+
+**...work with dates?**
+→ `DATE_UTILS.md`
 
 **...look up a quick reference?**
 → `QUICK_REFERENCE_FOR_TEAM.md`
