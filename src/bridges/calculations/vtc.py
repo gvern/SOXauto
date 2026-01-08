@@ -169,8 +169,7 @@ def calculate_vtc_adjustment(
                 break
 
         if company_col is not None:
-            # Ensure amount column is numeric before FX conversion
-            proof_df[amount_col] = coerce_numeric_series(proof_df[amount_col], fillna=0.0)
+            # amount_col is already coerced to numeric when added to source_vouchers_df
             # Convert to USD
             proof_df["Amount_USD"] = fx_converter.convert_series_to_usd(
                 proof_df[amount_col], proof_df[company_col]
