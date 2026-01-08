@@ -353,6 +353,74 @@ voucher id, transaction number, voucher type, business use, creation year, and d
             ColumnExistsCheck("TotalAmountUsed"),
         ],
     ),
+    # =================================================================
+    # == NAV_CLE: Customer Ledger Entries for Business Line Reclass
+    # =================================================================
+    # Purpose: Extract CLE data with business line codes for identifying
+    # customers with balances across multiple business lines.
+    # Used by Business Line Reclass bridge calculation.
+    # =================================================================
+    CatalogItem(
+        item_id="NAV_CLE",
+        item_type="DOC",
+        control="C-PG-1",
+        title="NAV Customer Ledger Entries for Business Line Reclass",
+        status="Completed",
+        baseline_required=False,
+        change_status="New DOC",
+        last_updated="2026-01-08",
+        output_type="Query",
+        tool="SQL Server",
+        third_party=False,
+        cross_reference=None,
+        notes=(
+            "Extract Customer Ledger Entries from NAV with business line codes. "
+            "Used by Business Line Reclass bridge to identify customers with "
+            "balances across multiple business lines (NAV-only reclassification)."
+        ),
+        evidence_ref="NAV_CLE",
+        descriptor_excel=None,
+        description="""This query extracts Customer Ledger Entries (CLE) from NAV with business \
+line codes for Business Line Reclass analysis.
+
+The query aggregates CLE balances per customer and business line, filtering for:
+- In-scope companies (Flg_In_Conso_Scope = 1)
+- Relevant customer posting groups (same as IPE_07)
+- Non-zero remaining amounts as of cutoff date
+
+Output is used by the Business Line Reclass bridge calculation to identify customers \
+with balances across multiple business lines and generate reclass candidates for review \
+by Accounting Excellence.""",
+        sources=[
+            _src_sql(
+                "[AIG_Nav_DW].[dbo].[Customer Ledger Entries]",
+                system="NAV",
+                domain="NAVBI",
+            ),
+            _src_sql(
+                "[AIG_Nav_DW].[dbo].[Detailed Customer Ledg_ Entry]",
+                system="NAV",
+                domain="NAVBI",
+            ),
+            _src_sql(
+                "[AIG_Nav_DW].[dbo].[Customers]",
+                system="NAV",
+                domain="NAVBI",
+            ),
+            _src_sql(
+                "[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]",
+                system="NAV",
+                domain="FinRec",
+            ),
+        ],
+        sql_query=_load_sql("NAV_CLE"),
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("customer_id"),
+            ColumnExistsCheck("business_line_code"),
+            ColumnExistsCheck("amount_lcy"),
+        ],
+    ),
     CatalogItem(
         item_id="IPE_31",
         item_type="IPE",
