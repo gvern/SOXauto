@@ -25,8 +25,8 @@ Business Logic:
        - Output candidate table for review (final decision is manual)
 
 Data Source:
-    - Input: NAV Customer Ledger Entries (CLE) with business_line_code
-    - Can be extracted using FINREC database (NAV source)
+    - Input: IPE_07 (NAV Customer Ledger Entries) with business_line_code
+    - Extracted using FINREC database (NAV source)
 """
 
 from typing import Dict, Any, Optional

@@ -160,13 +160,16 @@ from src.bridges.calculations.business_line_reclass import (
 )
 import pandas as pd
 
-# Load CLE data from NAV
-cle_df = pd.read_csv("nav_cle_extract.csv")
+# Load IPE_07 data (NAV Customer Ledger Entries)
+ipe_07_df = pd.read_csv("ipe_07_extract.csv")
 
-# Identify candidates
+# Identify candidates with IPE_07 column mapping
 candidates = identify_business_line_reclass_candidates(
-    cle_df, 
-    cutoff_date="2025-09-30"
+    ipe_07_df,
+    cutoff_date="2025-09-30",
+    customer_id_col="Customer No_",
+    business_line_col="Busline Code",
+    amount_col="rem_amt_LCY",
 )
 
 # Review output
@@ -197,8 +200,11 @@ candidates = identify_business_line_reclass_candidates(
 ```python
 # Only consider balances >= 100.00 (reduce noise)
 candidates = identify_business_line_reclass_candidates(
-    cle_df,
+    ipe_07_df,
     cutoff_date="2025-09-30",
+    customer_id_col="Customer No_",
+    business_line_col="Busline Code",
+    amount_col="rem_amt_LCY",
     min_abs_amount=100.0,
 )
 ```
@@ -206,8 +212,14 @@ candidates = identify_business_line_reclass_candidates(
 ### Review Workflow
 
 ```python
-# 1. Generate candidates
-candidates = identify_business_line_reclass_candidates(cle_df, "2025-09-30")
+# 1. Generate candidates from IPE_07
+candidates = identify_business_line_reclass_candidates(
+    ipe_07_df,
+    "2025-09-30",
+    customer_id_col="Customer No_",
+    business_line_col="Busline Code",
+    amount_col="rem_amt_LCY",
+)
 
 # 2. Filter to high-value customers only
 high_value = candidates[candidates["balance_lcy"].abs() >= 1000]
@@ -223,36 +235,76 @@ for customer_id in high_value["customer_id"].unique():
 #    - Update customer master data if needed
 ```
 
-## Data Source: NAV Customer Ledger Entries
+## Data Source: IPE_07 (NAV Customer Ledger Entries)
 
-### Recommended SQL Query
+### Overview
 
-Customer Ledger Entries can be extracted from NAV using the FINREC database.
+Customer Ledger Entries are extracted using **IPE_07**, which is the canonical source for NAV CLE data in the SOXauto repository.
 
-Example SQL query structure (adjust for your NAV schema):
+### IPE_07 Column Mapping
 
-```sql
-SELECT
-    [Customer No_] AS customer_id,
-    [Global Dimension 1 Code] AS business_line_code,  -- Or your BL field
-    [Remaining Amount (LCY)] AS amount_lcy,
-    [Posting Date] AS posting_date,
-    [Document No_] AS document_no
-FROM [FINREC].[dbo].[Customer Ledger Entry]
-WHERE 
-    [Posting Date] <= @cutoff_date
-    AND [Remaining Amount (LCY)] <> 0  -- Only open entries
-ORDER BY [Customer No_], [Global Dimension 1 Code]
+When using IPE_07 data with `identify_business_line_reclass_candidates()`, map the columns as follows:
+
+```python
+from src.bridges.calculations.business_line_reclass import (
+    identify_business_line_reclass_candidates
+)
+
+# IPE_07 DataFrame columns:
+# - [Customer No_] → customer_id
+# - [Busline Code] → business_line_code  
+# - rem_amt_LCY → amount_lcy
+
+candidates = identify_business_line_reclass_candidates(
+    ipe_07_df,
+    cutoff_date="2025-09-30",
+    customer_id_col="Customer No_",
+    business_line_col="Busline Code",
+    amount_col="rem_amt_LCY",
+)
 ```
+
+### IPE_07 Query Details
+
+The IPE_07 query (`src/core/catalog/queries/IPE_07.sql`) extracts:
+- Customer Ledger Entries from `[AIG_Nav_DW].[dbo].[Customer Ledger Entries]`
+- Aggregated remaining amounts from `[AIG_Nav_DW].[dbo].[Detailed Customer Ledg_ Entry]`
+- Business line codes via `cle.[Busline Code]`
+- Customer information including posting groups
+- Filtered for in-scope companies and relevant posting groups
 
 ### Integration with SOXauto Pipeline
 
 To integrate with SOXauto's standard extraction pipeline:
 
-1. **Add SQL File**: Create `src/core/catalog/queries/NAV_CLE.sql`
-2. **Add Catalog Entry**: Update `src/core/catalog/cpg1.py` with CLE IPE definition
-3. **Run Extraction**: Use `mssql_runner.py` to extract via Temporal workflow
-4. **Run Analysis**: Pass extracted DataFrame to `identify_business_line_reclass_candidates()`
+1. **Extract IPE_07**: Use `mssql_runner.py` to extract IPE_07 via Temporal workflow
+2. **Run Analysis**: Pass extracted IPE_07 DataFrame to `identify_business_line_reclass_candidates()`
+3. **Map Columns**: Use column mapping parameters to match IPE_07 schema
+
+Example:
+
+```python
+from src.core.runners.mssql_runner import MSSQLRunner
+from src.bridges.calculations.business_line_reclass import (
+    identify_business_line_reclass_candidates
+)
+
+# Extract IPE_07
+runner = MSSQLRunner()
+ipe_07_df = runner.extract_ipe("IPE_07", cutoff_date="2025-09-30")
+
+# Identify business line reclass candidates
+candidates = identify_business_line_reclass_candidates(
+    ipe_07_df,
+    cutoff_date="2025-09-30",
+    customer_id_col="Customer No_",
+    business_line_col="Busline Code",
+    amount_col="rem_amt_LCY",
+)
+
+# Export for review
+candidates.to_excel("business_line_reclass_candidates.xlsx", index=False)
+```
 
 ## Testing
 
@@ -329,12 +381,18 @@ from src.bridges.calculations.business_line_reclass import (
 
 @activity.defn
 async def analyze_business_line_reclass(cutoff_date: str) -> dict:
-    # 1. Extract CLE from NAV
+    # 1. Extract IPE_07 (NAV CLE) from NAV
     runner = MSSQLRunner()
-    cle_df = runner.extract_ipe("NAV_CLE", cutoff_date)
+    ipe_07_df = runner.extract_ipe("IPE_07", cutoff_date)
     
-    # 2. Identify candidates
-    candidates = identify_business_line_reclass_candidates(cle_df, cutoff_date)
+    # 2. Identify candidates with column mapping
+    candidates = identify_business_line_reclass_candidates(
+        ipe_07_df,
+        cutoff_date,
+        customer_id_col="Customer No_",
+        business_line_col="Busline Code",
+        amount_col="rem_amt_LCY",
+    )
     
     # 3. Save to S3 or evidence folder
     candidates.to_csv(f"business_line_reclass_candidates_{cutoff_date}.csv")
