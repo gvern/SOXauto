@@ -248,6 +248,19 @@ class TestSummaryBuilder:
         # NaN and empty strings should be treated as 0.0
         assert actuals == 3000.0
     
+    def test_calculate_actuals_with_all_invalid_data(self):
+        """Test actuals calculation with all invalid (non-numeric) data."""
+        cr_04_df = pd.DataFrame({
+            'BALANCE_AT_DATE': ['invalid', 'data', 'here'],
+            'GROUP_COA_ACCOUNT_NO': ['18412', '13003', '18350'],
+        })
+        
+        builder = SummaryBuilder({'CR_04': cr_04_df})
+        actuals = builder._calculate_actuals()
+        
+        # Should return None when all data is invalid
+        assert actuals is None
+    
     def test_calculate_target_values_with_messy_data(self):
         """Test target values calculation with messy string data."""
         data_store = {

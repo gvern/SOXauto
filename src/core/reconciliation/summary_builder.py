@@ -108,8 +108,16 @@ class SummaryBuilder:
             
             if amount_col:
                 # Use centralized casting utility to ensure numeric dtype
-                amount_series = coerce_numeric_series(cr_04_df[amount_col], fillna=0.0)
-                return float(amount_series.sum())
+                # First coerce without fillna to check for valid numeric data
+                amount_series = coerce_numeric_series(cr_04_df[amount_col], fillna=None)
+                
+                # Return None if there are no valid numeric values
+                if amount_series.notna().sum() == 0:
+                    logger.warning(f"CR_04 column '{amount_col}' has no valid numeric data")
+                    return None
+                
+                # Fill NaNs with 0.0 and calculate sum
+                return float(amount_series.fillna(0.0).sum())
             else:
                 logger.warning("No amount column found in CR_04")
                 return None
@@ -141,8 +149,16 @@ class SummaryBuilder:
                         if col in df.columns:
                             try:
                                 # Use centralized casting utility to ensure numeric dtype
-                                amount_series = coerce_numeric_series(df[col], fillna=0.0)
-                                component_total = float(amount_series.sum())
+                                # First coerce without fillna to check for valid numeric data
+                                amount_series = coerce_numeric_series(df[col], fillna=None)
+                                
+                                # Skip component if there are no valid numeric values
+                                if amount_series.notna().sum() == 0:
+                                    logger.warning(f"Skipping {ipe_id}: column '{col}' has no valid numeric data")
+                                    break
+                                
+                                # Fill NaNs with 0.0 and calculate sum
+                                component_total = float(amount_series.fillna(0.0).sum())
                                 component_totals[ipe_id] = component_total
                                 target_sum += component_total
                                 break
