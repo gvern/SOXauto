@@ -251,7 +251,7 @@ class IPERunner:
             parameters: Parameters to inject into the query
             
         Returns:
-            DataFrame contenant les résultats de la requête
+            DataFrame containing the query results
         """
         try:
             if parameters is None:
@@ -270,13 +270,13 @@ class IPERunner:
     
     def _validate_completeness(self, main_dataframe: pd.DataFrame) -> bool:
         """
-        Validation de complétude: vérifie que toutes les données attendues sont présentes.
+        Completeness validation: verifies that all expected data is present.
         
         Args:
-            main_dataframe: Le DataFrame principal à valider
+            main_dataframe: The main DataFrame to validate
             
         Returns:
-            True si la validation réussit, False sinon
+            True if validation succeeds, False otherwise
             
         Raises:
             IPEValidationError: If validation fails
