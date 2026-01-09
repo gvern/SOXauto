@@ -1,44 +1,76 @@
 dataset_id: IPE_07
-version: 1
-description: Customer Ledger Entry - Monthly customer balances at cutoff date
+version: 2
+description: Customer Ledger Entry - Monthly customer balances at cutoff date with detailed breakdown
 source_system: NAV
-primary_keys: ["customer_id", "posting_date"]
+primary_keys: ["id_company", "entry_no"]
 deprecated: false
 
 fields:
-  - name: customer_id
+  - name: id_company
     required: true
-    aliases: ["Customer No_", "Customer No", "customer_no", "cust_no"]
+    aliases: ["id_company", "ID_Company", "ID_COMPANY"]
     dtype: string
     semantic_tag: id
-    description: Unique customer identifier from NAV
+    description: Company identifier
     reconciliation_critical: true
     coercion_rules:
       strip_whitespace: true
-      remove_commas: false
-      remove_spaces: false
-      remove_currency_symbols: false
   
-  - name: customer_name
+  - name: company_country
     required: false
-    aliases: ["Customer Name", "customer_name", "Name"]
-    dtype: string
-    semantic_tag: name
-    description: Customer display name
-    reconciliation_critical: false
-  
-  - name: customer_posting_group
-    required: true
-    aliases: ["Customer Posting Group", "Posting Group", "customer_posting_group"]
+    aliases: ["Company_Country", "company_country", "Country"]
     dtype: string
     semantic_tag: code
-    description: Customer posting group classification
+    description: Company country code
+    reconciliation_critical: false
+  
+  - name: opco_central
+    required: false
+    aliases: ["Opco/Central_?", "opco_central", "Opco Central"]
+    dtype: string
+    semantic_tag: code
+    description: Operating company or central classification
+    reconciliation_critical: false
+  
+  - name: entry_no
+    required: true
+    aliases: ["Entry No_", "entry_no", "Entry Number"]
+    dtype: int64
+    semantic_tag: id
+    description: Customer ledger entry number (primary key)
     reconciliation_critical: true
-    coercion_rules:
-      strip_whitespace: true
-      remove_commas: false
-      remove_spaces: false
-      remove_currency_symbols: false
+  
+  - name: gl_entry_no
+    required: false
+    aliases: ["GL Entry No_", "gl_entry_no", "GL Entry Number"]
+    dtype: int64
+    semantic_tag: id
+    description: Related GL entry number
+    reconciliation_critical: false
+  
+  - name: document_no
+    required: false
+    aliases: ["Document No_", "document_no", "Doc No"]
+    dtype: string
+    semantic_tag: id
+    description: Document number reference
+    reconciliation_critical: false
+  
+  - name: document_type
+    required: false
+    aliases: ["Document Type", "document_type", "Doc Type"]
+    dtype: string
+    semantic_tag: code
+    description: Document type classification
+    reconciliation_critical: false
+  
+  - name: external_document_no
+    required: false
+    aliases: ["External Document No_", "external_document_no", "External Doc No"]
+    dtype: string
+    semantic_tag: id
+    description: External document number
+    reconciliation_critical: false
   
   - name: posting_date
     required: true
@@ -49,30 +81,175 @@ fields:
     reconciliation_critical: true
     coercion_rules:
       strip_whitespace: true
-      remove_commas: false
-      remove_spaces: false
-      remove_currency_symbols: false
-      date_formats: ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y%m%d"]
+      date_formats: ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y%m%d", "%Y-%m-%d %H:%M:%S"]
   
-  - name: document_type
-    required: false
-    aliases: ["Document Type", "document_type", "Doc Type"]
-    dtype: string
-    semantic_tag: code
-    description: Document type classification
-    reconciliation_critical: false
-  
-  - name: document_no
-    required: false
-    aliases: ["Document No_", "Document No", "document_no", "Doc No"]
+  - name: customer_no
+    required: true
+    aliases: ["Customer No_", "Customer No", "customer_no", "cust_no"]
     dtype: string
     semantic_tag: id
-    description: Document number reference
+    description: Unique customer identifier from NAV
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: customer_name
+    required: false
+    aliases: ["Customer Name", "customer_name", "Name"]
+    dtype: string
+    semantic_tag: name
+    description: Customer display name
     reconciliation_critical: false
   
-  - name: amount_lcy
+  - name: customer_busline
+    required: false
+    aliases: ["Customer Busline", "customer_busline", "Customer Business Line"]
+    dtype: string
+    semantic_tag: code
+    description: Customer business line code
+    reconciliation_critical: false
+  
+  - name: automatically_integrated
+    required: false
+    aliases: ["Automatically integrated", "automatically_integrated", "Auto Integrated"]
+    dtype: int64
+    semantic_tag: code
+    description: Automatic integration flag
+    reconciliation_critical: false
+  
+  - name: currentpostinggroup
+    required: false
+    aliases: ["currentpostinggroup", "Current Posting Group"]
+    dtype: string
+    semantic_tag: code
+    description: Current customer posting group from customer master
+    reconciliation_critical: false
+  
+  - name: stream
+    required: false
+    aliases: ["Stream", "stream"]
+    dtype: string
+    semantic_tag: code
+    description: Customer stream classification
+    reconciliation_critical: false
+  
+  - name: customer_posting_group
     required: true
-    aliases: ["rem_amt_LCY", "Amount LCY", "amount_lcy", "Remaining Amount", "remaining_amount"]
+    aliases: ["Customer Posting Group", "customer_posting_group", "Posting Group"]
+    dtype: string
+    semantic_tag: code
+    description: Customer posting group classification from entry
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: description
+    required: false
+    aliases: ["Description", "description"]
+    dtype: string
+    semantic_tag: other
+    description: Entry description
+    reconciliation_critical: false
+  
+  - name: source_code
+    required: false
+    aliases: ["Source Code", "source_code"]
+    dtype: string
+    semantic_tag: code
+    description: Transaction source code
+    reconciliation_critical: false
+  
+  - name: reason_code
+    required: false
+    aliases: ["Reason Code", "reason_code"]
+    dtype: string
+    semantic_tag: code
+    description: Transaction reason code
+    reconciliation_critical: false
+  
+  - name: busline_code
+    required: false
+    aliases: ["Busline Code", "busline_code", "Business Line", "BL Code"]
+    dtype: string
+    semantic_tag: code
+    description: Business line classification code
+    reconciliation_critical: false
+  
+  - name: busline_vertical_name_1
+    required: false
+    aliases: ["Busline_Vertical_Name_1", "busline_vertical_name_1", "Business Line Vertical 1"]
+    dtype: string
+    semantic_tag: code
+    description: Business line vertical level 1
+    reconciliation_critical: false
+  
+  - name: busline_vertical_name_2
+    required: false
+    aliases: ["Busline_Vertical_Name_2", "busline_vertical_name_2", "Business Line Vertical 2"]
+    dtype: string
+    semantic_tag: code
+    description: Business line vertical level 2
+    reconciliation_critical: false
+  
+  - name: busline_vertical_name_3
+    required: false
+    aliases: ["Busline_Vertical_Name_3", "busline_vertical_name_3", "Business Line Vertical 3"]
+    dtype: string
+    semantic_tag: code
+    description: Business line vertical level 3
+    reconciliation_critical: false
+  
+  - name: department_code
+    required: false
+    aliases: ["Department Code", "department_code", "Dept Code"]
+    dtype: string
+    semantic_tag: code
+    description: Department code
+    reconciliation_critical: false
+  
+  - name: original_amount
+    required: false
+    aliases: ["Original Amount", "original_amount"]
+    dtype: float64
+    semantic_tag: amount
+    description: Original transaction amount in transaction currency
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: currency
+    required: false
+    aliases: ["Currency", "currency", "Currency Code"]
+    dtype: string
+    semantic_tag: code
+    description: Currency code for transaction
+    reconciliation_critical: false
+  
+  - name: original_amount_lcy
+    required: false
+    aliases: ["Original Amount (LCY)", "original_amount_lcy", "Original Amount LCY"]
+    dtype: float64
+    semantic_tag: amount
+    description: Original amount in local currency
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: rem_amt_lcy
+    required: true
+    aliases: ["rem_amt_LCY", "rem_amt_lcy", "Remaining Amount", "Amount LCY", "amount_lcy", "remaining_amount"]
     dtype: float64
     semantic_tag: amount
     description: Remaining amount in local currency
@@ -86,34 +263,61 @@ fields:
     validation_rules:
       allow_negative: true
   
-  - name: currency_code
+  - name: open
     required: false
-    aliases: ["Currency Code", "currency_code", "Currency"]
-    dtype: string
+    aliases: ["Open", "open"]
+    dtype: int64
     semantic_tag: code
-    description: Currency code for transaction
+    description: Open entry flag (1=open, 0=closed)
     reconciliation_critical: false
   
-  - name: business_line_code
+  - name: due_date
     required: false
-    aliases: ["Busline Code", "Business Line", "business_line_code", "BL Code"]
-    dtype: string
-    semantic_tag: code
-    description: Business line classification code
-    reconciliation_critical: true
+    aliases: ["Due Date", "due_date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Payment due date
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y%m%d", "%Y-%m-%d %H:%M:%S"]
   
-  - name: company_code
+  - name: posted_by
     required: false
-    aliases: ["ID_COMPANY", "Company_Code", "company_code", "ID_Company"]
+    aliases: ["Posted by", "posted_by", "Posted By"]
     dtype: string
-    semantic_tag: code
-    description: Company/entity identifier
+    semantic_tag: id
+    description: User who posted the entry
     reconciliation_critical: false
   
-  - name: country_code
+  - name: destination_code
     required: false
-    aliases: ["Country Code", "country_code", "Country"]
+    aliases: ["Destination Code", "destination_code"]
     dtype: string
     semantic_tag: code
-    description: Country code for the entity
+    description: Destination code
+    reconciliation_critical: false
+  
+  - name: partner_code
+    required: false
+    aliases: ["Partner Code", "partner_code"]
+    dtype: string
+    semantic_tag: code
+    description: Business partner code
+    reconciliation_critical: false
+  
+  - name: ic_partner_code
+    required: false
+    aliases: ["IC Partner Code", "ic_partner_code", "Intercompany Partner"]
+    dtype: string
+    semantic_tag: code
+    description: Intercompany partner code
+    reconciliation_critical: false
+  
+  - name: debit_credit_duemonth
+    required: false
+    aliases: ["Debit_Credit_DueMonth", "debit_credit_duemonth", "Debit Credit Due Month"]
+    dtype: string
+    semantic_tag: code
+    description: Debit/Credit classification based on due date (Credit, Debit, Due Month)
     reconciliation_critical: false

@@ -1,133 +1,414 @@
 dataset_id: IPE_08
-version: 1
-description: Store Credit Voucher Issuance - Transaction value for vouchers
+version: 2
+description: Store Credit Voucher Issuance - Complete voucher lifecycle tracking with usage details
 source_system: NAV
-primary_keys: ["voucher_id"]
+primary_keys: ["id_company", "id"]
 deprecated: false
 
 fields:
-  - name: voucher_id
+  - name: id_company
     required: true
-    aliases: ["Voucher_Id", "Voucher Id", "voucher_id", "VoucherId", "id"]
+    aliases: ["ID_COMPANY", "id_company", "ID_Company"]
+    dtype: string
+    semantic_tag: id
+    description: Company identifier
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: id
+    required: true
+    aliases: ["id", "ID", "Voucher_Id", "voucher_id", "VoucherId"]
     dtype: string
     semantic_tag: id
     description: Unique voucher identifier
     reconciliation_critical: true
     coercion_rules:
       strip_whitespace: true
-      remove_commas: false
-      remove_spaces: false
-      remove_currency_symbols: false
-  
-  - name: creation_date
-    required: true
-    aliases: ["Creation Date", "creation_date", "Created Date", "Order Date"]
-    dtype: datetime64
-    semantic_tag: date
-    description: Voucher creation/order date
-    reconciliation_critical: true
-    coercion_rules:
-      strip_whitespace: true
-      remove_commas: false
-      remove_spaces: false
-      remove_currency_symbols: false
-      date_formats: ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y%m%d"]
-  
-  - name: amount_issued
-    required: true
-    aliases: ["Amount", "Amount Issued", "amount_issued", "Issued Amount", "Total Amount"]
-    dtype: float64
-    semantic_tag: amount
-    description: Total amount issued for voucher
-    reconciliation_critical: true
-    fill_policy: keep_nan
-    coercion_rules:
-      strip_whitespace: true
-      remove_commas: true
-      remove_spaces: true
-      remove_currency_symbols: true
-    validation_rules:
-      allow_negative: false
-      min_value: 0.0
-  
-  - name: amount_used
-    required: false
-    aliases: ["Amount Used", "amount_used", "Used Amount", "Total Amount Used"]
-    dtype: float64
-    semantic_tag: amount
-    description: Amount already used from voucher
-    reconciliation_critical: true
-    fill_policy: keep_nan
-    coercion_rules:
-      strip_whitespace: true
-      remove_commas: true
-      remove_spaces: true
-      remove_currency_symbols: true
-    validation_rules:
-      allow_negative: false
-      min_value: 0.0
-  
-  - name: remaining_amount
-    required: false
-    aliases: ["Remaining Amount", "remaining_amount", "Balance", "Amount Remaining"]
-    dtype: float64
-    semantic_tag: amount
-    description: Remaining unused amount
-    reconciliation_critical: true
-    fill_policy: keep_nan
-    coercion_rules:
-      strip_whitespace: true
-      remove_commas: true
-      remove_spaces: true
-      remove_currency_symbols: true
-    validation_rules:
-      allow_negative: false
-      min_value: 0.0
-  
-  - name: voucher_status
-    required: false
-    aliases: ["Status", "voucher_status", "Voucher Status"]
-    dtype: string
-    semantic_tag: code
-    description: Current status of the voucher
-    reconciliation_critical: false
-  
-  - name: customer_id
-    required: false
-    aliases: ["Customer No_", "Customer No", "customer_id", "customer_no"]
-    dtype: string
-    semantic_tag: id
-    description: Customer who received the voucher
-    reconciliation_critical: false
-  
-  - name: currency_code
-    required: false
-    aliases: ["Currency Code", "currency_code", "Currency"]
-    dtype: string
-    semantic_tag: code
-    description: Currency code for amounts
-    reconciliation_critical: false
-  
-  - name: company_code
-    required: false
-    aliases: ["ID_COMPANY", "Company_Code", "company_code", "ID_Company"]
-    dtype: string
-    semantic_tag: code
-    description: Company/entity identifier
-    reconciliation_critical: false
-  
-  - name: country_code
-    required: false
-    aliases: ["Country Code", "country_code", "Country"]
-    dtype: string
-    semantic_tag: code
-    description: Country code for the entity
-    reconciliation_critical: false
   
   - name: business_use
     required: false
-    aliases: ["Business Use", "business_use", "Business_Use", "business_use_formatted"]
+    aliases: ["business_use", "Business_Use", "Business Use"]
     dtype: string
     semantic_tag: code
-    description: Business use category for voucher
+    description: Business use category (original from voucher table)
     reconciliation_critical: false
+  
+  - name: business_use_formatted
+    required: false
+    aliases: ["business_use_formatted", "Business_Use_Formatted"]
+    dtype: string
+    semantic_tag: code
+    description: Formatted business use (jpay_store_credit_gift, jpay_store_credit_DS, jpay_store_credit_other)
+    reconciliation_critical: false
+  
+  - name: template_id
+    required: false
+    aliases: ["template_id", "Template_Id", "Template ID"]
+    dtype: string
+    semantic_tag: id
+    description: Voucher template identifier
+    reconciliation_critical: false
+  
+  - name: template_name
+    required: false
+    aliases: ["template_name", "Template_Name", "Template Name"]
+    dtype: string
+    semantic_tag: name
+    description: Voucher template display name
+    reconciliation_critical: false
+  
+  - name: description
+    required: false
+    aliases: ["description", "Description"]
+    dtype: string
+    semantic_tag: other
+    description: Voucher description
+    reconciliation_critical: false
+  
+  - name: is_active
+    required: false
+    aliases: ["is_active", "Is_Active", "Is Active"]
+    dtype: int64
+    semantic_tag: code
+    description: Active status flag
+    reconciliation_critical: false
+  
+  - name: type
+    required: false
+    aliases: ["type", "Type"]
+    dtype: string
+    semantic_tag: code
+    description: Voucher type
+    reconciliation_critical: false
+  
+  - name: template_status
+    required: false
+    aliases: ["Template_status", "template_status", "Template Status"]
+    dtype: string
+    semantic_tag: code
+    description: Template status
+    reconciliation_critical: false
+  
+  - name: discount_amount
+    required: false
+    aliases: ["discount_amount", "Discount_Amount", "Amount Issued", "Amount"]
+    dtype: float64
+    semantic_tag: amount
+    description: Original discount/voucher amount issued
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+  
+  - name: from_date
+    required: false
+    aliases: ["from_date", "From_Date", "From Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Voucher validity start date
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y"]
+  
+  - name: to_date
+    required: false
+    aliases: ["to_date", "To_Date", "To Date", "Expiration Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Voucher expiration date
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y"]
+  
+  - name: expiration_ym
+    required: false
+    aliases: ["expiration_ym", "Expiration_YM", "Expiration Year-Month"]
+    dtype: string
+    semantic_tag: code
+    description: Expiration year-month (YYYY-M format)
+    reconciliation_critical: false
+  
+  - name: is_valid
+    required: false
+    aliases: ["Is_Valid", "is_valid", "Is Valid"]
+    dtype: string
+    semantic_tag: code
+    description: Validity status (expired, valid)
+    reconciliation_critical: false
+  
+  - name: created_at
+    required: false
+    aliases: ["created_at", "Created_At", "Creation Date", "Created Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Voucher creation timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y"]
+  
+  - name: creation_ym
+    required: false
+    aliases: ["creation_ym", "Creation_YM", "Creation Year-Month"]
+    dtype: string
+    semantic_tag: code
+    description: Creation year-month (YYYY-M format)
+    reconciliation_critical: false
+  
+  - name: last_update_ym
+    required: false
+    aliases: ["last_update_ym", "Last_Update_YM"]
+    dtype: string
+    semantic_tag: code
+    description: Last update year-month (YYYY-M format)
+    reconciliation_critical: false
+  
+  - name: last_time_used
+    required: false
+    aliases: ["last_time_used", "Last_Time_Used", "Last Time Used"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Last usage timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S"]
+  
+  - name: snapshot_date
+    required: false
+    aliases: ["snapshot_date", "Snapshot_Date", "Snapshot Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Data snapshot date
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S"]
+  
+  - name: voucher_inactive_date
+    required: false
+    aliases: ["voucher_inactive_date", "Voucher_Inactive_Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Voucher inactivation date
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S"]
+  
+  - name: template_inactive_date
+    required: false
+    aliases: ["template_inactive_date", "Template_Inactive_Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Template inactivation date
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S"]
+  
+  - name: codeinactive_ym
+    required: false
+    aliases: ["codeinactive_ym", "Code Inactive YM"]
+    dtype: string
+    semantic_tag: code
+    description: Voucher code inactive year-month (YYYY-M format)
+    reconciliation_critical: false
+  
+  - name: templateinactive_ym
+    required: false
+    aliases: ["templateinactive_ym", "Template Inactive YM"]
+    dtype: string
+    semantic_tag: code
+    description: Template inactive year-month (YYYY-M format)
+    reconciliation_critical: false
+  
+  - name: reason
+    required: false
+    aliases: ["reason", "Reason"]
+    dtype: string
+    semantic_tag: other
+    description: Inactivation or status reason
+    reconciliation_critical: false
+  
+  - name: updated_at
+    required: false
+    aliases: ["updated_at", "Updated_At", "Updated Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Last update timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S"]
+  
+  - name: fk_customer
+    required: false
+    aliases: ["fk_customer", "FK_Customer", "Customer ID"]
+    dtype: string
+    semantic_tag: id
+    description: Customer foreign key
+    reconciliation_critical: false
+  
+  - name: used_discount_amount
+    required: false
+    aliases: ["used_discount_amount", "Used_Discount_Amount", "Amount Used"]
+    dtype: float64
+    semantic_tag: amount
+    description: Total discount amount already used
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+  
+  - name: times_used
+    required: false
+    aliases: ["times_used", "Times_Used", "Times Used"]
+    dtype: int64
+    semantic_tag: code
+    description: Number of times voucher was used
+    reconciliation_critical: false
+  
+  - name: remaining_amount
+    required: false
+    aliases: ["remaining_amount", "Remaining_Amount", "Remaining Amount", "Balance"]
+    dtype: float64
+    semantic_tag: amount
+    description: Remaining unused amount from voucher table
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+  
+  - name: voucher_type
+    required: false
+    aliases: ["voucher_type", "Voucher_Type", "Voucher Type"]
+    dtype: string
+    semantic_tag: code
+    description: Voucher type from sales order items (reusablecredit, coupon, etc.)
+    reconciliation_critical: false
+  
+  - name: shipping_discount
+    required: false
+    aliases: ["shipping_discount", "Shipping_Discount", "Shipping Discount"]
+    dtype: float64
+    semantic_tag: amount
+    description: Total shipping discount amount used
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+  
+  - name: shipping_storecredit
+    required: false
+    aliases: ["shipping_storecredit", "Shipping_StoreCredit", "Shipping Store Credit"]
+    dtype: float64
+    semantic_tag: amount
+    description: Shipping store credit amount used
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+  
+  - name: mpl_storecredit
+    required: false
+    aliases: ["MPL_storecredit", "mpl_storecredit", "Marketplace Store Credit"]
+    dtype: float64
+    semantic_tag: amount
+    description: Marketplace store credit amount used
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+  
+  - name: rtl_storecredit
+    required: false
+    aliases: ["RTL_storecredit", "rtl_storecredit", "Retail Store Credit"]
+    dtype: float64
+    semantic_tag: amount
+    description: Retail store credit amount used
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+  
+  - name: totalamountused
+    required: false
+    aliases: ["TotalAmountUsed", "totalamountused", "Total Amount Used"]
+    dtype: float64
+    semantic_tag: amount
+    description: Total amount used (sum of shipping + MPL + RTL store credits)
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+  
+  - name: totalremainingamount
+    required: false
+    aliases: ["TotalRemainingAmount", "totalremainingamount", "Total Remaining Amount"]
+    dtype: float64
+    semantic_tag: amount
+    description: Total remaining amount (discount_amount - totalamountused)
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+  
+  - name: min_inactive_date
+    required: false
+    aliases: ["min_inactive_date", "Min_Inactive_Date", "Minimum Inactive Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Minimum of voucher inactive date and template inactive date
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S"]

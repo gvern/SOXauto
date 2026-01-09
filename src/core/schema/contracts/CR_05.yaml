@@ -1,45 +1,84 @@
 dataset_id: CR_05
-version: 1
-description: Currency Exchange Rates - FX rates for currency conversion
+version: 2
+description: Company and Currency Exchange Rates - Company dimension with FX rates for currency conversion
 source_system: NAV
-primary_keys: ["currency_code", "rate_date"]
+primary_keys: ["company_code"]
 deprecated: false
 
 fields:
-  - name: currency_code
+  - name: company_code
     required: true
-    aliases: ["Currency Code", "currency_code", "Currency"]
+    aliases: ["Company_Code", "company_code", "ID_Company", "ID_COMPANY"]
+    dtype: string
+    semantic_tag: id
+    description: Company identifier code
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: company_name
+    required: false
+    aliases: ["Company_Name", "company_name", "Company Name"]
+    dtype: string
+    semantic_tag: name
+    description: Company display name
+    reconciliation_critical: false
+  
+  - name: opco_central
+    required: false
+    aliases: ["Opco/Central_?", "opco_central", "Opco Central"]
     dtype: string
     semantic_tag: code
-    description: ISO currency code
-    reconciliation_critical: true
-    coercion_rules:
-      strip_whitespace: true
-      remove_commas: false
-      remove_spaces: false
-      remove_currency_symbols: false
+    description: Operating company or central classification
+    reconciliation_critical: false
   
-  - name: rate_date
-    required: true
-    aliases: ["Rate Date", "rate_date", "Date", "Exchange Date"]
-    dtype: datetime64
-    semantic_tag: date
-    description: Date for which the exchange rate is valid
-    reconciliation_critical: true
-    coercion_rules:
-      strip_whitespace: true
-      remove_commas: false
-      remove_spaces: false
-      remove_currency_symbols: false
-      date_formats: ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y%m%d"]
+  - name: company_country
+    required: false
+    aliases: ["Company_Country", "company_country", "Country Code"]
+    dtype: string
+    semantic_tag: code
+    description: Company country code
+    reconciliation_critical: false
   
-  - name: exchange_rate
-    required: true
-    aliases: ["Exchange Rate", "exchange_rate", "Rate", "FX Rate"]
+  - name: is_active
+    required: false
+    aliases: ["Is_Active?", "is_active", "Is Active"]
+    dtype: int64
+    semantic_tag: code
+    description: Active status flag
+    reconciliation_critical: false
+  
+  - name: rate_type
+    required: false
+    aliases: ["rate_type", "Rate_Type", "Rate Type"]
+    dtype: string
+    semantic_tag: code
+    description: Exchange rate type (Closing, Average, etc.)
+    reconciliation_critical: false
+  
+  - name: year
+    required: false
+    aliases: ["year", "Year", "YEAR"]
+    dtype: int64
+    semantic_tag: code
+    description: Year for the exchange rate
+    reconciliation_critical: false
+  
+  - name: cod_month
+    required: false
+    aliases: ["cod_month", "Cod_Month", "Month Code"]
+    dtype: int64
+    semantic_tag: code
+    description: Month code (1-12)
+    reconciliation_critical: false
+  
+  - name: fx_rate
+    required: false
+    aliases: ["FX_rate", "fx_rate", "FX Rate", "Exchange Rate"]
     dtype: float64
     semantic_tag: rate
-    description: Exchange rate to base currency
-    reconciliation_critical: true
+    description: Exchange rate to USD (base currency)
+    reconciliation_critical: false
     fill_policy: keep_nan
     coercion_rules:
       strip_whitespace: true
@@ -50,10 +89,10 @@ fields:
       allow_negative: false
       min_value: 0.0
   
-  - name: base_currency
+  - name: country_name
     required: false
-    aliases: ["Base Currency", "base_currency", "Base"]
+    aliases: ["Country_Name", "country_name", "Country Name"]
     dtype: string
-    semantic_tag: code
-    description: Base currency for the exchange rate
+    semantic_tag: name
+    description: Country display name
     reconciliation_critical: false
