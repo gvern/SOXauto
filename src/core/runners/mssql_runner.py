@@ -16,6 +16,7 @@ from functools import wraps
 from src.utils.aws_utils import AWSSecretsManager
 from src.core.evidence.manager import DigitalEvidenceManager, IPEEvidenceGenerator
 from src.utils.date_utils import validate_yyyy_mm_dd
+from src.core.schema import apply_schema_contract, ValidationPresets
 
 # Logging configuration
 logger = logging.getLogger(__name__)
@@ -179,6 +180,9 @@ class IPERunner:
         # SOX evidence manager
         self.evidence_manager = evidence_manager or DigitalEvidenceManager()
         self.evidence_generator = None
+        
+        # Schema validation report (will be populated during run())
+        self.schema_report = None
         
         # Store metadata for evidence package - sanitize inputs
         import re
@@ -487,7 +491,29 @@ class IPERunner:
             # Execute query
             self.extracted_data = self._execute_query_with_parameters(main_query, tuple(parameters))
             
-            # Add traceability metadata
+            # 3.5. Apply schema contract validation (NEW!)
+            logger.info(f"[{self.ipe_id}] Applying schema contract validation...")
+            try:
+                self.extracted_data, self.schema_report = apply_schema_contract(
+                    df=self.extracted_data,
+                    dataset_id=self.ipe_id,
+                    strict=False,  # Non-strict for production (logs warnings, doesn't fail)
+                    cast=True,     # Coerce types per schema
+                    track=True,    # Track all transformations
+                    drop_unknown=False  # Keep extra columns for debugging
+                )
+                logger.info(
+                    f"[{self.ipe_id}] Schema validation complete: "
+                    f"{len(self.schema_report.columns_renamed)} renamed, "
+                    f"{len(self.schema_report.columns_cast)} cast, "
+                    f"{self.schema_report.total_invalid_coerced} invalid coerced"
+                )
+            except ValueError as e:
+                # Schema contract not found or validation failed
+                logger.warning(f"[{self.ipe_id}] Schema validation skipped: {e}")
+                self.schema_report = None
+            
+            # Add traceability metadata AFTER schema validation
             self.extracted_data['_ipe_id'] = self.ipe_id
             self.extracted_data['_extraction_date'] = datetime.now().isoformat()
             self.extracted_data['_cutoff_date'] = self.cutoff_date
@@ -496,6 +522,11 @@ class IPERunner:
             logger.info(f"[{self.ipe_id}] Generating evidence proofs...")
             self.evidence_generator.save_data_snapshot(self.extracted_data)
             integrity_hash = self.evidence_generator.generate_integrity_hash(self.extracted_data)
+            
+            # 4.5. Save schema validation evidence (NEW!)
+            if self.schema_report:
+                self.evidence_generator.save_schema_validation(self.schema_report)
+                self.evidence_generator.save_transformation_log(self.schema_report)
             
             logger.info(f"[{self.ipe_id}] Data extracted: {len(self.extracted_data)} rows, "
                        f"Hash: {integrity_hash[:16]}...")
@@ -591,12 +622,39 @@ class IPERunner:
             )
 
             df = demo_dataframe.copy()
+            
+            # Apply schema contract validation (NEW!)
+            logger.info(f"[{self.ipe_id}] Applying schema contract validation...")
+            try:
+                df, self.schema_report = apply_schema_contract(
+                    df=df,
+                    dataset_id=self.ipe_id,
+                    strict=False,
+                    cast=True,
+                    track=True,
+                    drop_unknown=False
+                )
+                logger.info(
+                    f"[{self.ipe_id}] Schema validation complete: "
+                    f"{len(self.schema_report.columns_renamed)} renamed, "
+                    f"{len(self.schema_report.columns_cast)} cast"
+                )
+            except ValueError as e:
+                logger.warning(f"[{self.ipe_id}] Schema validation skipped: {e}")
+                self.schema_report = None
+            
+            # Add traceability metadata AFTER schema validation
             df['_ipe_id'] = self.ipe_id
             df['_extraction_date'] = datetime.now().isoformat()
             df['_cutoff_date'] = self.cutoff_date
             self.extracted_data = df
 
             self.evidence_generator.save_data_snapshot(df)
+            
+            # Save schema validation evidence (NEW!)
+            if self.schema_report:
+                self.evidence_generator.save_schema_validation(self.schema_report)
+                self.evidence_generator.save_transformation_log(self.schema_report)
 
             self.validation_results = {
                 'completeness': {'status': 'SKIPPED', 'reason': 'Demo mode: DB validation not applicable'},

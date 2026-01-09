@@ -1,0 +1,318 @@
+dataset_id: IPE_12
+version: 1
+description: TV - Packages delivered not reconciled - OMS package tracking
+source_system: OMS
+primary_keys: ["id_company", "cod_oms_id_package"]
+deprecated: false
+
+fields:
+  - name: id_company
+    required: true
+    aliases: ["ID_COMPANY", "id_company", "ID_Company"]
+    dtype: string
+    semantic_tag: id
+    description: Company identifier
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: cod_oms_id_package
+    required: true
+    aliases: ["COD_OMS_ID_PACKAGE", "cod_oms_id_package", "OMS Package ID"]
+    dtype: string
+    semantic_tag: id
+    description: OMS package identifier
+    reconciliation_critical: true
+  
+  - name: payment_method
+    required: false
+    aliases: ["PAYMENT_METHOD", "payment_method", "Payment Method"]
+    dtype: string
+    semantic_tag: code
+    description: Payment method used
+    reconciliation_critical: false
+  
+  - name: is_marketplace
+    required: false
+    aliases: ["IS_MARKETPLACE", "is_marketplace", "Is Marketplace"]
+    dtype: int64
+    semantic_tag: code
+    description: Marketplace flag (1=marketplace, 0=retail)
+    reconciliation_critical: false
+  
+  - name: order_nr
+    required: false
+    aliases: ["Order_nr", "order_nr", "ORDER_NR", "Order Number"]
+    dtype: string
+    semantic_tag: id
+    description: Sales order number (duplicated in multiple fields)
+    reconciliation_critical: false
+  
+  - name: package_number
+    required: false
+    aliases: ["PACKAGE_NUMBER", "package_number", "Package Number"]
+    dtype: string
+    semantic_tag: id
+    description: Package tracking number
+    reconciliation_critical: false
+  
+  - name: voucher_type
+    required: false
+    aliases: ["VOUCHER_TYPE", "voucher_type", "Voucher Type"]
+    dtype: string
+    semantic_tag: code
+    description: Voucher type code
+    reconciliation_critical: false
+  
+  - name: bob_id_customer
+    required: false
+    aliases: ["BOB_ID_CUSTOMER", "bob_id_customer", "Customer ID"]
+    dtype: string
+    semantic_tag: id
+    description: BOB customer identifier
+    reconciliation_critical: false
+  
+  - name: order_creation_date
+    required: false
+    aliases: ["ORDER_CREATION_DATE", "order_creation_date", "Order Creation Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Order creation timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: shipped_date
+    required: false
+    aliases: ["SHIPPED_DATE", "shipped_date", "Shipped Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Package shipment timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: delivered_date
+    required: false
+    aliases: ["DELIVERED_DATE", "delivered_date", "Delivered Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Item delivery timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: package_delivery_date
+    required: false
+    aliases: ["PACKAGE_DELIVERY_DATE", "package_delivery_date", "Package Delivery Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Package delivery timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: is_prepayment
+    required: false
+    aliases: ["IS_PREPAYMENT", "is_prepayment", "Is Prepayment"]
+    dtype: int64
+    semantic_tag: code
+    description: Prepayment flag (1=yes, 0=no)
+    reconciliation_critical: false
+  
+  - name: mtr_shipping_fee_modification
+    required: false
+    aliases: ["MTR_SHIPPING_FEE_MODIFICATION", "mtr_shipping_fee_modification", "Shipping Fee Modification"]
+    dtype: float64
+    semantic_tag: amount
+    description: Shipping fee adjustment amount
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: tracking_number
+    required: false
+    aliases: ["TRACKING_NUMBER", "tracking_number", "Tracking Number"]
+    dtype: string
+    semantic_tag: id
+    description: Logistics tracking number
+    reconciliation_critical: false
+  
+  - name: oms_package_status
+    required: false
+    aliases: ["OMS_PACKAGE_STATUS", "oms_package_status", "OMS Package Status"]
+    dtype: string
+    semantic_tag: code
+    description: OMS package status
+    reconciliation_critical: false
+  
+  - name: customer_type
+    required: false
+    aliases: ["Customer Type", "customer_type", "Customer_Type"]
+    dtype: string
+    semantic_tag: code
+    description: Customer type level 1 classification
+    reconciliation_critical: false
+  
+  - name: amount_expected
+    required: false
+    aliases: ["amount_expected", "Amount Expected"]
+    dtype: float64
+    semantic_tag: amount
+    description: Expected payment amount
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: amount_received
+    required: false
+    aliases: ["amount_received", "Amount Received"]
+    dtype: float64
+    semantic_tag: amount
+    description: Received payment amount
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: fk_package_status
+    required: false
+    aliases: ["fk_package_status", "FK Package Status"]
+    dtype: string
+    semantic_tag: code
+    description: Package status foreign key
+    reconciliation_critical: false
+  
+  - name: delivered_update_date
+    required: false
+    aliases: ["delivered_update_date", "Delivered Update Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Delivery status update timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: delivery_date
+    required: false
+    aliases: ["delivery_date", "Delivery Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Cash reconciliation delivery date
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: fk_collection_partner
+    required: false
+    aliases: ["fk_collection_partner", "FK Collection Partner"]
+    dtype: string
+    semantic_tag: code
+    description: Collection partner foreign key
+    reconciliation_critical: false
+  
+  - name: last_mile
+    required: false
+    aliases: ["last_mile", "Last Mile"]
+    dtype: string
+    semantic_tag: code
+    description: Last mile delivery partner
+    reconciliation_critical: false
+  
+  - name: package_status_cashrec
+    required: false
+    aliases: ["package_status", "Package Status Cashrec"]
+    dtype: string
+    semantic_tag: code
+    description: Cash reconciliation package status (from PACKAGE_CASHREC table)
+    reconciliation_critical: false
+  
+  - name: payment_method_confirmed
+    required: false
+    aliases: ["payment_method_confirmed", "Payment Method Confirmed"]
+    dtype: string
+    semantic_tag: code
+    description: Confirmed payment method
+    reconciliation_critical: false
+  
+  - name: troubleshoot_resolution_date
+    required: false
+    aliases: ["troubleshoot_resolution_date", "Troubleshoot Resolution Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Issue resolution timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: amount_paid
+    required: true
+    aliases: ["amount_paid", "Amount Paid"]
+    dtype: float64
+    semantic_tag: amount
+    description: Total amount paid
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: paid_price
+    required: true
+    aliases: ["paid_price", "Paid Price"]
+    dtype: float64
+    semantic_tag: amount
+    description: Paid price total
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: paid_shipping
+    required: true
+    aliases: ["paid_shipping", "Paid Shipping"]
+    dtype: float64
+    semantic_tag: amount
+    description: Paid shipping amount (after discounts, with customs/freight)
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true

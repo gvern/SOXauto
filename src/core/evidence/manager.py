@@ -278,6 +278,87 @@ class IPEEvidenceGenerator:
             logger.error(f"[{self.ipe_id}] Error saving validation: {e}")
             raise
     
+    def save_schema_validation(self, schema_report: Any) -> None:
+        """
+        Saves schema validation report from schema contract system.
+        
+        Args:
+            schema_report: SchemaReport object from src.core.schema
+        """
+        try:
+            schema_file = self.evidence_dir / "08_schema_validation.json"
+            
+            # Convert report to dict for JSON serialization
+            report_dict = schema_report.to_dict() if hasattr(schema_report, 'to_dict') else {}
+            
+            # Add metadata
+            enhanced_report = {
+                'ipe_id': self.ipe_id,
+                'schema_validation_timestamp': datetime.now().isoformat(),
+                'dataset_id': report_dict.get('dataset_id'),
+                'schema_version': report_dict.get('version'),
+                'contract_hash': report_dict.get('contract_hash'),
+                'validation_success': report_dict.get('success', False),
+                'summary': report_dict.get('summary', {}),
+                'validation_errors': report_dict.get('validation_errors', []),
+                'validation_warnings': report_dict.get('validation_warnings', [])
+            }
+            
+            with open(schema_file, 'w', encoding='utf-8') as f:
+                json.dump(enhanced_report, f, indent=2, ensure_ascii=False, default=str)
+            
+            self._log_action("SCHEMA_VALIDATION_SAVED", 
+                           f"Schema validation saved: {len(report_dict.get('events', []))} transformations")
+            logger.info(f"[{self.ipe_id}] Schema validation report saved")
+            
+        except Exception as e:
+            self._log_action("ERROR", f"Error saving schema validation: {e}")
+            logger.error(f"[{self.ipe_id}] Error saving schema validation: {e}")
+            # Don't raise - schema validation is optional
+    
+    def save_transformation_log(self, schema_report: Any) -> None:
+        """
+        Saves detailed transformation log from schema validation.
+        
+        Args:
+            schema_report: SchemaReport object with transformation events
+        """
+        try:
+            transform_file = self.evidence_dir / "09_transformations_log.json"
+            
+            # Extract events from report
+            events = []
+            if hasattr(schema_report, 'events'):
+                events = [event.to_dict() if hasattr(event, 'to_dict') else event 
+                         for event in schema_report.events]
+            
+            # Build transformation log
+            transform_log = {
+                'ipe_id': self.ipe_id,
+                'timestamp': datetime.now().isoformat(),
+                'total_events': len(events),
+                'transformations': events,
+                'summary': {
+                    'columns_renamed': len(getattr(schema_report, 'columns_renamed', {})),
+                    'columns_cast': len(getattr(schema_report, 'columns_cast', {})),
+                    'columns_added': len(getattr(schema_report, 'columns_added', [])),
+                    'columns_dropped': len(getattr(schema_report, 'columns_dropped', [])),
+                    'total_invalid_coerced': getattr(schema_report, 'total_invalid_coerced', 0),
+                    'total_values_filled': getattr(schema_report, 'total_values_filled', 0)
+                }
+            }
+            
+            with open(transform_file, 'w', encoding='utf-8') as f:
+                json.dump(transform_log, f, indent=2, ensure_ascii=False, default=str)
+            
+            self._log_action("TRANSFORMATIONS_SAVED", f"Transformation log saved: {len(events)} events")
+            logger.info(f"[{self.ipe_id}] Transformation log saved")
+            
+        except Exception as e:
+            self._log_action("ERROR", f"Error saving transformation log: {e}")
+            logger.error(f"[{self.ipe_id}] Error saving transformation log: {e}")
+            # Don't raise - transformation log is optional
+    
     def finalize_evidence_package(self) -> str:
         """
         Finalizes the evidence package by saving the execution log

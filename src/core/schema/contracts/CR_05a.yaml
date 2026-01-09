@@ -1,0 +1,49 @@
+dataset_id: CR_05a
+version: 1
+description: FA table - FX rates - Fixed Assets foreign exchange rates
+source_system: NAV
+primary_keys: ["currency_code", "year", "month"]
+deprecated: false
+
+fields:
+  - name: currency_code
+    required: true
+    aliases: ["Currency Code", "currency_code", "Currency"]
+    dtype: string
+    semantic_tag: code
+    description: Currency code (e.g., USD, EUR)
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: year
+    required: true
+    aliases: ["year", "Year", "YEAR"]
+    dtype: int64
+    semantic_tag: code
+    description: Year from starting date
+    reconciliation_critical: true
+  
+  - name: month
+    required: true
+    aliases: ["month", "Month", "MONTH"]
+    dtype: int64
+    semantic_tag: code
+    description: Month from starting date (1-12)
+    reconciliation_critical: true
+  
+  - name: relational_exch_rate_amount
+    required: true
+    aliases: ["Relational Exch_ Rate Amount", "relational_exch_rate_amount", "Exchange Rate"]
+    dtype: float64
+    semantic_tag: amount
+    description: Exchange rate amount for currency conversion
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false

@@ -1,0 +1,59 @@
+dataset_id: CR_05
+version: 1
+description: Currency Exchange Rates - FX rates for currency conversion
+source_system: NAV
+primary_keys: ["currency_code", "rate_date"]
+deprecated: false
+
+fields:
+  - name: currency_code
+    required: true
+    aliases: ["Currency Code", "currency_code", "Currency"]
+    dtype: string
+    semantic_tag: code
+    description: ISO currency code
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: false
+      remove_spaces: false
+      remove_currency_symbols: false
+  
+  - name: rate_date
+    required: true
+    aliases: ["Rate Date", "rate_date", "Date", "Exchange Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Date for which the exchange rate is valid
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: false
+      remove_spaces: false
+      remove_currency_symbols: false
+      date_formats: ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y%m%d"]
+  
+  - name: exchange_rate
+    required: true
+    aliases: ["Exchange Rate", "exchange_rate", "Rate", "FX Rate"]
+    dtype: float64
+    semantic_tag: rate
+    description: Exchange rate to base currency
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: false
+    validation_rules:
+      allow_negative: false
+      min_value: 0.0
+  
+  - name: base_currency
+    required: false
+    aliases: ["Base Currency", "base_currency", "Base"]
+    dtype: string
+    semantic_tag: code
+    description: Base currency for the exchange rate
+    reconciliation_critical: false

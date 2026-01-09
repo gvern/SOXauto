@@ -1,0 +1,123 @@
+dataset_id: IPE_31
+version: 1
+description: Payment Gateway detailed TV extraction - Collection accounts and transaction status
+source_system: OMS
+primary_keys: ["id_company", "event_date", "cp", "transaction_type", "related_entity"]
+deprecated: false
+
+fields:
+  - name: id_company
+    required: true
+    aliases: ["ID_Company", "ID_COMPANY", "id_company"]
+    dtype: string
+    semantic_tag: id
+    description: Company identifier
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: event_date
+    required: true
+    aliases: ["Event_date", "event_date", "Event Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Transaction event date (payment, transfer, or reversal date)
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y"]
+  
+  - name: cp
+    required: true
+    aliases: ["CP", "cp", "Collection_Partner"]
+    dtype: string
+    semantic_tag: code
+    description: Collection partner code
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: transaction_type
+    required: true
+    aliases: ["Transaction_Type", "transaction_type", "Type"]
+    dtype: string
+    semantic_tag: code
+    description: Transaction type (Transfer to, Payment - Rev, etc.)
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: related_entity
+    required: true
+    aliases: ["Related_Entity", "related_entity", "Related Entity"]
+    dtype: string
+    semantic_tag: id
+    description: Related entity reference (payment no, packlist no, etc.)
+    reconciliation_critical: true
+  
+  - name: amount
+    required: true
+    aliases: ["Amount", "amount"]
+    dtype: float64
+    semantic_tag: amount
+    description: Transaction amount in local currency
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: service_provider
+    required: false
+    aliases: ["SERVICE_PROVIDER", "service_provider", "Service Provider"]
+    dtype: string
+    semantic_tag: name
+    description: Service provider name from hub mapping
+    reconciliation_critical: false
+  
+  - name: type
+    required: false
+    aliases: ["type", "CP_Type"]
+    dtype: string
+    semantic_tag: code
+    description: Collection partner type
+    reconciliation_critical: false
+  
+  - name: erp_name
+    required: false
+    aliases: ["ERP_Name", "erp_name", "ERP Name"]
+    dtype: string
+    semantic_tag: code
+    description: ERP system reference name
+    reconciliation_critical: false
+  
+  - name: company_country
+    required: false
+    aliases: ["Company_Country", "company_country", "Country"]
+    dtype: string
+    semantic_tag: code
+    description: Company country code
+    reconciliation_critical: false
+  
+  - name: closing_date
+    required: false
+    aliases: ["Closing_date", "closing_date", "Closing Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Cutoff closing date
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S"]
+  
+  - name: g_l_bank_account_no
+    required: false
+    aliases: ["G_L Bank Account No_", "g_l_bank_account_no", "Bank Account No"]
+    dtype: string
+    semantic_tag: code
+    description: GL bank account number
+    reconciliation_critical: false

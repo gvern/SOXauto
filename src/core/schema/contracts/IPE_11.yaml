@@ -1,0 +1,253 @@
+dataset_id: IPE_11
+version: 1
+description: Seller Center Liability reconciliation - Marketplace accrued revenues
+source_system: Seller Center
+primary_keys: ["id_company", "sc_id_transaction"]
+deprecated: false
+
+fields:
+  - name: id_company
+    required: true
+    aliases: ["ID_Company", "id_company", "ID_COMPANY"]
+    dtype: string
+    semantic_tag: id
+    description: Company identifier
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: sc_created_date
+    required: true
+    aliases: ["SC_Created_Date", "sc_created_date", "Created Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Transaction creation date in Seller Center
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: sc_id_transaction
+    required: true
+    aliases: ["SC_ID_Transaction", "sc_id_transaction", "ID Transaction"]
+    dtype: string
+    semantic_tag: id
+    description: Seller Center transaction identifier
+    reconciliation_critical: true
+  
+  - name: sc_transaction_no
+    required: false
+    aliases: ["SC_Transaction_No", "sc_transaction_no", "Transaction No"]
+    dtype: string
+    semantic_tag: id
+    description: Seller Center transaction number
+    reconciliation_critical: false
+  
+  - name: sc_transaction_type
+    required: false
+    aliases: ["SC_Transaction_Type", "sc_transaction_type", "Transaction Type"]
+    dtype: string
+    semantic_tag: code
+    description: Transaction type name
+    reconciliation_critical: false
+  
+  - name: sc_asg_name
+    required: false
+    aliases: ["SC_ASG_Name", "sc_asg_name", "ASG Name"]
+    dtype: string
+    semantic_tag: code
+    description: ASG transaction type code
+    reconciliation_critical: false
+  
+  - name: sc_nav_type
+    required: false
+    aliases: ["SC_Nav_Type", "sc_nav_type", "Nav Type"]
+    dtype: string
+    semantic_tag: code
+    description: NAV integration type (fee, commission, etc.)
+    reconciliation_critical: false
+  
+  - name: sc_nav_message
+    required: false
+    aliases: ["SC_Nav_Message", "sc_nav_message", "ERP_Name", "erp_name"]
+    dtype: string
+    semantic_tag: other
+    description: ERP integration message or error
+    reconciliation_critical: false
+  
+  - name: sc_transaction_amount
+    required: true
+    aliases: ["SC_Transaction_Amount", "sc_transaction_amount", "Transaction Amount"]
+    dtype: float64
+    semantic_tag: amount
+    description: Transaction amount in local currency
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: sc_created_manually
+    required: false
+    aliases: ["SC_Created_Manually", "sc_created_manually", "Created Manually"]
+    dtype: int64
+    semantic_tag: code
+    description: Manual creation flag (1=manual, 0=automatic)
+    reconciliation_critical: false
+  
+  - name: sc_vendor_no
+    required: false
+    aliases: ["SC_Vendor_No", "sc_vendor_no", "Vendor Short Code"]
+    dtype: string
+    semantic_tag: id
+    description: Vendor short code
+    reconciliation_critical: false
+  
+  - name: bob_id_vendor
+    required: false
+    aliases: ["BOB_ID_Vendor", "bob_id_vendor", "BOB Vendor ID"]
+    dtype: string
+    semantic_tag: id
+    description: BOB vendor identifier
+    reconciliation_critical: false
+  
+  - name: sc_vendor_name
+    required: false
+    aliases: ["SC_Vendor_Name", "sc_vendor_name", "Vendor Name"]
+    dtype: string
+    semantic_tag: name
+    description: Vendor display name
+    reconciliation_critical: false
+  
+  - name: is_global
+    required: false
+    aliases: ["Is_Global", "is_global", "IsGlobal"]
+    dtype: int64
+    semantic_tag: code
+    description: Global vendor flag
+    reconciliation_critical: false
+  
+  - name: sc_id_sales_order_item
+    required: false
+    aliases: ["SC_ID_Sales_Order_Item", "sc_id_sales_order_item", "SC Sales Order Item ID"]
+    dtype: string
+    semantic_tag: id
+    description: Seller Center sales order item ID
+    reconciliation_critical: false
+  
+  - name: oms_id_sales_order_item
+    required: false
+    aliases: ["OMS_ID_Sales_Order_Item", "oms_id_sales_order_item", "OMS Sales Order Item ID"]
+    dtype: string
+    semantic_tag: id
+    description: OMS sales order item ID
+    reconciliation_critical: false
+  
+  - name: bob_id_sales_order_item
+    required: false
+    aliases: ["BOB_ID_Sales_Order_Item", "bob_id_sales_order_item", "BOB Sales Order Item ID"]
+    dtype: string
+    semantic_tag: id
+    description: BOB sales order item ID
+    reconciliation_critical: false
+  
+  - name: order_nr
+    required: false
+    aliases: ["Order_Nr", "order_nr", "Order Number"]
+    dtype: string
+    semantic_tag: id
+    description: Sales order number
+    reconciliation_critical: false
+  
+  - name: sc_id_account_statement
+    required: false
+    aliases: ["SC_ID_Account_Statement", "sc_id_account_statement", "ID Account Statement"]
+    dtype: string
+    semantic_tag: id
+    description: Account statement identifier
+    reconciliation_critical: false
+  
+  - name: sc_transaction_statement_no
+    required: false
+    aliases: ["SC_Transaction_Statement_No", "sc_transaction_statement_no", "Statement No"]
+    dtype: string
+    semantic_tag: id
+    description: Transaction statement number
+    reconciliation_critical: false
+  
+  - name: sc_start_date
+    required: false
+    aliases: ["SC_Start_Date", "sc_start_date", "Start Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Statement period start date
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: sc_end_date
+    required: false
+    aliases: ["SC_End_Date", "sc_end_date", "End Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Statement period end date
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: sc_paid
+    required: false
+    aliases: ["SC_Paid", "sc_paid", "Paid"]
+    dtype: int64
+    semantic_tag: code
+    description: Payment status flag
+    reconciliation_critical: false
+  
+  - name: sc_paid_date
+    required: false
+    aliases: ["SC_Paid_Date", "sc_paid_date", "Paid Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Payment date
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: asg_level_1
+    required: false
+    aliases: ["ASG_Level_1", "asg_level_1", "ASG L1"]
+    dtype: string
+    semantic_tag: code
+    description: ASG classification level 1
+    reconciliation_critical: false
+  
+  - name: asg_level_2
+    required: false
+    aliases: ["ASG_Level_2", "asg_level_2", "ASG L2"]
+    dtype: string
+    semantic_tag: code
+    description: ASG classification level 2
+    reconciliation_critical: false
+  
+  - name: asg_level_3
+    required: false
+    aliases: ["ASG_Level_3", "asg_level_3", "ASG L3"]
+    dtype: string
+    semantic_tag: code
+    description: ASG classification level 3
+    reconciliation_critical: false
+  
+  - name: asg_level_4
+    required: false
+    aliases: ["ASG_Level_4", "asg_level_4", "ASG L4"]
+    dtype: string
+    semantic_tag: code
+    description: ASG classification level 4
+    reconciliation_critical: false

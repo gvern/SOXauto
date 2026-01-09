@@ -1,0 +1,122 @@
+dataset_id: CR_04
+version: 1
+description: GL Account Balance at Date - Chart of accounts with balances
+source_system: NAV
+primary_keys: ["gl_account_no", "posting_date"]
+deprecated: false
+
+fields:
+  - name: gl_account_no
+    required: true
+    aliases: ["GL_ACCOUNT_NO", "GL Account No", "gl_account_no", "Account No", "Account_No"]
+    dtype: string
+    semantic_tag: id
+    description: General ledger account number
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: false
+      remove_spaces: false
+      remove_currency_symbols: false
+  
+  - name: gl_account_name
+    required: false
+    aliases: ["GL_ACCOUNT_NAME", "GL Account Name", "gl_account_name", "Account Name"]
+    dtype: string
+    semantic_tag: name
+    description: General ledger account description
+    reconciliation_critical: false
+  
+  - name: balance_at_date
+    required: true
+    aliases: ["Balance_At_Date", "BALANCE_AT_DATE", "Balance At Date", "balance_at_date", "Balance", "Amount"]
+    dtype: float64
+    semantic_tag: amount
+    description: Account balance at cutoff date
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: posting_date
+    required: true
+    aliases: ["POSTING_DATE", "Posting Date", "posting_date", "Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Posting date
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: false
+      remove_spaces: false
+      remove_currency_symbols: false
+      date_formats: ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y%m%d"]
+  
+  - name: company_code
+    required: false
+    aliases: ["ID_COMPANY", "Company_Code", "company_code", "ID_Company", "COMPANY_CODE"]
+    dtype: string
+    semantic_tag: code
+    description: Company/entity identifier
+    reconciliation_critical: false
+  
+  - name: country_code
+    required: false
+    aliases: ["REPORTING_COUNTRY_CODE", "Country Code", "country_code", "Country"]
+    dtype: string
+    semantic_tag: code
+    description: Country code for the entity
+    reconciliation_critical: false
+  
+  - name: business_line_code
+    required: false
+    aliases: ["BUSLINE_CODE", "Business Line Code", "business_line_code", "BL Code"]
+    dtype: string
+    semantic_tag: code
+    description: Business line classification code
+    reconciliation_critical: false
+  
+  - name: account_type
+    required: false
+    aliases: ["Account Type", "account_type", "Type"]
+    dtype: string
+    semantic_tag: code
+    description: Account type classification
+    reconciliation_critical: false
+  
+  - name: ifrs_level_1
+    required: false
+    aliases: ["IFRS_LEVEL_1_NAME", "IFRS Level 1", "ifrs_level_1"]
+    dtype: string
+    semantic_tag: code
+    description: IFRS reporting level 1 classification
+    reconciliation_critical: false
+  
+  - name: ifrs_level_2
+    required: false
+    aliases: ["IFRS_LEVEL_2_NAME", "IFRS Level 2", "ifrs_level_2"]
+    dtype: string
+    semantic_tag: code
+    description: IFRS reporting level 2 classification
+    reconciliation_critical: false
+  
+  - name: ifrs_level_3
+    required: false
+    aliases: ["IFRS_LEVEL_3_NAME", "IFRS Level 3", "ifrs_level_3"]
+    dtype: string
+    semantic_tag: code
+    description: IFRS reporting level 3 classification
+    reconciliation_critical: false
+  
+  - name: is_interco
+    required: false
+    aliases: ["IS_INTERCO", "Is Interco", "is_interco", "Intercompany"]
+    dtype: string
+    semantic_tag: flag
+    description: Flag for intercompany accounts
+    reconciliation_critical: false

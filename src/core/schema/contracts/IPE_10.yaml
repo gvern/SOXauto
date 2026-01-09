@@ -1,0 +1,203 @@
+dataset_id: IPE_10
+version: 1
+description: Customer prepayments TV - Prepaid sales orders not yet fulfilled or refunded
+source_system: OMS
+primary_keys: ["id_company", "cod_oms_sales_order_item"]
+deprecated: false
+
+fields:
+  - name: id_company
+    required: true
+    aliases: ["ID_COMPANY", "id_company", "ID_Company"]
+    dtype: string
+    semantic_tag: id
+    description: Company identifier
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: is_prepayment
+    required: true
+    aliases: ["IS_PREPAYMENT", "is_prepayment", "Is Prepayment"]
+    dtype: int64
+    semantic_tag: code
+    description: Prepayment flag (1=yes, 0=no)
+    reconciliation_critical: true
+  
+  - name: cod_oms_sales_order_item
+    required: true
+    aliases: ["COD_OMS_SALES_ORDER_ITEM", "cod_oms_sales_order_item", "OMS Sales Order Item"]
+    dtype: string
+    semantic_tag: id
+    description: OMS sales order item code
+    reconciliation_critical: true
+  
+  - name: order_nr
+    required: true
+    aliases: ["ORDER_NR", "order_nr", "Order Number"]
+    dtype: string
+    semantic_tag: id
+    description: Sales order number
+    reconciliation_critical: true
+  
+  - name: bob_id_customer
+    required: false
+    aliases: ["BOB_ID_CUSTOMER", "bob_id_customer", "Customer ID"]
+    dtype: string
+    semantic_tag: id
+    description: BOB customer identifier
+    reconciliation_critical: false
+  
+  - name: current_status
+    required: false
+    aliases: ["CURRENT_STATUS", "current_status", "Status"]
+    dtype: string
+    semantic_tag: code
+    description: Current order status
+    reconciliation_critical: false
+  
+  - name: is_closed
+    required: false
+    aliases: ["IS_CLOSED", "is_closed", "Is Closed"]
+    dtype: int64
+    semantic_tag: code
+    description: Order closed flag (1=closed, 0=open)
+    reconciliation_critical: false
+  
+  - name: is_marketplace
+    required: false
+    aliases: ["IS_MARKETPLACE", "is_marketplace", "Is Marketplace"]
+    dtype: int64
+    semantic_tag: code
+    description: Marketplace flag (1=marketplace, 0=retail)
+    reconciliation_critical: false
+  
+  - name: payment_method
+    required: false
+    aliases: ["PAYMENT_METHOD", "payment_method", "Payment Method"]
+    dtype: string
+    semantic_tag: code
+    description: Payment method used
+    reconciliation_critical: false
+  
+  - name: order_creation_date
+    required: false
+    aliases: ["ORDER_CREATION_DATE", "order_creation_date", "Order Creation Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Order creation timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: finance_verified_date
+    required: false
+    aliases: ["FINANCE_VERIFIED_DATE", "finance_verified_date", "Finance Verified Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Finance verification timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: delivered_date
+    required: false
+    aliases: ["DELIVERED_DATE", "delivered_date", "Delivered Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Delivery timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: package_delivery_date
+    required: false
+    aliases: ["PACKAGE_DELIVERY_DATE", "package_delivery_date", "Package Delivery Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Package delivery timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: refund_completed
+    required: false
+    aliases: ["REFUND_COMPLETED", "refund_completed", "Refund Completed"]
+    dtype: int64
+    semantic_tag: code
+    description: Refund completion flag
+    reconciliation_critical: false
+  
+  - name: refund_date
+    required: false
+    aliases: ["REFUND_DATE", "refund_date", "Refund Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Refund timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: fail_date
+    required: false
+    aliases: ["FAIL_DATE", "fail_date", "Fail Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Order failure timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: paid_for_items
+    required: true
+    aliases: ["PAID_FOR_ITEMS", "paid_for_items", "Paid For Items"]
+    dtype: float64
+    semantic_tag: amount
+    description: Amount paid for items (after discounts)
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: paid_price
+    required: true
+    aliases: ["PAID_PRICE", "paid_price", "Paid Price"]
+    dtype: float64
+    semantic_tag: amount
+    description: Total paid price
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: paid_for_shipping
+    required: true
+    aliases: ["PAID_FOR_SHIPPING", "paid_for_shipping", "Paid For Shipping"]
+    dtype: float64
+    semantic_tag: amount
+    description: Amount paid for shipping (after discounts, with customs/freight fees)
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true

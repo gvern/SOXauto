@@ -1,0 +1,362 @@
+dataset_id: CR_03
+version: 1
+description: NAV GL Entries - Detailed general ledger transaction entries with IFRS mapping
+source_system: NAV
+primary_keys: ["id_company", "entry_no"]
+deprecated: false
+
+fields:
+  - name: id_company
+    required: true
+    aliases: ["id_company", "ID_Company", "ID_COMPANY"]
+    dtype: string
+    semantic_tag: id
+    description: Company identifier
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: company_country
+    required: false
+    aliases: ["Company_Country", "company_country", "Country"]
+    dtype: string
+    semantic_tag: code
+    description: Company country code
+    reconciliation_critical: false
+  
+  - name: flg_in_conso_scope
+    required: false
+    aliases: ["Flg_In_Conso_Scope", "flg_in_conso_scope", "In Consolidation Scope"]
+    dtype: int64
+    semantic_tag: code
+    description: Consolidation scope flag (1=in scope, 0=out of scope)
+    reconciliation_critical: false
+  
+  - name: opco_central
+    required: false
+    aliases: ["Opco/Central_?", "opco_central", "Opco Central"]
+    dtype: string
+    semantic_tag: code
+    description: Operating company or central classification
+    reconciliation_critical: false
+  
+  - name: entry_no
+    required: true
+    aliases: ["Entry No_", "entry_no", "Entry Number"]
+    dtype: int64
+    semantic_tag: id
+    description: GL entry number (primary key)
+    reconciliation_critical: true
+  
+  - name: document_no
+    required: false
+    aliases: ["Document No_", "document_no", "Document Number"]
+    dtype: string
+    semantic_tag: id
+    description: Document number reference
+    reconciliation_critical: false
+  
+  - name: external_document_no
+    required: false
+    aliases: ["External Document No_", "external_document_no", "External Doc No"]
+    dtype: string
+    semantic_tag: id
+    description: External document number
+    reconciliation_critical: false
+  
+  - name: voucher_no
+    required: false
+    aliases: ["Voucher No_", "voucher_no", "Voucher Number"]
+    dtype: string
+    semantic_tag: id
+    description: Voucher number reference
+    reconciliation_critical: false
+  
+  - name: posting_date
+    required: true
+    aliases: ["Posting Date", "posting_date", "Post Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Transaction posting date
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y"]
+  
+  - name: document_date
+    required: false
+    aliases: ["Document Date", "document_date", "Doc Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Document creation date
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y"]
+  
+  - name: document_type
+    required: false
+    aliases: ["Document Type", "document_type", "Doc Type"]
+    dtype: string
+    semantic_tag: code
+    description: Document type classification
+    reconciliation_critical: false
+  
+  - name: chart_of_accounts_no
+    required: false
+    aliases: ["Chart of Accounts No_", "chart_of_accounts_no", "Account No"]
+    dtype: string
+    semantic_tag: code
+    description: Chart of accounts number
+    reconciliation_critical: false
+  
+  - name: account_name
+    required: false
+    aliases: ["Account Name", "account_name", "Account"]
+    dtype: string
+    semantic_tag: name
+    description: GL account display name
+    reconciliation_critical: false
+  
+  - name: group_coa_account_no
+    required: false
+    aliases: ["Group_COA_Account_no", "group_coa_account_no", "Group Account No"]
+    dtype: string
+    semantic_tag: code
+    description: Grouped chart of accounts number
+    reconciliation_critical: false
+  
+  - name: group_coa_account_name
+    required: false
+    aliases: ["Group_COA_Account_Name", "group_coa_account_name", "Group Account Name"]
+    dtype: string
+    semantic_tag: name
+    description: Grouped chart of accounts display name
+    reconciliation_critical: false
+  
+  - name: document_description
+    required: false
+    aliases: ["Document Description", "document_description", "Description"]
+    dtype: string
+    semantic_tag: other
+    description: Document description text
+    reconciliation_critical: false
+  
+  - name: amount
+    required: true
+    aliases: ["Amount", "amount"]
+    dtype: float64
+    semantic_tag: amount
+    description: Transaction amount in local currency
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: remaining_amount
+    required: false
+    aliases: ["Remaining_amount", "remaining_amount", "rem_bal_LCY"]
+    dtype: float64
+    semantic_tag: amount
+    description: Remaining balance in local currency
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: busline_code
+    required: false
+    aliases: ["Busline Code", "busline_code", "Business Line Code"]
+    dtype: string
+    semantic_tag: code
+    description: Business line code
+    reconciliation_critical: false
+  
+  - name: department_code
+    required: false
+    aliases: ["Department Code", "department_code", "Dept Code"]
+    dtype: string
+    semantic_tag: code
+    description: Department code
+    reconciliation_critical: false
+  
+  - name: bal_account_type
+    required: false
+    aliases: ["Bal_ Account Type", "bal_account_type", "Balance Account Type"]
+    dtype: string
+    semantic_tag: code
+    description: Balancing account type
+    reconciliation_critical: false
+  
+  - name: bal_account_no
+    required: false
+    aliases: ["Bal_ Account No_", "bal_account_no", "Balance Account No"]
+    dtype: string
+    semantic_tag: code
+    description: Balancing account number
+    reconciliation_critical: false
+  
+  - name: bal_account_name
+    required: false
+    aliases: ["Bal_ Account Name", "bal_account_name", "Balance Account Name"]
+    dtype: string
+    semantic_tag: name
+    description: Balancing account display name
+    reconciliation_critical: false
+  
+  - name: reason_code
+    required: false
+    aliases: ["Reason Code", "reason_code"]
+    dtype: string
+    semantic_tag: code
+    description: Transaction reason code
+    reconciliation_critical: false
+  
+  - name: source_code
+    required: false
+    aliases: ["Source Code", "source_code"]
+    dtype: string
+    semantic_tag: code
+    description: Transaction source code
+    reconciliation_critical: false
+  
+  - name: reversed
+    required: false
+    aliases: ["Reversed", "reversed"]
+    dtype: int64
+    semantic_tag: code
+    description: Reversal flag (1=reversed, 0=not reversed)
+    reconciliation_critical: false
+  
+  - name: user_id
+    required: false
+    aliases: ["User ID", "user_id", "User"]
+    dtype: string
+    semantic_tag: id
+    description: User who created the entry
+    reconciliation_critical: false
+  
+  - name: g_l_creation_date
+    required: false
+    aliases: ["G_L Creation Date", "g_l_creation_date", "Creation Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: GL entry creation timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S"]
+  
+  - name: destination_code
+    required: false
+    aliases: ["Destination Code", "destination_code"]
+    dtype: string
+    semantic_tag: code
+    description: Destination code
+    reconciliation_critical: false
+  
+  - name: partner_code
+    required: false
+    aliases: ["Partner Code", "partner_code"]
+    dtype: string
+    semantic_tag: code
+    description: Business partner code
+    reconciliation_critical: false
+  
+  - name: system_created_entry
+    required: false
+    aliases: ["System-Created Entry", "system_created_entry"]
+    dtype: int64
+    semantic_tag: code
+    description: System-created flag (1=system, 0=manual)
+    reconciliation_critical: false
+  
+  - name: source_type
+    required: false
+    aliases: ["Source Type", "source_type"]
+    dtype: string
+    semantic_tag: code
+    description: Transaction source type
+    reconciliation_critical: false
+  
+  - name: source_no
+    required: false
+    aliases: ["Source No", "source_no"]
+    dtype: string
+    semantic_tag: id
+    description: Source number reference
+    reconciliation_critical: false
+  
+  - name: ic_partner_code
+    required: false
+    aliases: ["IC Partner Code", "ic_partner_code", "Intercompany Partner"]
+    dtype: string
+    semantic_tag: code
+    description: Intercompany partner code
+    reconciliation_critical: false
+  
+  - name: vendortag_code
+    required: false
+    aliases: ["VendorTag Code", "vendortag_code", "Vendor Tag"]
+    dtype: string
+    semantic_tag: code
+    description: Vendor tag code
+    reconciliation_critical: false
+  
+  - name: customertag_code
+    required: false
+    aliases: ["CustomerTag Code", "customertag_code", "Customer Tag"]
+    dtype: string
+    semantic_tag: code
+    description: Customer tag code
+    reconciliation_critical: false
+  
+  - name: service_period
+    required: false
+    aliases: ["Service_Period", "service_period", "Service Period"]
+    dtype: string
+    semantic_tag: code
+    description: Service period
+    reconciliation_critical: false
+  
+  - name: level_1_name
+    required: false
+    aliases: ["Level_1_Name", "level_1_name", "IFRS Level 1"]
+    dtype: string
+    semantic_tag: code
+    description: IFRS classification level 1
+    reconciliation_critical: false
+  
+  - name: level_2_name
+    required: false
+    aliases: ["Level_2_Name", "level_2_name", "IFRS Level 2"]
+    dtype: string
+    semantic_tag: code
+    description: IFRS classification level 2
+    reconciliation_critical: false
+  
+  - name: level_3_name
+    required: false
+    aliases: ["Level_3_Name", "level_3_name", "IFRS Level 3"]
+    dtype: string
+    semantic_tag: code
+    description: IFRS classification level 3
+    reconciliation_critical: false
+  
+  - name: entrytype
+    required: false
+    aliases: ["EntryType", "entrytype", "Entry Type"]
+    dtype: string
+    semantic_tag: code
+    description: Entry type classification (BackMargin, Other)
+    reconciliation_critical: false

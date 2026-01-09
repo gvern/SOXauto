@@ -1,0 +1,119 @@
+dataset_id: IPE_07
+version: 1
+description: Customer Ledger Entry - Monthly customer balances at cutoff date
+source_system: NAV
+primary_keys: ["customer_id", "posting_date"]
+deprecated: false
+
+fields:
+  - name: customer_id
+    required: true
+    aliases: ["Customer No_", "Customer No", "customer_no", "cust_no"]
+    dtype: string
+    semantic_tag: id
+    description: Unique customer identifier from NAV
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: false
+      remove_spaces: false
+      remove_currency_symbols: false
+  
+  - name: customer_name
+    required: false
+    aliases: ["Customer Name", "customer_name", "Name"]
+    dtype: string
+    semantic_tag: name
+    description: Customer display name
+    reconciliation_critical: false
+  
+  - name: customer_posting_group
+    required: true
+    aliases: ["Customer Posting Group", "Posting Group", "customer_posting_group"]
+    dtype: string
+    semantic_tag: code
+    description: Customer posting group classification
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: false
+      remove_spaces: false
+      remove_currency_symbols: false
+  
+  - name: posting_date
+    required: true
+    aliases: ["Posting Date", "posting_date", "Post Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Transaction posting date
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: false
+      remove_spaces: false
+      remove_currency_symbols: false
+      date_formats: ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y%m%d"]
+  
+  - name: document_type
+    required: false
+    aliases: ["Document Type", "document_type", "Doc Type"]
+    dtype: string
+    semantic_tag: code
+    description: Document type classification
+    reconciliation_critical: false
+  
+  - name: document_no
+    required: false
+    aliases: ["Document No_", "Document No", "document_no", "Doc No"]
+    dtype: string
+    semantic_tag: id
+    description: Document number reference
+    reconciliation_critical: false
+  
+  - name: amount_lcy
+    required: true
+    aliases: ["rem_amt_LCY", "Amount LCY", "amount_lcy", "Remaining Amount", "remaining_amount"]
+    dtype: float64
+    semantic_tag: amount
+    description: Remaining amount in local currency
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true
+  
+  - name: currency_code
+    required: false
+    aliases: ["Currency Code", "currency_code", "Currency"]
+    dtype: string
+    semantic_tag: code
+    description: Currency code for transaction
+    reconciliation_critical: false
+  
+  - name: business_line_code
+    required: false
+    aliases: ["Busline Code", "Business Line", "business_line_code", "BL Code"]
+    dtype: string
+    semantic_tag: code
+    description: Business line classification code
+    reconciliation_critical: true
+  
+  - name: company_code
+    required: false
+    aliases: ["ID_COMPANY", "Company_Code", "company_code", "ID_Company"]
+    dtype: string
+    semantic_tag: code
+    description: Company/entity identifier
+    reconciliation_critical: false
+  
+  - name: country_code
+    required: false
+    aliases: ["Country Code", "country_code", "Country"]
+    dtype: string
+    semantic_tag: code
+    description: Country code for the entity
+    reconciliation_critical: false

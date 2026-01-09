@@ -1,0 +1,129 @@
+dataset_id: DOC_VOUCHER_USAGE
+version: 1
+description: Voucher Usage TV Extract - Store credit voucher usage tracking for Timing Bridge
+source_system: BOB
+primary_keys: ["id_company", "id", "delivery_mth"]
+deprecated: false
+
+fields:
+  - name: id_company
+    required: true
+    aliases: ["ID_Company", "id_company", "ID_COMPANY"]
+    dtype: string
+    semantic_tag: id
+    description: Company identifier
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: id
+    required: true
+    aliases: ["id", "ID", "voucher_id"]
+    dtype: string
+    semantic_tag: id
+    description: Store credit voucher identifier
+    reconciliation_critical: true
+  
+  - name: transaction_no
+    required: false
+    aliases: ["Transaction_No", "transaction_no", "Transaction Number"]
+    dtype: string
+    semantic_tag: id
+    description: Seller Center transaction number
+    reconciliation_critical: false
+  
+  - name: voucher_type
+    required: false
+    aliases: ["voucher_type", "Voucher_Type", "Voucher Type"]
+    dtype: string
+    semantic_tag: code
+    description: Voucher type (reusablecredit, etc.)
+    reconciliation_critical: false
+  
+  - name: business_use
+    required: false
+    aliases: ["business_use", "Business_Use", "Business Use"]
+    dtype: string
+    semantic_tag: code
+    description: Business use classification
+    reconciliation_critical: false
+  
+  - name: creation_year
+    required: false
+    aliases: ["creation_year", "Creation_Year", "Creation Year"]
+    dtype: int64
+    semantic_tag: code
+    description: Year voucher was created
+    reconciliation_critical: false
+  
+  - name: delivery_mth
+    required: true
+    aliases: ["Delivery_mth", "delivery_mth", "Delivery Month"]
+    dtype: int64
+    semantic_tag: code
+    description: Delivery month in YYYYMM format
+    reconciliation_critical: true
+  
+  - name: shipping_storecredit
+    required: false
+    aliases: ["shipping_storecredit", "Shipping_StoreCredit", "Shipping Store Credit"]
+    dtype: float64
+    semantic_tag: amount
+    description: Shipping store credit amount used
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+  
+  - name: mpl_storecredit
+    required: false
+    aliases: ["MPL_storecredit", "mpl_storecredit", "Marketplace Store Credit"]
+    dtype: float64
+    semantic_tag: amount
+    description: Marketplace store credit amount used
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+  
+  - name: rtl_storecredit
+    required: false
+    aliases: ["RTL_storecredit", "rtl_storecredit", "Retail Store Credit"]
+    dtype: float64
+    semantic_tag: amount
+    description: Retail store credit amount used
+    reconciliation_critical: false
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+  
+  - name: totalamountused
+    required: true
+    aliases: ["TotalAmountUsed", "totalamountused", "Total Amount Used"]
+    dtype: float64
+    semantic_tag: amount
+    description: Total store credit amount used (sum of all types)
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false

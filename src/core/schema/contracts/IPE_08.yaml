@@ -1,0 +1,133 @@
+dataset_id: IPE_08
+version: 1
+description: Store Credit Voucher Issuance - Transaction value for vouchers
+source_system: NAV
+primary_keys: ["voucher_id"]
+deprecated: false
+
+fields:
+  - name: voucher_id
+    required: true
+    aliases: ["Voucher_Id", "Voucher Id", "voucher_id", "VoucherId", "id"]
+    dtype: string
+    semantic_tag: id
+    description: Unique voucher identifier
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: false
+      remove_spaces: false
+      remove_currency_symbols: false
+  
+  - name: creation_date
+    required: true
+    aliases: ["Creation Date", "creation_date", "Created Date", "Order Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Voucher creation/order date
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: false
+      remove_spaces: false
+      remove_currency_symbols: false
+      date_formats: ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y%m%d"]
+  
+  - name: amount_issued
+    required: true
+    aliases: ["Amount", "Amount Issued", "amount_issued", "Issued Amount", "Total Amount"]
+    dtype: float64
+    semantic_tag: amount
+    description: Total amount issued for voucher
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+      min_value: 0.0
+  
+  - name: amount_used
+    required: false
+    aliases: ["Amount Used", "amount_used", "Used Amount", "Total Amount Used"]
+    dtype: float64
+    semantic_tag: amount
+    description: Amount already used from voucher
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+      min_value: 0.0
+  
+  - name: remaining_amount
+    required: false
+    aliases: ["Remaining Amount", "remaining_amount", "Balance", "Amount Remaining"]
+    dtype: float64
+    semantic_tag: amount
+    description: Remaining unused amount
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+      min_value: 0.0
+  
+  - name: voucher_status
+    required: false
+    aliases: ["Status", "voucher_status", "Voucher Status"]
+    dtype: string
+    semantic_tag: code
+    description: Current status of the voucher
+    reconciliation_critical: false
+  
+  - name: customer_id
+    required: false
+    aliases: ["Customer No_", "Customer No", "customer_id", "customer_no"]
+    dtype: string
+    semantic_tag: id
+    description: Customer who received the voucher
+    reconciliation_critical: false
+  
+  - name: currency_code
+    required: false
+    aliases: ["Currency Code", "currency_code", "Currency"]
+    dtype: string
+    semantic_tag: code
+    description: Currency code for amounts
+    reconciliation_critical: false
+  
+  - name: company_code
+    required: false
+    aliases: ["ID_COMPANY", "Company_Code", "company_code", "ID_Company"]
+    dtype: string
+    semantic_tag: code
+    description: Company/entity identifier
+    reconciliation_critical: false
+  
+  - name: country_code
+    required: false
+    aliases: ["Country Code", "country_code", "Country"]
+    dtype: string
+    semantic_tag: code
+    description: Country code for the entity
+    reconciliation_critical: false
+  
+  - name: business_use
+    required: false
+    aliases: ["Business Use", "business_use", "Business_Use", "business_use_formatted"]
+    dtype: string
+    semantic_tag: code
+    description: Business use category for voucher
+    reconciliation_critical: false

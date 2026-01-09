@@ -1,0 +1,75 @@
+dataset_id: JDASH
+version: 1
+description: Jdash Export - Operational voucher usage data from business systems
+source_system: Jdash
+primary_keys: ["voucher_id"]
+deprecated: false
+
+fields:
+  - name: voucher_id
+    required: true
+    aliases: ["Voucher Id", "Voucher_Id", "voucher_id", "VoucherId", "id", "voucher"]
+    dtype: string
+    semantic_tag: id
+    description: Unique voucher identifier
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: false
+      remove_spaces: false
+      remove_currency_symbols: false
+  
+  - name: amount_used
+    required: true
+    aliases: ["Amount Used", "Amount_Used", "amount_used", "AmountUsed", "amount", "Ordered Amount"]
+    dtype: float64
+    semantic_tag: amount
+    description: Amount used from Jdash perspective (operational)
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: false
+      min_value: 0.0
+  
+  - name: usage_date
+    required: false
+    aliases: ["Usage Date", "usage_date", "Date Used", "Transaction Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Date when voucher was used
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: false
+      remove_spaces: false
+      remove_currency_symbols: false
+      date_formats: ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y%m%d"]
+  
+  - name: order_id
+    required: false
+    aliases: ["Order Id", "Order_Id", "order_id", "OrderId"]
+    dtype: string
+    semantic_tag: id
+    description: Associated order identifier
+    reconciliation_critical: false
+  
+  - name: customer_id
+    required: false
+    aliases: ["Customer Id", "Customer_Id", "customer_id", "CustomerId"]
+    dtype: string
+    semantic_tag: id
+    description: Customer who used the voucher
+    reconciliation_critical: false
+  
+  - name: status
+    required: false
+    aliases: ["Status", "status", "Voucher Status"]
+    dtype: string
+    semantic_tag: code
+    description: Current status in Jdash system
+    reconciliation_critical: false

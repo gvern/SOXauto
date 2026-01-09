@@ -62,9 +62,9 @@ def test_import_scope_filtering():
 
 
 def test_backward_compatibility_classifier_import():
-    """Test that classifier still exports _filter_ipe08_scope."""
+    """Test that classifier still exports filter_ipe08_scope."""
     from src.core.scope_filtering import filter_ipe08_scope
-    assert callable(_filter_ipe08_scope)
+    assert callable(filter_ipe08_scope)
 
 
 def test_non_marketing_uses_values():

@@ -1,0 +1,130 @@
+dataset_id: IPE_34
+version: 1
+description: Marketplace refund liability - Tracking refunds and returns timing
+source_system: OMS
+primary_keys: ["id_company", "order_nr", "case_type"]
+deprecated: false
+
+fields:
+  - name: id_company
+    required: true
+    aliases: ["ID_COMPANY", "id_company", "ID_Company"]
+    dtype: string
+    semantic_tag: id
+    description: Company identifier
+    reconciliation_critical: true
+    coercion_rules:
+      strip_whitespace: true
+  
+  - name: current_status
+    required: false
+    aliases: ["CURRENT_STATUS", "current_status", "Status"]
+    dtype: string
+    semantic_tag: code
+    description: Current order status
+    reconciliation_critical: false
+  
+  - name: case_type
+    required: true
+    aliases: ["Case_Type", "case_type", "Case Type"]
+    dtype: string
+    semantic_tag: code
+    description: Case classification (Refunded not yet returned, Returned not yet refunded)
+    reconciliation_critical: true
+  
+  - name: is_marketplace
+    required: false
+    aliases: ["IS_MARKETPLACE", "is_marketplace", "Is Marketplace"]
+    dtype: int64
+    semantic_tag: code
+    description: Marketplace flag (1=marketplace, 0=retail)
+    reconciliation_critical: false
+  
+  - name: order_nr
+    required: true
+    aliases: ["ORDER_NR", "order_nr", "Order Number"]
+    dtype: string
+    semantic_tag: id
+    description: Sales order number
+    reconciliation_critical: true
+  
+  - name: bob_id_customer
+    required: false
+    aliases: ["BOB_ID_CUSTOMER", "bob_id_customer", "Customer ID"]
+    dtype: string
+    semantic_tag: id
+    description: BOB customer identifier
+    reconciliation_critical: false
+  
+  - name: return_date
+    required: false
+    aliases: ["RETURN_DATE", "return_date", "Return Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Item return timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: is_global
+    required: false
+    aliases: ["IS_GLOBAL", "is_global", "Is Global"]
+    dtype: int64
+    semantic_tag: code
+    description: Global order flag
+    reconciliation_critical: false
+  
+  - name: finance_verified_date
+    required: false
+    aliases: ["FINANCE_VERIFIED_DATE", "finance_verified_date", "Finance Verified Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Finance verification timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: refund_date
+    required: false
+    aliases: ["REFUND_DATE", "refund_date", "Refund Date"]
+    dtype: datetime64
+    semantic_tag: date
+    description: Refund timestamp
+    reconciliation_critical: false
+    coercion_rules:
+      strip_whitespace: true
+      date_formats: ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+  
+  - name: oms_type
+    required: false
+    aliases: ["OMS_Type", "oms_type", "OMS Type"]
+    dtype: string
+    semantic_tag: code
+    description: OMS refund type
+    reconciliation_critical: false
+  
+  - name: customer_type_l1
+    required: false
+    aliases: ["Customer_Type_L1", "customer_type_l1", "Customer Type"]
+    dtype: string
+    semantic_tag: code
+    description: Customer type level 1 classification
+    reconciliation_critical: false
+  
+  - name: amounttorefund
+    required: true
+    aliases: ["AmountToRefund", "amounttorefund", "Amount To Refund"]
+    dtype: float64
+    semantic_tag: amount
+    description: Total refund amount (items + shipping + customs - discounts)
+    reconciliation_critical: true
+    fill_policy: keep_nan
+    coercion_rules:
+      strip_whitespace: true
+      remove_commas: true
+      remove_spaces: true
+      remove_currency_symbols: true
+    validation_rules:
+      allow_negative: true

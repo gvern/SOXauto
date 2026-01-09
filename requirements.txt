@@ -20,6 +20,7 @@ botocore>=1.31.0
 python-dateutil>=2.8.0
 pytz>=2023.3
 python-json-logger>=2.0.0  # Structured JSON logging
+PyYAML>=6.0.0  # YAML parsing for schema contracts
 
 # Development and testing (optional)
 pytest>=7.4.0
