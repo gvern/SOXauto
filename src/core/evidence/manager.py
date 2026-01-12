@@ -286,7 +286,7 @@ class IPEEvidenceGenerator:
             schema_report: SchemaReport object from src.core.schema
         """
         try:
-            schema_file = self.evidence_dir / "08_schema_validation.json"
+            schema_file = self.evidence_dir / "07_schema_validation.json"
             
             # Convert report to dict for JSON serialization
             report_dict = schema_report.to_dict() if hasattr(schema_report, 'to_dict') else {}
@@ -324,7 +324,7 @@ class IPEEvidenceGenerator:
             schema_report: SchemaReport object with transformation events
         """
         try:
-            transform_file = self.evidence_dir / "09_transformations_log.json"
+            transform_file = self.evidence_dir / "08_transformations_log.json"
             
             # Extract events from report
             events = []
@@ -369,7 +369,7 @@ class IPEEvidenceGenerator:
         """
         try:
             # Save final execution log
-            log_file = self.evidence_dir / "07_execution_log.json"
+            log_file = self.evidence_dir / "09_execution_log.json"
             
             final_log = {
                 'ipe_id': self.ipe_id,
@@ -408,7 +408,7 @@ class IPEEvidenceGenerator:
         hasher = hashlib.sha256()
         
         for file_path in sorted(self.evidence_dir.glob('*')):
-            if file_path.is_file() and file_path.name != "07_execution_log.json":
+            if file_path.is_file() and file_path.name != "09_execution_log.json":
                 with open(file_path, 'rb') as f:
                     hasher.update(f.read())
         
@@ -456,7 +456,9 @@ class EvidenceValidator:
             "04_data_summary.json",
             "05_integrity_hash.json",
             "06_validation_results.json",
-            "07_execution_log.json"
+            "07_schema_validation.json",
+            "08_transformations_log.json",
+            "09_execution_log.json"
         ]
         
         for file_name in required_files:
