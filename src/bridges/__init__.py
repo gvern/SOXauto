@@ -48,18 +48,43 @@ from src.bridges.classifier import classify_bridges
 
 # Bridge calculations (from calculations package)
 from src.bridges.calculations import (
-    calculate_business_line_bridge,
-    calculate_customer_posting_group_bridge,
     calculate_vtc_adjustment,
     calculate_timing_difference_bridge,
 )
 
-# NAV voucher categorization pipeline
+# Entity-level categorization
 from src.bridges.categorization import (
-    categorize_nav_vouchers,
-    get_categorization_summary,
-    identify_business_line_reclass_candidates,
+    calculate_customer_posting_group_bridge,
 )
+
+# Entity-level categorization (Phase 4)
+from src.bridges.categorization import (
+    identify_business_line_reclass_candidates,
+    calculate_customer_posting_group_bridge,
+)
+
+# Deprecated: Voucher classification moved to src.core.reconciliation.voucher_classification
+import warnings
+
+def categorize_nav_vouchers(*args, **kwargs):
+    warnings.warn(
+        "categorize_nav_vouchers has moved to src.core.reconciliation.voucher_classification. "
+        "Please update your imports: from src.core.reconciliation.voucher_classification import categorize_vouchers",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    from src.core.reconciliation.voucher_classification import categorize_vouchers
+    return categorize_vouchers(*args, **kwargs)
+
+def get_categorization_summary(*args, **kwargs):
+    warnings.warn(
+        "get_categorization_summary has moved to src.core.reconciliation.voucher_classification. "
+        "Please update your imports: from src.core.reconciliation.voucher_classification.cat_pipeline import get_categorization_summary",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    from src.core.reconciliation.voucher_classification.cat_pipeline import get_categorization_summary as new_func
+    return new_func(*args, **kwargs)
 
 __all__ = [
     # Registry
@@ -67,13 +92,12 @@ __all__ = [
     "load_rules",
     # Generic Bridge Classification
     "classify_bridges",
-    # Bridge Calculations
+    # Bridge Calculations & Categorization
     "identify_business_line_reclass_candidates",
-    "calculate_business_line_bridge",
     "calculate_customer_posting_group_bridge",
     "calculate_vtc_adjustment",
     "calculate_timing_difference_bridge",
-    # NAV Voucher Categorization
+    # Deprecated - use src.core.reconciliation.voucher_classification instead
     "categorize_nav_vouchers",
     "get_categorization_summary",
 ]

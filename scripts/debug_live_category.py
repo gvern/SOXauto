@@ -5,7 +5,7 @@ import os
 # Ajout du path src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.bridges import categorize_nav_vouchers
+from src.core.reconciliation.voucher_classification import categorize_vouchers as categorize_nav_vouchers
 
 def main():
     # 1. Charger un petit échantillon du vrai fichier

@@ -10,7 +10,7 @@ Validates the fallback strategy:
 import pandas as pd
 import pytest
 
-from src.bridges.categorization.cat_usage_classifier import lookup_voucher_type
+from src.core.reconciliation.voucher_classification.voucher_utils import lookup_voucher_type
 
 
 class TestVoucherTypeLookupPrimary:
@@ -236,8 +236,8 @@ class TestBackwardCompatibility:
     
     def test_both_implementations_give_same_results(self):
         """Test that both lookup_voucher_type implementations produce the same results"""
-        from src.bridges.categorization.voucher_utils import lookup_voucher_type as classifier_lookup
-        from src.bridges.categorization.cat_usage_classifier import lookup_voucher_type as usage_lookup
+        from src.core.reconciliation.voucher_classification.voucher_utils import lookup_voucher_type as classifier_lookup
+        from src.core.reconciliation.voucher_classification.cat_usage_classifier import lookup_voucher_type as usage_lookup
         
         ipe_08_df = pd.DataFrame({
             "id": ["V001", "V002"],

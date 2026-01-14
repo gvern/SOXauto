@@ -23,7 +23,7 @@ No st.session_state or st.cache usage.
 from typing import Optional
 import pandas as pd
 
-from src.bridges.categorization.voucher_utils import COUNTRY_CODES
+from src.core.reconciliation.voucher_classification.voucher_utils import COUNTRY_CODES
 
 
 def classify_issuance(
