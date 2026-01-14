@@ -55,12 +55,7 @@ from src.bridges.calculations import (
 # Entity-level categorization
 from src.bridges.categorization import (
     calculate_customer_posting_group_bridge,
-)
-
-# Entity-level categorization (Phase 4)
-from src.bridges.categorization import (
     identify_business_line_reclass_candidates,
-    calculate_customer_posting_group_bridge,
 )
 
 # Deprecated: Voucher classification moved to src.core.reconciliation.voucher_classification
