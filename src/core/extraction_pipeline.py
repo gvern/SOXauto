@@ -17,7 +17,7 @@ import pandas as pd
 from src.core.runners.mssql_runner import IPERunner
 from src.core.catalog.cpg1 import get_item_by_id
 from src.utils.aws_utils import AWSSecretsManager
-from src.core.evidence_locator import get_latest_evidence_zip
+from src.core.evidence.evidence_locator import get_latest_evidence_zip
 from src.core.jdash_loader import load_jdash_data
 
 logger = logging.getLogger(__name__)

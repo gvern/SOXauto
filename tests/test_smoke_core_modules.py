@@ -19,7 +19,7 @@ if REPO_ROOT not in sys.path:
 
 def test_import_evidence_locator():
     """Test that evidence_locator module can be imported."""
-    from src.core.evidence_locator import get_latest_evidence_zip, find_evidence_packages
+    from src.core.evidence.evidence_locator import get_latest_evidence_zip, find_evidence_packages
     assert callable(get_latest_evidence_zip)
     assert callable(find_evidence_packages)
 
@@ -124,7 +124,7 @@ def test_scope_filtering_empty_handling():
 
 def test_evidence_locator_nonexistent_path():
     """Test that evidence_locator handles nonexistent paths correctly."""
-    from src.core.evidence_locator import get_latest_evidence_zip
+    from src.core.evidence.evidence_locator import get_latest_evidence_zip
     
     result = get_latest_evidence_zip("IPE_XX", evidence_root="/nonexistent/path")
     assert result is None

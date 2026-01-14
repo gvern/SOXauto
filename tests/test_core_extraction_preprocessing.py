@@ -2,7 +2,7 @@
 Unit tests for the core extraction and preprocessing modules.
 
 Tests cover:
-- src/core/evidence_locator.py
+- src/core/evidence/evidence_locator.py
 - src/core/extraction_pipeline.py
 - src/core/jdash_loader.py
 - src/core/scope_filtering.py
@@ -30,7 +30,7 @@ from src.core.jdash_loader import (
     aggregate_jdash_by_voucher,
     validate_jdash_data,
 )
-from src.core.evidence_locator import (
+from src.core.evidence.evidence_locator import (
     get_latest_evidence_zip,
     find_evidence_packages,
 )
