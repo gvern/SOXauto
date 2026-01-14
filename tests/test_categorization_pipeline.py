@@ -6,25 +6,25 @@ Tests the individual classifiers and the main categorization pipeline.
 
 import pandas as pd
 
-from src.bridges.categorization.cat_nav_classifier import (
+from src.core.reconciliation.voucher_classification.cat_nav_classifier import (
     classify_integration_type,
     is_integration_user,
 )
-from src.bridges.categorization.cat_issuance_classifier import (
+from src.core.reconciliation.voucher_classification.cat_issuance_classifier import (
     classify_issuance,
 )
-from src.bridges.categorization.cat_usage_classifier import (
+from src.core.reconciliation.voucher_classification.cat_usage_classifier import (
     classify_usage,
     classify_manual_usage,
 )
-from src.bridges.categorization.cat_vtc_classifier import (
+from src.core.reconciliation.voucher_classification.cat_vtc_classifier import (
     classify_vtc,
 )
-from src.bridges.categorization.cat_expired_classifier import (
+from src.core.reconciliation.voucher_classification.cat_expired_classifier import (
     classify_expired,
     classify_manual_cancellation,
 )
-from src.bridges.categorization.cat_pipeline import (
+from src.core.reconciliation.voucher_classification.cat_pipeline import (
     categorize_nav_vouchers,
     get_categorization_summary,
 )
@@ -168,7 +168,7 @@ class TestClassifyIssuance:
             "User ID": ["JUMIA/NAV31AFR.BATCH.SRVC"]
         })
         # First classify integration type
-        from src.bridges.categorization.cat_nav_classifier import classify_integration_type
+        from src.core.reconciliation.voucher_classification.cat_nav_classifier import classify_integration_type
         df = classify_integration_type(df)
         # Then classify issuance
         result = classify_issuance(df)

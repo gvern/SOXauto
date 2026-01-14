@@ -23,14 +23,14 @@ No st.session_state or st.cache usage.
 from typing import Optional
 import pandas as pd
 
-from src.bridges.categorization.cat_nav_classifier import classify_integration_type
-from src.bridges.categorization.cat_issuance_classifier import classify_issuance
-from src.bridges.categorization.cat_usage_classifier import classify_usage, classify_manual_usage
-from src.bridges.categorization.cat_vtc_classifier import (
+from src.core.reconciliation.voucher_classification.cat_nav_classifier import classify_integration_type
+from src.core.reconciliation.voucher_classification.cat_issuance_classifier import classify_issuance
+from src.core.reconciliation.voucher_classification.cat_usage_classifier import classify_usage, classify_manual_usage
+from src.core.reconciliation.voucher_classification.cat_vtc_classifier import (
     classify_vtc_bank_account,
     classify_vtc_pattern,
 )
-from src.bridges.categorization.cat_expired_classifier import (
+from src.core.reconciliation.voucher_classification.cat_expired_classifier import (
     classify_expired,
     classify_manual_cancellation,
 )
