@@ -297,9 +297,17 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
                 result['dataframe_summaries']['NAV_lines'] = _get_dataframe_summary(nav_lines_df)
                 
                 # Store pivot summary in categorization results
+                if not nav_pivot_df.empty:
+                    # Exclude the artificial __TOTAL__ row from unique counts
+                    nav_pivot_no_total = nav_pivot_df[
+                        nav_pivot_df.index.get_level_values('category') != '__TOTAL__'
+                    ]
+                else:
+                    nav_pivot_no_total = nav_pivot_df
+
                 result['categorization']['nav_pivot_summary'] = {
-                    'total_categories': len(nav_pivot_df.index.get_level_values('category').unique()) if not nav_pivot_df.empty else 0,
-                    'total_voucher_types': len(nav_pivot_df.index.get_level_values('voucher_type').unique()) if not nav_pivot_df.empty else 0,
+                    'total_categories': len(nav_pivot_no_total.index.get_level_values('category').unique()) if not nav_pivot_no_total.empty else 0,
+                    'total_voucher_types': len(nav_pivot_no_total.index.get_level_values('voucher_type').unique()) if not nav_pivot_no_total.empty else 0,
                     'total_amount': float(nav_pivot_df['amount_lcy'].sum()) if not nav_pivot_df.empty else 0.0,
                     'total_rows': int(nav_pivot_df['row_count'].sum()) if not nav_pivot_df.empty else 0,
                 }
