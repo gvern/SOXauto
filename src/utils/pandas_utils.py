@@ -244,8 +244,50 @@ def ensure_required_numeric(
     return df_clean
 
 
+def require_columns(
+    df: pd.DataFrame,
+    required: List[str],
+    context: str = "DataFrame"
+) -> None:
+    """
+    Validate that all required columns exist in the DataFrame.
+    
+    Raises ValueError if any required column is missing.
+    This is a stricter validation than ensure_required_numeric() - it only
+    checks for column existence without any type coercion.
+    
+    Args:
+        df: DataFrame to validate
+        required: List of required column names
+        context: Description of the context for better error messages
+    
+    Raises:
+        ValueError: If any required column is missing from the DataFrame
+    
+    Examples:
+        >>> df = pd.DataFrame({'country_code': ['NG'], 'amount': [100]})
+        >>> require_columns(df, ['country_code', 'amount'])  # OK
+        >>> require_columns(df, ['country_code', 'missing_col'])
+        Traceback (most recent call last):
+            ...
+        ValueError: Required columns missing from DataFrame: ['missing_col']
+    
+    Note:
+        - This function is used for schema contract validation
+        - For numeric coercion + validation, use ensure_required_numeric()
+        - For flexible amount detection, use cast_amount_columns()
+    """
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(
+            f"Required columns missing from {context}: {missing}. "
+            f"Available columns: {list(df.columns)}"
+        )
+
+
 __all__ = [
     'coerce_numeric_series',
     'cast_amount_columns',
     'ensure_required_numeric',
+    'require_columns',
 ]
