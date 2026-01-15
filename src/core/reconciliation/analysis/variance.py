@@ -316,54 +316,6 @@ def _map_country_to_company(country_code: str) -> Optional[str]:
     return f"EC_{country_code}"
 
 
-def calculate_variance(
-    nav_pivot: pd.DataFrame,
-    tv_pivot: pd.DataFrame,
-) -> pd.DataFrame:
-    """
-    Calculate variance between NAV and Target Values pivots (legacy function).
-    
-    NOTE: This is a legacy placeholder function. For production use, prefer
-    compute_variance_pivot_local() which includes FX conversion and full audit fields.
-    
-    Args:
-        nav_pivot: NAV pivot DataFrame with categorized amounts
-        tv_pivot: Target Values pivot DataFrame
-        
-    Returns:
-        DataFrame: Variance analysis with NAV, TV, and difference columns
-    """
-    # Placeholder implementation
-    logger.warning(
-        "calculate_variance() is a legacy placeholder. "
-        "Use compute_variance_pivot_local() for production workflows."
-    )
-    return pd.DataFrame(columns=["Category", "Amount_NAV", "Amount_TV", "Variance", "Variance_Pct"])
-
-
-def apply_thresholds(
-    variance_df: pd.DataFrame,
-    threshold: float = 1000.0,
-) -> pd.DataFrame:
-    """
-    Apply thresholds to variance analysis and flag significant variances.
-    
-    TODO: Implement threshold flagging logic.
-    Currently returns empty DataFrame with expected structure.
-    
-    Args:
-        variance_df: Variance DataFrame from calculate_variance
-        threshold: Monetary threshold for flagging (default: 1000)
-        
-    Returns:
-        DataFrame: Flagged variances exceeding threshold
-    """
-    # Placeholder implementation
-    return pd.DataFrame(columns=["Category", "Variance", "Flag_Reason"])
-
-
 __all__ = [
     "compute_variance_pivot_local",
-    "calculate_variance",
-    "apply_thresholds",
 ]

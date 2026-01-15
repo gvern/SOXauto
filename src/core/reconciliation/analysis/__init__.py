@@ -33,14 +33,10 @@ from src.core.reconciliation.analysis.pivots import (
 )
 from src.core.reconciliation.analysis.variance import (
     compute_variance_pivot_local,
-    calculate_variance,
-    apply_thresholds,
 )
 
 __all__ = [
     "build_target_values_pivot_local",
     "build_nav_pivot",
     "compute_variance_pivot_local",
-    "calculate_variance",
-    "apply_thresholds",
 ]
