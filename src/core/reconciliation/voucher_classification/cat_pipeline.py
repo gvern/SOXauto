@@ -51,20 +51,17 @@ def categorize_nav_vouchers(
     Applies all categorization rules in priority order to classify NAV GL entries
     (CR_03) according to the voucher accrual analysis business rules.
 
-    Categories produced:
-    - 'Issuance - Refund': Voucher issuance for refunds
-    - 'Issuance - Apology': Voucher issuance for apologies (COMMERCIAL GESTURE)
-    - 'Issuance - JForce': Voucher issuance for JForce (PYT_PF)
-    - 'Issuance - Store Credit': Manual voucher issuance (Document No starts with country code)
-    - 'Issuance': Generic issuance if no sub-category matches
+    Categories produced (bridge_category + voucher_type):
+    - 'Issuance': Voucher issuance transactions
+      * voucher_type: 'Refund', 'Apology', 'JForce', 'Store Credit'
     - 'Usage': Voucher usage transactions
-    - 'Cancellation - Apology': Automated cancellation (Voucher Accrual description)
-    - 'Cancellation - Store Credit': Manual cancellation via Credit Memo
-    - 'Expired - Apology': Expired apology vouchers (EXPR_APLGY)
-    - 'Expired - Refund': Expired refund vouchers (EXPR_JFORCE)
-    - 'Expired - Store Credit': Expired store credit vouchers (EXPR_STR CRDT)
-    - 'Expired': Generic expired vouchers
+      * voucher_type: 'Refund', 'Apology', 'JForce', 'Store Credit' (from TV lookup)
+    - 'Cancellation': Voucher cancellation transactions
+      * voucher_type: 'Apology' (Voucher Accrual), 'Store Credit' (Credit Memo)
+    - 'Expired': Expired voucher transactions
+      * voucher_type: 'Apology' (EXPR_APLGY), 'JForce' (EXPR_JFORCE), 'Store Credit' (EXPR_STR CRDT), 'Refund'
     - 'VTC': Voucher to Cash refund transactions
+      * voucher_type: 'Refund'
     - None: Transactions that don't match any rule
 
     Args:

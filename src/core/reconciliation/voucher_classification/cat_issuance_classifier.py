@@ -58,7 +58,9 @@ def classify_issuance(
         ... })
         >>> result = classify_issuance(df)
         >>> print(result['bridge_category'].iloc[0])
-        'Issuance - Refund'
+        'Issuance'
+        >>> print(result['voucher_type'].iloc[0])
+        'Refund'
     """
     if df is None or df.empty:
         return df.copy() if df is not None else pd.DataFrame()
@@ -144,13 +146,13 @@ def _classify_integrated_issuance(df: pd.DataFrame, idx: int, description: str) 
     4. Generic Issuance (fallback)
     """
     if "REFUND" in description or "RF_" in description or "RF " in description:
-        df.at[idx, "bridge_category"] = "Issuance - Refund"
+        df.at[idx, "bridge_category"] = "Issuance"
         df.at[idx, "voucher_type"] = "Refund"
     elif "COMMERCIAL GESTURE" in description:
-        df.at[idx, "bridge_category"] = "Issuance - Apology"
+        df.at[idx, "bridge_category"] = "Issuance"
         df.at[idx, "voucher_type"] = "Apology"
     elif "PYT_" in description:
-        df.at[idx, "bridge_category"] = "Issuance - JForce"
+        df.at[idx, "bridge_category"] = "Issuance"
         df.at[idx, "voucher_type"] = "JForce"
     else:
         # Fallback: Generic integrated issuance
@@ -174,16 +176,16 @@ def _classify_manual_issuance(
     is_store_credit = any(doc_no.startswith(cc) for cc in COUNTRY_CODES)
     
     if is_store_credit:
-        df.at[idx, "bridge_category"] = "Issuance - Store Credit"
+        df.at[idx, "bridge_category"] = "Issuance"
         df.at[idx, "voucher_type"] = "Store Credit"
     elif "REFUND" in description or "RFN" in description or "RF_" in description or "RF " in description:
-        df.at[idx, "bridge_category"] = "Issuance - Refund"
+        df.at[idx, "bridge_category"] = "Issuance"
         df.at[idx, "voucher_type"] = "Refund"
     elif "COMMERCIAL" in description or "CXP" in description or "APOLOGY" in description:
-        df.at[idx, "bridge_category"] = "Issuance - Apology"
+        df.at[idx, "bridge_category"] = "Issuance"
         df.at[idx, "voucher_type"] = "Apology"
     elif "PYT_" in description:
-        df.at[idx, "bridge_category"] = "Issuance - JForce"
+        df.at[idx, "bridge_category"] = "Issuance"
         df.at[idx, "voucher_type"] = "JForce"
     else:
         # Generic issuance

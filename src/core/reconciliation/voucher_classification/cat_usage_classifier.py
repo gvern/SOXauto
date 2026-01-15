@@ -130,7 +130,7 @@ def classify_usage(
 
         # Check for Voucher Accrual cancellation
         if "VOUCHER ACCRUAL" in description:
-            out.at[idx, "bridge_category"] = "Cancellation - Apology"
+            out.at[idx, "bridge_category"] = "Cancellation"
             out.at[idx, "voucher_type"] = "Apology"
         else:
             # Standard Usage

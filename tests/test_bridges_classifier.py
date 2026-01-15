@@ -250,7 +250,7 @@ def test_calculate_vtc_adjustment_basic():
     # Create CR_03 data with one cancellation entry
     cr_03_df = pd.DataFrame(
         [
-            {"[Voucher No_]": "V001", "bridge_category": "Cancellation - Store Credit"},
+            {"[Voucher No_]": "V001", "bridge_category": "Cancellation", "voucher_type": "Store Credit"},
         ]
     )
 
@@ -279,7 +279,7 @@ def test_calculate_vtc_adjustment_all_matched():
 
     cr_03_df = pd.DataFrame(
         [
-            {"[Voucher No_]": "V001", "bridge_category": "Cancellation - Refund"},
+            {"[Voucher No_]": "V001", "bridge_category": "VTC", "voucher_type": "Refund"},
         ]
     )
 
@@ -399,7 +399,7 @@ def test_calculate_vtc_adjustment_empty_bob():
 
     cr_03_df = pd.DataFrame(
         [
-            {"[Voucher No_]": "V001", "bridge_category": "Cancellation - Refund"},
+            {"[Voucher No_]": "V001", "bridge_category": "VTC", "voucher_type": "Refund"},
         ]
     )
 
@@ -454,7 +454,7 @@ def test_calculate_vtc_adjustment_filters():
 
     cr_03_df = pd.DataFrame(
         [
-            {"[Voucher No_]": "V001", "bridge_category": "Cancellation - Refund"},
+            {"[Voucher No_]": "V001", "bridge_category": "VTC", "voucher_type": "Refund"},
         ]
     )
 
@@ -976,7 +976,7 @@ def test_categorize_nav_vouchers_step3_cancellation_apology_voucher_accrual():
         ]
     )
     result = categorize_nav_vouchers(df)
-    assert result.loc[0, "bridge_category"] == "Cancellation - Apology"
+    assert result.loc[0, "bridge_category"] == "Cancellation"
     assert result.loc[0, "voucher_type"] == "Apology"
 
 
@@ -1170,7 +1170,7 @@ def test_categorize_nav_vouchers_step6_manual_cancellation():
         ]
     )
     result = categorize_nav_vouchers(df)
-    assert result.loc[0, "bridge_category"] == "Cancellation - Store Credit"
+    assert result.loc[0, "bridge_category"] == "Cancellation"
     assert result.loc[0, "voucher_type"] == "Store Credit"
     assert result.loc[0, "Integration_Type"] == "Manual"
 
