@@ -340,6 +340,32 @@ class TestBuildTargetValuesPivotLocal:
         # NaN should be treated as 0.0
         assert result['tv_amount_local'].iloc[0] == 1000.0
 
+    def test_missing_category_column(self):
+        """Test that missing category column is auto-filled with default."""
+        df = pd.DataFrame({
+            'country_code': ['NG', 'EG'],
+            'voucher_type': ['refund', 'store_credit'],
+            'amount_local': [1000.0, 2000.0]
+        })
+        
+        result = build_target_values_pivot_local(df)
+        
+        # Should have category column with default value
+        assert 'category' in result.columns
+        assert all(result['category'] == 'Voucher')
+
+    def test_custom_default_category(self):
+        """Test using custom default category value."""
+        df = pd.DataFrame({
+            'country_code': ['NG'],
+            'voucher_type': ['refund'],
+            'amount_local': [1000.0]
+        })
+        
+        result = build_target_values_pivot_local(df, default_category='CustomCategory')
+        
+        assert result['category'].iloc[0] == 'CustomCategory'
+
 
 class TestPivotIntegration:
     """Integration tests for pivot functions with realistic data."""

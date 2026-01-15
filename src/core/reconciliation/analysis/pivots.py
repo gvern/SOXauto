@@ -83,6 +83,7 @@ def build_target_values_pivot_local(
     tv_tables: Union[pd.DataFrame, List[pd.DataFrame]],
     amount_col: str = "amount_local",
     group_cols: Optional[List[str]] = None,
+    default_category: str = "Voucher",
 ) -> pd.DataFrame:
     """
     Build Target Values pivot aggregated in local currency per country.
@@ -101,6 +102,8 @@ def build_target_values_pivot_local(
                     like "remaining_amount", "totalamountused", etc.
         group_cols: Optional explicit list of grouping columns. 
                     Default: ["country_code", "category", "voucher_type"]
+        default_category: Default category value if not present in input data.
+                         Default: "Voucher"
     
     Returns:
         DataFrame with columns:
@@ -145,11 +148,22 @@ def build_target_values_pivot_local(
         >>> pivot = build_target_values_pivot_local(data)
         >>> pivot['voucher_type'].iloc[0]
         'Unknown'
+        
+        >>> # Handle missing category (auto-filled)
+        >>> data_no_cat = pd.DataFrame({
+        ...     'country_code': ['NG'],
+        ...     'voucher_type': ['refund'],
+        ...     'amount_local': [100.0]
+        ... })
+        >>> pivot = build_target_values_pivot_local(data_no_cat)
+        >>> pivot['category'].iloc[0]
+        'Voucher'
     
     Notes:
         - Enforces schema contracts via require_columns() to prevent KeyError
         - Harmonizes voucher_type labels to canonical enum before aggregation
         - Handles missing voucher_type by mapping to "Unknown"
+        - Handles missing category by using default_category
         - Empty datasets return empty DataFrame with correct schema
         - Deterministic sorting ensures reproducible results
         - No FX conversion - USD amounts will be added later using fx_utils
@@ -175,12 +189,17 @@ def build_target_values_pivot_local(
     if combined_df.empty:
         return pd.DataFrame(columns=group_cols + ["tv_amount_local"])
     
-    # Validate required columns exist
-    required_cols = group_cols + [amount_col]
-    require_columns(combined_df, required_cols, context="Target Values tables")
+    # Validate required columns exist (excluding category which can be auto-added)
+    required_base_cols = ["country_code", "voucher_type", amount_col]
+    require_columns(combined_df, required_base_cols, context="Target Values tables")
     
     # Create working copy
     df = combined_df.copy()
+    
+    # Add category column if missing (using default)
+    if "category" not in df.columns:
+        df["category"] = default_category
+        logger.debug(f"Added missing 'category' column with default value: {default_category}")
     
     # Harmonize voucher_type to canonical enum
     if "voucher_type" in df.columns:
