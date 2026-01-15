@@ -144,9 +144,6 @@ def build_nav_pivot(
     # Secondary sort: voucher_type (alphabetical)
     pivot_data = pivot_data.sort_index(level=["category", "voucher_type"])
     
-    # Rename index levels for clarity
-    pivot_data.index.names = ["category", "voucher_type"]
-    
     # Add margin totals (grand total row)
     # Calculate totals across all categories and voucher types
     total_amount = pivot_data["amount_lcy"].sum()
