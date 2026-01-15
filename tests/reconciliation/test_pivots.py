@@ -1,21 +1,16 @@
 """
 Unit tests for pivot generation functions.
 
-Tests the Target Values pivot generation with local currency aggregation,
-voucher type harmonization, and schema contract enforcement.
-Unit tests for NAV reconciliation pivot generation.
-
-Tests the build_nav_pivot() function that creates canonical pivot tables
-(Category × Voucher Type → Amount_LCY) from classified CR_03 voucher entries.
+Tests both NAV and Target Values pivot generation functions:
+- build_target_values_pivot_local(): Target Values pivot with local currency aggregation
+- build_nav_pivot(): NAV pivot from classified CR_03 voucher entries
 
 Test Coverage:
-- Missing values (None, NaN) in category and voucher_type
-- Empty DataFrames
-- Mixed data types
-- Negative and positive amounts
-- Deterministic ordering
-- Column validation
-- Edge cases (zero amounts, large numbers, duplicates)
+- Target Values: voucher type harmonization, multi-country inputs, missing fields
+- NAV: canonical pivot tables (Category × Voucher Type → Amount_LCY)
+- Common: Missing values (None, NaN), empty DataFrames, mixed data types
+- Edge cases: negative/positive amounts, zero amounts, large numbers, duplicates
+- Schema validation: deterministic ordering, column validation, error handling
 """
 
 import pandas as pd
