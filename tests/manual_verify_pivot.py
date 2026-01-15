@@ -151,7 +151,7 @@ def test_required_columns_missing():
     })
     
     try:
-        nav_pivot, nav_lines = build_nav_pivot(cr_03_df, dataset_id='CR_03')
+        build_nav_pivot(cr_03_df, dataset_id='CR_03')
         raise AssertionError("Should have raised ValueError for missing 'amount' column")
     except ValueError as e:
         error_msg = str(e)
