@@ -68,6 +68,9 @@ from src.core.catalog.cpg1 import get_item_by_id
 # Import summary builder for reconciliation metrics
 from src.core.reconciliation.summary_builder import SummaryBuilder
 
+# Import pivot generation
+from src.core.reconciliation.analysis.pivots import build_nav_pivot
+
 # Import date utilities
 from src.utils.date_utils import validate_yyyy_mm_dd
 
@@ -284,6 +287,27 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
             result['categorization']['by_category'] = cat_summary.get('by_category', {})
             result['categorization']['by_voucher_type'] = cat_summary.get('by_voucher_type', {})
             result['categorization']['by_integration_type'] = cat_summary.get('by_integration_type', {})
+            
+            # Build NAV pivot for Phase 3 reconciliation
+            try:
+                nav_pivot_df, nav_lines_df = build_nav_pivot(categorized_df, dataset_id='CR_03')
+                processed_data['NAV_pivot'] = nav_pivot_df
+                processed_data['NAV_lines'] = nav_lines_df
+                result['dataframe_summaries']['NAV_pivot'] = _get_dataframe_summary(nav_pivot_df)
+                result['dataframe_summaries']['NAV_lines'] = _get_dataframe_summary(nav_lines_df)
+                
+                # Store pivot summary in categorization results
+                result['categorization']['nav_pivot_summary'] = {
+                    'total_categories': len(nav_pivot_df.index.get_level_values('category').unique()) if not nav_pivot_df.empty else 0,
+                    'total_voucher_types': len(nav_pivot_df.index.get_level_values('voucher_type').unique()) if not nav_pivot_df.empty else 0,
+                    'total_amount': float(nav_pivot_df['amount_lcy'].sum()) if not nav_pivot_df.empty else 0.0,
+                    'total_rows': int(nav_pivot_df['row_count'].sum()) if not nav_pivot_df.empty else 0,
+                }
+                
+                logger.info(f"NAV pivot generated: {len(nav_pivot_df)} combinations")
+            except Exception as e:
+                logger.warning(f"Failed to generate NAV pivot: {e}")
+                result['warnings'].append(f"NAV pivot generation failed: {str(e)}")
         else:
             result['warnings'].append("CR_03 data not available for categorization")
         
