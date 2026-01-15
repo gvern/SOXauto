@@ -139,7 +139,7 @@ print(nav_pivot_df.head())
 - `processed_data['NAV_lines']`: The enriched lines DataFrame
 - `result['categorization']['nav_pivot_summary']`: Summary statistics
 
-**Column Validation**: Uses a custom `_validate_required_columns()` helper (instead of calling `require_columns()` from the `CR_03.yaml` schema contract) to assert that all fields needed for the NAV pivot — including `bridge_category` and `voucher_type` added by the categorization pipeline — are present before pivoting. This ensures data quality and prevents KeyError exceptions.
+**Column Validation**: Uses a custom `_validate_required_columns()` helper (instead of the generic `require_columns()` helper that is generated from the `CR_03.yaml` schema contract and used to enforce base extraction schemas) to assert that all fields needed for the NAV pivot — including `bridge_category` and `voucher_type` added by the categorization pipeline — are present before pivoting. This ensures data quality and prevents `KeyError` exceptions.
 
 Prerequisites
 
