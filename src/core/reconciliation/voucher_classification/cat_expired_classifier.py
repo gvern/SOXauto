@@ -8,7 +8,9 @@ Business Rules:
 - Expired - Refund: Manual + Positive + EXPR_JFORCE pattern
 - Expired - Store Credit: Manual + Positive + EXPR_STR CRDT or EXPR_STR_CRDT pattern
 - Expired (generic): Manual + Positive + EXPR pattern without specific sub-type
-
+Note: Per schema, Expired can have voucher_type: Apology, JForce, Refund, or Store Credit.
+The Refund type may appear when voucher type is looked up from TV files in other contexts
+or for generic expired entries where the original voucher was a Refund type.
 This is a pure function: DataFrame -> DataFrame
 No st.session_state or st.cache usage.
 """
@@ -48,7 +50,9 @@ def classify_expired(
         ... })
         >>> result = classify_expired(df)
         >>> print(result['bridge_category'].iloc[0])
-        'Expired - Apology'
+        'Expired'
+        >>> print(result['voucher_type'].iloc[0])
+        'Apology'
     """
     if df is None or df.empty:
         return df.copy() if df is not None else pd.DataFrame()
@@ -112,16 +116,16 @@ def classify_expired(
 
         # Classify based on specific EXPR pattern
         if "EXPR_APLGY" in description:
-            out.at[idx, "bridge_category"] = "Expired - Apology"
+            out.at[idx, "bridge_category"] = "Expired"
             out.at[idx, "voucher_type"] = "Apology"
         elif "EXPR_JFORCE" in description:
-            out.at[idx, "bridge_category"] = "Expired - Refund"
-            out.at[idx, "voucher_type"] = "Refund"
+            out.at[idx, "bridge_category"] = "Expired"
+            out.at[idx, "voucher_type"] = "JForce"
         elif "EXPR_STR CRDT" in description or "EXPR_STR_CRDT" in description:
-            out.at[idx, "bridge_category"] = "Expired - Store Credit"
+            out.at[idx, "bridge_category"] = "Expired"
             out.at[idx, "voucher_type"] = "Store Credit"
         else:
-            # Generic expired
+            # Generic expired (no specific type detected)
             out.at[idx, "bridge_category"] = "Expired"
 
     return out
@@ -201,7 +205,7 @@ def classify_manual_cancellation(
         )
 
         if doc_type == "credit memo":
-            out.at[idx, "bridge_category"] = "Cancellation - Store Credit"
+            out.at[idx, "bridge_category"] = "Cancellation"
             out.at[idx, "voucher_type"] = "Store Credit"
 
     return out

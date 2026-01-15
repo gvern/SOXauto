@@ -153,7 +153,7 @@ class TestClassifyIssuance:
             "Integration_Type": ["Integration"]
         })
         result = classify_issuance(df)
-        assert result.loc[0, "bridge_category"] == "Issuance - Refund"
+        assert result.loc[0, "bridge_category"] == "Issuance"
         assert result.loc[0, "voucher_type"] == "Refund"
     
     def test_integrated_refund_issuance_from_user_id(self):
@@ -173,7 +173,7 @@ class TestClassifyIssuance:
         # Then classify issuance
         result = classify_issuance(df)
         assert result.loc[0, "Integration_Type"] == "Integration"
-        assert result.loc[0, "bridge_category"] == "Issuance - Refund"
+        assert result.loc[0, "bridge_category"] == "Issuance"
         assert result.loc[0, "voucher_type"] == "Refund"
 
     def test_integrated_rf_prefix_issuance(self):
@@ -184,7 +184,7 @@ class TestClassifyIssuance:
             "Integration_Type": ["Integration"]
         })
         result = classify_issuance(df)
-        assert result.loc[0, "bridge_category"] == "Issuance - Refund"
+        assert result.loc[0, "bridge_category"] == "Issuance"
 
     def test_integrated_apology_issuance(self):
         """Test integrated commercial gesture detection."""
@@ -194,7 +194,7 @@ class TestClassifyIssuance:
             "Integration_Type": ["Integration"]
         })
         result = classify_issuance(df)
-        assert result.loc[0, "bridge_category"] == "Issuance - Apology"
+        assert result.loc[0, "bridge_category"] == "Issuance"
         assert result.loc[0, "voucher_type"] == "Apology"
 
     def test_integrated_jforce_issuance(self):
@@ -205,7 +205,7 @@ class TestClassifyIssuance:
             "Integration_Type": ["Integration"]
         })
         result = classify_issuance(df)
-        assert result.loc[0, "bridge_category"] == "Issuance - JForce"
+        assert result.loc[0, "bridge_category"] == "Issuance"
         assert result.loc[0, "voucher_type"] == "JForce"
 
     def test_manual_store_credit_issuance(self):
@@ -217,7 +217,7 @@ class TestClassifyIssuance:
             "Integration_Type": ["Manual"]
         })
         result = classify_issuance(df)
-        assert result.loc[0, "bridge_category"] == "Issuance - Store Credit"
+        assert result.loc[0, "bridge_category"] == "Issuance"
         assert result.loc[0, "voucher_type"] == "Store Credit"
 
     def test_manual_refund_issuance(self):
@@ -229,7 +229,7 @@ class TestClassifyIssuance:
             "Integration_Type": ["Manual"]
         })
         result = classify_issuance(df)
-        assert result.loc[0, "bridge_category"] == "Issuance - Refund"
+        assert result.loc[0, "bridge_category"] == "Issuance"
         assert result.loc[0, "voucher_type"] == "Refund"
 
     def test_positive_amount_not_classified(self):
@@ -274,7 +274,7 @@ class TestClassifyUsage:
             "Integration_Type": ["Integration"]
         })
         result = classify_usage(df)
-        assert result.loc[0, "bridge_category"] == "Cancellation - Apology"
+        assert result.loc[0, "bridge_category"] == "Cancellation"
         assert result.loc[0, "voucher_type"] == "Apology"
 
     def test_manual_not_classified_as_integrated_usage(self):
@@ -401,10 +401,10 @@ class TestClassifyExpired:
             "Integration_Type": ["Manual"]
         })
         result = classify_expired(df)
-        assert result.loc[0, "bridge_category"] == "Expired - Apology"
+        assert result.loc[0, "bridge_category"] == "Expired"
         assert result.loc[0, "voucher_type"] == "Apology"
 
-    def test_expired_refund(self):
+    def test_expired_jforce(self):
         """Test EXPR_JFORCE pattern detection."""
         df = pd.DataFrame({
             "Amount": [25.0],
@@ -412,8 +412,8 @@ class TestClassifyExpired:
             "Integration_Type": ["Manual"]
         })
         result = classify_expired(df)
-        assert result.loc[0, "bridge_category"] == "Expired - Refund"
-        assert result.loc[0, "voucher_type"] == "Refund"
+        assert result.loc[0, "bridge_category"] == "Expired"
+        assert result.loc[0, "voucher_type"] == "JForce"
 
     def test_expired_store_credit(self):
         """Test EXPR_STR CRDT pattern detection."""
@@ -423,7 +423,7 @@ class TestClassifyExpired:
             "Integration_Type": ["Manual"]
         })
         result = classify_expired(df)
-        assert result.loc[0, "bridge_category"] == "Expired - Store Credit"
+        assert result.loc[0, "bridge_category"] == "Expired"
         assert result.loc[0, "voucher_type"] == "Store Credit"
 
     def test_expired_generic(self):
@@ -448,7 +448,7 @@ class TestClassifyManualCancellation:
             "Integration_Type": ["Manual"]
         })
         result = classify_manual_cancellation(df)
-        assert result.loc[0, "bridge_category"] == "Cancellation - Store Credit"
+        assert result.loc[0, "bridge_category"] == "Cancellation"
         assert result.loc[0, "voucher_type"] == "Store Credit"
 
 
@@ -516,10 +516,10 @@ class TestCategorizationPipeline:
         ])
         result = categorize_nav_vouchers(df)
         
-        assert result.loc[0, "bridge_category"] == "Issuance - Refund"
+        assert result.loc[0, "bridge_category"] == "Issuance"
         assert result.loc[1, "bridge_category"] == "Usage"
         assert result.loc[2, "bridge_category"] == "VTC"
-        assert result.loc[3, "bridge_category"] == "Expired - Apology"
+        assert result.loc[3, "bridge_category"] == "Expired"
         assert pd.isna(result.loc[4, "bridge_category"])
 
     def test_vtc_priority_over_issuance(self):
@@ -535,8 +535,9 @@ class TestCategorizationPipeline:
         ])
         result = categorize_nav_vouchers(df)
         # Negative amount + Bank Account should be Issuance (Manual), not VTC
-        # The description contains "refund" so it gets the specific sub-category
-        assert result.loc[0, "bridge_category"] == "Issuance - Refund"
+        # The description contains "refund" so it gets the specific voucher_type
+        assert result.loc[0, "bridge_category"] == "Issuance"
+        assert result.loc[0, "voucher_type"] == "Refund"
         assert result.loc[0, "Integration_Type"] == "Manual"
 
 

@@ -68,6 +68,9 @@ from src.core.catalog.cpg1 import get_item_by_id
 # Import summary builder for reconciliation metrics
 from src.core.reconciliation.summary_builder import SummaryBuilder
 
+# Import pivot generation
+from src.core.reconciliation.analysis.pivots import build_nav_pivot
+
 # Import date utilities
 from src.utils.date_utils import validate_yyyy_mm_dd
 
@@ -284,6 +287,68 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
             result['categorization']['by_category'] = cat_summary.get('by_category', {})
             result['categorization']['by_voucher_type'] = cat_summary.get('by_voucher_type', {})
             result['categorization']['by_integration_type'] = cat_summary.get('by_integration_type', {})
+            
+            # Build NAV pivot for Phase 3 reconciliation
+            try:
+                # Extract currency from country_code in the dataset
+                # Map country codes to currency codes for multi-country support
+                currency_map = {
+                    'NG': 'NGN',  # Nigeria
+                    'EG': 'EGP',  # Egypt
+                    'KE': 'KES',  # Kenya
+                    'MA': 'MAD',  # Morocco
+                    'CI': 'XOF',  # Ivory Coast
+                    'SN': 'XOF',  # Senegal
+                    'UG': 'UGX',  # Uganda
+                    'GH': 'GHS',  # Ghana
+                    'TZ': 'TZS',  # Tanzania
+                }
+                
+                # Determine currency from country_code column if available
+                currency_name = "lcy"  # Default fallback
+                if 'country_code' in categorized_df.columns and not categorized_df.empty:
+                    # Get the first country_code (assuming single-country reconciliation run)
+                    country_code = categorized_df['country_code'].iloc[0]
+                    if country_code in currency_map:
+                        currency_name = currency_map[country_code]
+                        logger.info(f"Detected country_code '{country_code}', using currency '{currency_name}'")
+                    else:
+                        logger.warning(f"Unknown country_code '{country_code}', defaulting to 'lcy'")
+                
+                nav_pivot_df, nav_lines_df = build_nav_pivot(
+                    categorized_df, 
+                    dataset_id='CR_03',
+                    currency_name=currency_name
+                )
+                processed_data['NAV_pivot'] = nav_pivot_df
+                processed_data['NAV_lines'] = nav_lines_df
+                result['dataframe_summaries']['NAV_pivot'] = _get_dataframe_summary(nav_pivot_df)
+                result['dataframe_summaries']['NAV_lines'] = _get_dataframe_summary(nav_lines_df)
+                
+                # Dynamic currency column name
+                amount_col = f"amount_{currency_name}"
+                
+                # Store pivot summary in categorization results
+                if not nav_pivot_df.empty:
+                    # Exclude the artificial __TOTAL__ row from unique counts
+                    nav_pivot_no_total = nav_pivot_df[
+                        nav_pivot_df.index.get_level_values('category') != '__TOTAL__'
+                    ]
+                else:
+                    nav_pivot_no_total = nav_pivot_df
+
+                result['categorization']['nav_pivot_summary'] = {
+                    'total_categories': len(nav_pivot_no_total.index.get_level_values('category').unique()) if not nav_pivot_no_total.empty else 0,
+                    'total_voucher_types': len(nav_pivot_no_total.index.get_level_values('voucher_type').unique()) if not nav_pivot_no_total.empty else 0,
+                    'total_amount': float(nav_pivot_df[amount_col].sum()) if not nav_pivot_df.empty else 0.0,
+                    'total_rows': int(nav_pivot_df['row_count'].sum()) if not nav_pivot_df.empty else 0,
+                    'currency': currency_name,
+                }
+                
+                logger.info(f"NAV pivot generated: {len(nav_pivot_df)} combinations")
+            except Exception as e:
+                logger.warning(f"Failed to generate NAV pivot: {e}")
+                result['warnings'].append(f"NAV pivot generation failed: {str(e)}")
         else:
             result['warnings'].append("CR_03 data not available for categorization")
         
