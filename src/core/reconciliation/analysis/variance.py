@@ -6,8 +6,6 @@ NAV and Target Values pivots.
 
 Key Functions:
     - compute_variance_pivot_local(): Compute variance in local currency and convert to USD
-    - calculate_variance(): Calculate variance between NAV and TV pivots (legacy)
-    - apply_thresholds(): Flag variances exceeding threshold (future)
 
 Example:
     >>> from src.core.reconciliation.analysis.variance import compute_variance_pivot_local
