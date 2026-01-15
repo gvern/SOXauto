@@ -235,7 +235,7 @@ def compute_variance_pivot_local(
         logger.warning(
             f"Missing FX rates for {missing_fx_count} rows. "
             f"Countries affected: {list(missing_countries)}. "
-            f"USD amounts will be NaN for these rows."
+            f"USD amounts for these rows may not reflect actual FX rates and will follow FXConverter's default behavior."
         )
     
     # Drop temporary company_code column
