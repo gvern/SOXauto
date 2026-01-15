@@ -119,8 +119,12 @@ categorized_df = categorize_nav_vouchers(
     doc_voucher_usage_df=doc_voucher_usage_df,
 )
 
-# Step 2: Build NAV pivot for variance analysis
-nav_pivot_df, nav_lines_df = build_nav_pivot(categorized_df, dataset_id='CR_03')
+# Step 2: Build NAV pivot for variance analysis (example for NGN country)
+nav_pivot_df, nav_lines_df = build_nav_pivot(
+    categorized_df,
+    dataset_id='CR_03',
+    currency_name='NGN',
+)
 
 # Step 3: Analyze results
 print(nav_pivot_df.head())
