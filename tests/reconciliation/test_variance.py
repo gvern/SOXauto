@@ -259,7 +259,7 @@ class TestComputeVariancePivotLocal:
         assert pd.isna(row['fx_rate_used'])
         assert row['fx_missing'] == True
         
-        # With default_rate=1.0, conversion just divides by 1
+        # With default_rate=1.0, convert_to_usd uses amount / default_rate, so USD == local amount
         assert row['nav_amount_usd'] == 142000.0
         assert row['tv_amount_usd'] == 128000.0
         assert row['variance_amount_usd'] == 14000.0
