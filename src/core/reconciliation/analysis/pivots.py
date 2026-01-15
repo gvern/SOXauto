@@ -13,7 +13,7 @@ Example:
     >>> print(nav_pivot.head())
 """
 
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Tuple
 import pandas as pd
 import logging
 
