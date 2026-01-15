@@ -447,9 +447,10 @@ class TestIntegrationScenarios:
         assert total_amount == pytest.approx(expected_total, rel=1e-5)
         
         # Check category breakdown
-        categories = nav_pivot.index.get_level_values('category').unique()
+        # Use nav_lines (raw lines) to avoid counting synthetic __TOTAL__ rows from the pivot
+        categories = nav_lines['category'].unique()
         categories = [c for c in categories if c != '__TOTAL__']
-        assert len(categories) == 5  # 5 distinct categories
+        assert len(categories) == 5  # 5 distinct categories (excluding '__TOTAL__')
         
         # Verify lines DataFrame preserves country_code
         assert all(nav_lines['country_code'] == 'NG')
