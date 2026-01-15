@@ -91,14 +91,14 @@ The Phase 3 reconciliation pipeline processes NAV GL entries (CR_03) to categori
    - Missing `bridge_category` → "Uncategorized"
 3. Groups by (Category × Voucher Type) with deterministic alphabetical ordering
 4. Aggregates:
-   - `amount_lcy`: Sum of transaction amounts
+   - `amount_<currency_name>` (e.g., `amount_ngn`, `amount_egp`): Sum of transaction amounts in the selected currency
    - `row_count`: Count of transactions
 5. Generates margin totals (grand total row)
 
 **Output**:
 - **NAV Pivot DataFrame**: MultiIndex pivot table
   - Index: (category, voucher_type)
-  - Columns: amount_lcy, row_count
+  - Columns: amount_<currency_name> (e.g., amount_ngn, amount_egp), row_count
   - Includes `__TOTAL__` row for overall totals
   - Deterministically sorted (alphabetical)
 
