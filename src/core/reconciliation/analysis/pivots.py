@@ -66,7 +66,7 @@ def _harmonize_voucher_type(voucher_type: str) -> str:
         return "expired"
     elif vt in ["vtc", "voucher to cash"]:
         return "vtc"
-    elif vt in ["other", "unknown", ""]:
+    elif vt in ["other", "unknown"]:
         return "other"
     else:
         # Unknown voucher types should be mapped to "other"
