@@ -28,7 +28,7 @@ class TestBuildNavPivot:
         # Arrange
         cr_03_df = pd.DataFrame({
             'bridge_category': ['Issuance', 'Usage', 'VTC'],
-            'voucher_type': ['Refund', 'Store Credit', 'Bank Transfer'],
+            'voucher_type': ['Refund', 'Store Credit', 'Apology'],
             'amount': [-1000.0, 500.0, 300.0],
         })
         
