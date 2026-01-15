@@ -2,12 +2,10 @@
 Pivot Generation Module for PG-01 Reconciliation.
 
 This module provides functionality for generating NAV (Microsoft Dynamics NAV) pivots
-and TV (Target Values) pivots for variance analysis.
+for variance analysis in the Phase 3 reconciliation pipeline.
 
 Key Functions:
     - build_nav_pivot(cr_03_df, dataset_id): Build NAV pivot from classified CR_03
-    - generate_nav_pivot(nav_df, cutoff_date, country_code): Legacy NAV pivot (deprecated)
-    - generate_tv_pivot(tv_df, cutoff_date, country_code): Legacy TV pivot (deprecated)
 
 Example:
     >>> from src.core.reconciliation.analysis.pivots import build_nav_pivot
@@ -52,6 +50,18 @@ def build_nav_pivot(
     Creates a canonical NAV pivot table (Category × Voucher Type → Amount_LCY) 
     used by Phase 3 reconciliation. Expects a canonicalized + casted CR_03 subset 
     (GL 18412) that has already been schema-normalized and categorized.
+    
+    Expected Canonical Values (from categorization pipeline):
+    - Categories: Issuance, Cancellation, Usage, Expired, VTC
+    - Voucher Types: Refund, Apology, JForce, Store Credit
+    - Integration Type: Manual, Integration
+    
+    Expected Category × Voucher Type Combinations:
+    - Issuance: Refund, Apology, JForce, Store Credit
+    - Cancellation: Apology, Store Credit
+    - Usage: Refund, Apology, JForce, Store Credit
+    - Expired: Apology, JForce, Refund, Store Credit
+    - VTC: Refund
     
     Args:
         cr_03_df: Categorized CR_03 DataFrame with required columns:
@@ -164,53 +174,6 @@ def build_nav_pivot(
     return nav_pivot_df, nav_lines_df
 
 
-def generate_nav_pivot(
-    nav_df: pd.DataFrame,
-    cutoff_date: Optional[str] = None,
-    country_code: Optional[str] = None,
-) -> pd.DataFrame:
-    """
-    Generate NAV pivot table for variance analysis (DEPRECATED).
-    
-    DEPRECATED: Use build_nav_pivot() instead for Phase 3 reconciliation.
-    This function is retained for backward compatibility only.
-    
-    Args:
-        nav_df: NAV DataFrame with categorized vouchers
-        cutoff_date: Optional cutoff date (YYYY-MM-DD format)
-        country_code: Optional country code filter
-        
-    Returns:
-        DataFrame: NAV pivot with categories and aggregated amounts
-    """
-    # Placeholder implementation
-    return pd.DataFrame(columns=["Category", "Amount_NAV", "Count_NAV"])
-
-
-def generate_tv_pivot(
-    tv_df: pd.DataFrame,
-    cutoff_date: Optional[str] = None,
-    country_code: Optional[str] = None,
-) -> pd.DataFrame:
-    """
-    Generate Target Values (TV) pivot table for variance analysis (DEPRECATED).
-    
-    DEPRECATED: Future implementation pending.
-    
-    Args:
-        tv_df: Target Values DataFrame
-        cutoff_date: Optional cutoff date (YYYY-MM-DD format)
-        country_code: Optional country code filter
-        
-    Returns:
-        DataFrame: TV pivot with categories and aggregated amounts
-    """
-    # Placeholder implementation
-    return pd.DataFrame(columns=["Category", "Amount_TV", "Count_TV"])
-
-
 __all__ = [
     "build_nav_pivot",
-    "generate_nav_pivot",
-    "generate_tv_pivot",
 ]

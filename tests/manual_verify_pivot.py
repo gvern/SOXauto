@@ -161,15 +161,20 @@ def test_required_columns_missing():
 
 
 def test_realistic_scenario():
-    """Test with realistic reconciliation data."""
+    """Test with realistic reconciliation data.
+    
+    Uses canonical allowed values per schema:
+    - Categories: Issuance, Cancellation, Usage, Expired, VTC
+    - Voucher Types: Refund, Apology, JForce, Store Credit
+    """
     cr_03_df = pd.DataFrame({
         'bridge_category': [
-            'Issuance - Refund', 'Issuance - Apology', 'Usage', 'Usage',
-            'VTC', 'Expired - Apology', 'Cancellation - Store Credit'
+            'Issuance', 'Issuance', 'Usage', 'Usage',
+            'VTC', 'Expired', 'Cancellation'
         ],
         'voucher_type': [
             'Refund', 'Apology', 'Store Credit', 'Store Credit',
-            'Bank Transfer', 'Apology', 'Credit Memo'
+            'Refund', 'Apology', 'Store Credit'
         ],
         'amount': [-50000.0, -25000.0, 30000.0, 15000.0, 10000.0, 5000.0, 3000.0],
         'country_code': ['NG', 'NG', 'NG', 'NG', 'NG', 'NG', 'NG'],
@@ -188,7 +193,7 @@ def test_realistic_scenario():
     categories = nav_pivot.index.get_level_values('category').unique()
     categories = [c for c in categories if c != '__TOTAL__']
     
-    assert len(categories) == 5, f"Expected 5 categories, got {len(categories)}"
+    assert len(categories) == 5, f"Expected 5 canonical categories (Issuance, Cancellation, Usage, Expired, VTC), got {len(categories)}"
     
     # Verify lines DataFrame preserves country_code
     assert all(nav_lines['country_code'] == 'NG'), "Country code not preserved"

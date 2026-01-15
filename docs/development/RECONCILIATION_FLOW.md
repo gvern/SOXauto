@@ -47,6 +47,9 @@ The Phase 3 reconciliation pipeline processes NAV GL entries (CR_03) to categori
 **Processing**: The categorization pipeline (`src/core/reconciliation/voucher_classification/cat_pipeline.py`) applies business rules to classify each transaction:
 
 1. **Integration Type Classification**: Determines if transaction is Manual or Integration-based
+   - Integration: User ID = "JUMIA/NAV31AFR.BATCH.SRVC"
+   - Manual: All other cases
+
 2. **Category Assignment** (priority order):
    - VTC via Bank Account (highest priority - any amount + Bank Account)
    - Issuance (negative amounts - voucher creation)
@@ -56,16 +59,23 @@ The Phase 3 reconciliation pipeline processes NAV GL entries (CR_03) to categori
    - Manual Cancellation (credit memo)
    - Manual Usage (ITEMPRICECREDIT pattern)
 
-3. **Voucher Type Enrichment**: Matches voucher numbers to specific types:
-   - Refund
-   - Apology (Commercial Gesture)
-   - Store Credit
-   - JForce (PYT_PF)
-   - Unknown (when type cannot be determined)
+3. **Voucher Type Enrichment**: Matches voucher numbers to specific types
+
+**Allowed Values (Canonical Schema)**:
+- **Manual/Integration**: `Manual`, `Integration`
+- **Categories**: `Issuance`, `Cancellation`, `Usage`, `Expired`, `VTC`
+- **Voucher Types**: `Refund`, `Apology`, `JForce`, `Store Credit`
+
+**Expected Category × Voucher Type Combinations**:
+- **Issuance**: Refund, Apology, JForce, Store Credit
+- **Cancellation**: Apology, Store Credit
+- **Usage**: Refund, Apology, JForce, Store Credit
+- **Expired**: Apology, JForce, Refund, Store Credit
+- **VTC**: Refund
 
 **Output**: Categorized CR_03 DataFrame with added columns:
-- `bridge_category`: The assigned category (e.g., "Issuance - Refund")
-- `voucher_type`: The specific voucher type (e.g., "Refund", "Apology")
+- `bridge_category`: The assigned category (canonical value from schema)
+- `voucher_type`: The specific voucher type (canonical value from schema)
 - `Integration_Type`: Manual vs Integration classification
 
 ### NAV Pivot Generation

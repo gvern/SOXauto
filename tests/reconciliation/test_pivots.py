@@ -422,16 +422,21 @@ class TestIntegrationScenarios:
     """Tests for realistic integration scenarios."""
     
     def test_realistic_reconciliation_scenario(self):
-        """Test with realistic data resembling actual reconciliation output."""
-        # Arrange - Representative fixture data
+        """Test with realistic data resembling actual reconciliation output.
+        
+        Uses canonical allowed values per schema:
+        - Categories: Issuance, Cancellation, Usage, Expired, VTC
+        - Voucher Types: Refund, Apology, JForce, Store Credit
+        """
+        # Arrange - Representative fixture data with canonical category/voucher type values
         cr_03_df = pd.DataFrame({
             'bridge_category': [
-                'Issuance - Refund', 'Issuance - Apology', 'Usage', 'Usage',
-                'VTC', 'Expired - Apology', 'Cancellation - Store Credit'
+                'Issuance', 'Issuance', 'Usage', 'Usage',
+                'VTC', 'Expired', 'Cancellation'
             ],
             'voucher_type': [
                 'Refund', 'Apology', 'Store Credit', 'Store Credit',
-                'Bank Transfer', 'Apology', 'Credit Memo'
+                'Refund', 'Apology', 'Store Credit'
             ],
             'amount': [-50000.0, -25000.0, 30000.0, 15000.0, 10000.0, 5000.0, 3000.0],
             'country_code': ['NG', 'NG', 'NG', 'NG', 'NG', 'NG', 'NG'],
@@ -450,7 +455,16 @@ class TestIntegrationScenarios:
         # Use nav_lines (raw lines) to avoid counting synthetic __TOTAL__ rows from the pivot
         categories = nav_lines['category'].unique()
         categories = [c for c in categories if c != '__TOTAL__']
-        assert len(categories) == 5  # 5 distinct categories (excluding '__TOTAL__')
+        assert len(categories) == 5  # 5 distinct canonical categories (Issuance, Cancellation, Usage, Expired, VTC)
+        
+        # Verify all categories are from the canonical schema
+        canonical_categories = {'Issuance', 'Cancellation', 'Usage', 'Expired', 'VTC'}
+        assert set(categories) == canonical_categories, f"Categories should match canonical schema. Got: {set(categories)}"
+        
+        # Verify all voucher types are from the canonical schema (or Unknown)
+        voucher_types = nav_lines['voucher_type'].unique()
+        canonical_voucher_types = {'Refund', 'Apology', 'JForce', 'Store Credit', 'Unknown'}
+        assert set(voucher_types).issubset(canonical_voucher_types), f"Voucher types should be from canonical schema. Got: {set(voucher_types)}"
         
         # Verify lines DataFrame preserves country_code
         assert all(nav_lines['country_code'] == 'NG')

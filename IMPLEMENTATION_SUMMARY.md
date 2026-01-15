@@ -166,6 +166,26 @@ except Exception as e:
 - Preserves all original data for audit
 - Optional columns included if present (country_code, voucher_no, etc.)
 
+### 6. Canonical Schema Values
+**Decision**: Document and validate canonical allowed values
+
+**Canonical Values**:
+- **Categories**: Issuance, Cancellation, Usage, Expired, VTC (5 values)
+- **Voucher Types**: Refund, Apology, JForce, Store Credit (4 values)
+- **Integration Type**: Manual, Integration (2 values)
+
+**Expected Category × Voucher Type Combinations**:
+- Issuance: Refund, Apology, JForce, Store Credit
+- Cancellation: Apology, Store Credit
+- Usage: Refund, Apology, JForce, Store Credit
+- Expired: Apology, JForce, Refund, Store Credit
+- VTC: Refund
+
+**Rationale**:
+- Ensures consistency across categorization and pivot generation
+- Simplifies validation and testing
+- Documents business rules for audit purposes
+
 ## Performance Considerations
 
 - Uses pandas groupby operations (efficient for large datasets)
