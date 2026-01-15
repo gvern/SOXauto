@@ -92,13 +92,21 @@ def build_nav_pivot(
     
     Example:
         >>> categorized_df = categorize_nav_vouchers(cr_03_df)
-        >>> nav_pivot, nav_lines = build_nav_pivot(categorized_df, currency_name="ngn")
+        >>> nav_pivot, nav_lines = build_nav_pivot(categorized_df, currency_name="NGN")
         >>> print(nav_pivot.loc[('Issuance', 'Refund'), :])
         amount_ngn    -50000.0
         row_count          125
         Name: (Issuance, Refund), dtype: object
     """
-    # Normalize currency name to lowercase for column naming
+    # Validate and normalize currency name
+    # Currency codes should be alphanumeric (typically 2-3 uppercase letters like NGN, EGP)
+    # We normalize to lowercase for consistent column naming (amount_ngn, amount_egp)
+    if not currency_name or not currency_name.replace('_', '').isalnum():
+        raise ValueError(
+            f"Invalid currency_name '{currency_name}': must contain only alphanumeric characters. "
+            f"Expected format: 2-3 letter currency codes like 'NGN', 'EGP', 'KES', or 'lcy'."
+        )
+    
     currency_col = f"amount_{currency_name.lower()}"
     
     # Handle empty DataFrame

@@ -447,6 +447,25 @@ class TestEdgeCases:
         assert 'amount_egp' in nav_pivot_egp.columns
         assert 'amount_egp' in nav_lines_egp.columns
         assert nav_pivot_egp.loc[('__TOTAL__', ''), 'amount_egp'] == -500.0
+    
+    def test_currency_name_validation(self):
+        """Test that invalid currency_name raises ValueError."""
+        # Arrange
+        cr_03_df = pd.DataFrame({
+            'bridge_category': ['Issuance'],
+            'voucher_type': ['Refund'],
+            'amount': [-1000.0],
+        })
+        
+        # Act & Assert - Invalid characters
+        with pytest.raises(ValueError, match="Invalid currency_name"):
+            build_nav_pivot(cr_03_df, dataset_id='CR_03', currency_name='NG$')
+        
+        with pytest.raises(ValueError, match="Invalid currency_name"):
+            build_nav_pivot(cr_03_df, dataset_id='CR_03', currency_name='')
+        
+        with pytest.raises(ValueError, match="Invalid currency_name"):
+            build_nav_pivot(cr_03_df, dataset_id='CR_03', currency_name='NG-N')
 
 
 class TestIntegrationScenarios:

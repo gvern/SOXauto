@@ -290,9 +290,30 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
             
             # Build NAV pivot for Phase 3 reconciliation
             try:
-                # Determine currency name - default to 'lcy' for backward compatibility
-                # In multi-country scenarios, this should be extracted from country_code
-                currency_name = "lcy"  # TODO: Extract from country_code or pass as parameter
+                # Extract currency from country_code in the dataset
+                # Map country codes to currency codes for multi-country support
+                currency_map = {
+                    'NG': 'NGN',  # Nigeria
+                    'EG': 'EGP',  # Egypt
+                    'KE': 'KES',  # Kenya
+                    'MA': 'MAD',  # Morocco
+                    'CI': 'XOF',  # Ivory Coast
+                    'SN': 'XOF',  # Senegal
+                    'UG': 'UGX',  # Uganda
+                    'GH': 'GHS',  # Ghana
+                    'TZ': 'TZS',  # Tanzania
+                }
+                
+                # Determine currency from country_code column if available
+                currency_name = "lcy"  # Default fallback
+                if 'country_code' in categorized_df.columns and not categorized_df.empty:
+                    # Get the first country_code (assuming single-country reconciliation run)
+                    country_code = categorized_df['country_code'].iloc[0]
+                    if country_code in currency_map:
+                        currency_name = currency_map[country_code]
+                        logger.info(f"Detected country_code '{country_code}', using currency '{currency_name}'")
+                    else:
+                        logger.warning(f"Unknown country_code '{country_code}', defaulting to 'lcy'")
                 
                 nav_pivot_df, nav_lines_df = build_nav_pivot(
                     categorized_df, 
