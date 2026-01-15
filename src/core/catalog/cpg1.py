@@ -90,27 +90,6 @@ def _load_sql(item_id: str) -> str:
 # Catalog entries populated from user's provided list
 CPG1_CATALOG: List[CatalogItem] = [
     CatalogItem(
-        item_id="DOC_PG_BALANCES",
-        item_type="DOC",
-        control="C-PG-1",
-        title="Consolidated PG balances working file",
-        change_status="No changes",
-        last_updated="2025-03-11",
-        output_type="Excel file",
-        tool="Excel",
-        third_party=False,
-        status=None,
-        baseline_required=None,
-        cross_reference=None,
-        notes=None,
-        evidence_ref=None,
-        descriptor_excel=None,
-        sources=[
-            _src_excel("Excel file"),
-            _src_gdrive("Google Drive"),
-        ],
-    ),
-    CatalogItem(
         item_id="IPE_07",
         item_type="IPE",
         control="C-PG-1",
@@ -194,7 +173,10 @@ CPG1_CATALOG: List[CatalogItem] = [
             _src_sql("[D365BC14_DZ].[dbo].[Jade DZ$Currency Exchange Rate]", system="NAV", domain="FinRec"),
         ],
         sql_query=_load_sql("CR_05a"),
-        
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("Relational Exch_ Rate Amount"),
+        ],
     ),
     CatalogItem(
         item_id="IPE_11",
@@ -221,6 +203,10 @@ CPG1_CATALOG: List[CatalogItem] = [
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_BS_ANAPLAN_IMPORT_IFRS_MAPPING]", system="NAV", domain="FinRec"),
         ],
         sql_query=_load_sql("IPE_11"),
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("Company_Code"),
+        ],
     ),
     CatalogItem(
         item_id="IPE_10",
@@ -258,7 +244,10 @@ On a monthly basis the group head of shared accounting formalizes the outcome of
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
         sql_query=_load_sql("IPE_10"),
-        
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("Company_Code"),
+        ],
     ),
     CatalogItem(
         item_id="IPE_08",
@@ -398,7 +387,10 @@ On a monthly basis the group head of shared accounting formalizes the outcome of
             _src_sql("[AIG_Nav_DW].[dbo].[Bank Account Posting Group]", system="NAV", domain="NAVBI"),
         ],
         sql_query=_load_sql("IPE_31"),
-        
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("Company_Code"),
+        ],
     ),
     CatalogItem(
         item_id="IPE_34",
@@ -424,6 +416,10 @@ On a monthly basis the group head of shared accounting formalizes the outcome of
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
         sql_query=_load_sql("IPE_34"),
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("Company_Code"),
+        ],
     ),
     CatalogItem(
         item_id="IPE_12",
@@ -450,6 +446,42 @@ On a monthly basis the group head of shared accounting formalizes the outcome of
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
         sql_query=_load_sql("IPE_12"),
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("Company_Code"),
+        ],
+    ),
+    CatalogItem(
+        item_id="IPE_REC_ERRORS",
+        item_type="IPE",
+        control="C-PG-1",
+        title="Master Integration Errors - Task 3 (Reconciliation Errors)",
+        change_status="New IPE",
+        last_updated="2025-11-06",
+        output_type="Query",
+        tool="PowerPivot",
+        third_party=False,
+        status="Completed",
+        baseline_required=True,
+        cross_reference="I.OMS-NAV",
+        description="""Master integration errors consolidation for Task 3 of the C-PG-1 control.
+This query extracts unreconciled integration errors from NAV systems, providing visibility into
+system-to-system reconciliation discrepancies that require investigation and resolution.""",
+        notes=(
+            "Used for Task 3 reconciliation bridge. "
+            "Consolidates integration errors from multiple NAV sources. "
+            "Critical for identifying and explaining system reconciliation variances."
+        ),
+        evidence_ref="IPE_REC_ERRORS",
+        descriptor_excel=None,
+        sources=[
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_INTEGRATION_ERRORS]", system="NAV", domain="FinRec"),
+        ],
+        sql_query=_load_sql("IPE_REC_ERRORS"),
+        quality_rules=[
+            ColumnExistsCheck("Integration_Status"),
+            ColumnExistsCheck("Amount"),
+        ],
     ),
     # =================================================================
     # == CR_04: NAV GL Balances
@@ -501,7 +533,6 @@ Given the above, and that the period and date of extraction are validated in eve
             ColumnExistsCheck("BALANCE_AT_DATE"),
             ColumnExistsCheck("GROUP_COA_ACCOUNT_NO"),
         ],
-        
     ),
     # =================================================================
     # == CR_03: NAV GL Entries
@@ -538,130 +569,6 @@ Given the above, and that the period and date of extraction are validated in eve
             ColumnExistsCheck("Amount"),
             ColumnExistsCheck("[Voucher No_]"),
         ],
-    ),
-    # =================================================================
-    # == CR_05: FX Rates (Monthly Closing Rates for USD Conversion)
-    # =================================================================
-    CatalogItem(
-        item_id="CR_05",
-        item_type="CR",
-        control="C-PG-1",
-        title="FX Rates - Monthly Closing Rates",
-        change_status="No changes",
-        last_updated="2025-11-24",
-        output_type="Query",
-        tool="PowerPivot",
-        third_party=False,
-        status="Completed",
-        baseline_required=True,
-        cross_reference=None,
-        description="""Monthly FX closing rates for converting local currency amounts to USD.
-        
-This control report provides the exchange rates used for financial reporting and reconciliation.
-The rates are extracted from RPT_FX_RATES for the specified month and year, filtered for 
-'Closing' rate type with USD as the base currency.
-
-The query handles special cases:
-- USD-based companies (e.g., Germany USD entities) automatically get rate = 1
-- Joins with Dim_Company and Dim_Country for complete company context""",
-        notes=(
-            "Provides monthly closing FX rates for USD conversion. "
-            "Rate logic: Amount_USD = Amount_LCY / FX_rate. "
-            "Used by bridge classification functions to report all variances in USD."
-        ),
-        evidence_ref="CR_05",
-        descriptor_excel=None,
-        sources=[
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company]", system="NAV", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]", system="NAV", domain="FinRec"),
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Country]", system="NAV", domain="FinRec"),
-        ],
-        sql_query=_load_sql("CR_05"),
-        quality_rules=[
-            RowCountCheck(min_rows=1),
-            ColumnExistsCheck("Company_Code"),
-            ColumnExistsCheck("FX_rate"),
-        ],
-    ),
-    # =================================================================
-    # == 10. IPE-34: Marketplace Refund Liability
-    # =================================================================
-    CatalogItem(
-        item_id='IPE_34',
-        item_type='IPE',
-        description="Marketplace refund liability (Page: MPL)",
-        control="C-PG-1",
-        title="Marketplace refund liability (Page: MPL)",
-        change_status="No changes",
-        last_updated="2025-03-11",
-        output_type="Custom Report",
-        tool="PowerBI",
-        third_party=False,
-        status="Completed",
-        baseline_required=True,
-        cross_reference=None,
-        notes=(
-            "File '4. All Countries June-25 - IBSAR Other AR related Accounts.xlsx / Tab 18317'. "
-            "GL = 18317. Uses RPT_SOI filtered for refunds. "
-            "Baseline: IPE_34__IPE Baseline__MPL refund liability - Target values.xlsx"
-        ),
-        evidence_ref="IPE_34",
-        descriptor_excel="IPE_FILES/IPE_34__IPE Baseline__MPL refund liability - Target values.xlsx",
-        sources=[
-            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
-        ],
-    ),
-
-    # =================================================================
-    # == JIRA TICKETS - AUDIT EXTRACTS
-    # =================================================================
-    # == DS-3900: GL Actuals (Auditor's View)
-    # =================================================================
-    CatalogItem(
-        item_id='DS-3900',
-        item_type='DOC',
-        control='C-PG-1',
-        title='Jira: DS-3900 GL Actuals (Auditor View)',
-        change_status='Info',
-        last_updated='2025-10-23',
-        output_type='Documentation',
-        tool='Jira',
-        third_party=True,
-        status='Reference',
-        baseline_required=False,
-        cross_reference=None,
-        notes=(
-            "Placeholder for auditor-view GL extract. Athena path paused; retained for reference."
-        ),
-        evidence_ref='DS-3900',
-        descriptor_excel=None,
-        sources=None,
-        description="Auditor-view GL extract reference (paused while focusing on SQL Server).",
-    ),
-
-    # =================================================================
-    # == DS-3899: Revenue Target Values (Auditor's View)
-    # =================================================================
-    CatalogItem(
-        item_id='DS-3899',
-        item_type='DOC',
-        control='C-PG-1',
-        title='Jira: DS-3899 Revenue Target Values',
-        change_status='Info',
-        last_updated='2025-10-23',
-        output_type='Documentation',
-        tool='Jira',
-        third_party=True,
-        status='Reference',
-        baseline_required=False,
-        cross_reference=None,
-        notes=(
-            "Placeholder for auditor-view revenue target values. Athena path paused; retained for reference."
-        ),
-        evidence_ref='DS-3899',
-        descriptor_excel=None,
-        sources=None,
-        description="Auditor-view revenue target values reference (paused while focusing on SQL Server).",
     ),
 ]
 
