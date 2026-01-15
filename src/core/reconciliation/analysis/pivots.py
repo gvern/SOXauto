@@ -111,7 +111,10 @@ def build_nav_pivot(
     # Handle missing bridge_category: fill with "Uncategorized"
     df["bridge_category"] = df["bridge_category"].fillna("Uncategorized")
     
-    # Normalize category and voucher_type to strings for grouping
+    # Normalize category and voucher_type to strings for grouping.
+    # Note: fillna above already replaces missing values with "Unknown"/"Uncategorized",
+    # but we still cast to str as defensive programming to ensure any remaining pandas
+    # NA/nullable types are coerced to plain Python strings for type-safe grouping.
     df["category"] = df["bridge_category"].astype(str)
     df["voucher_type"] = df["voucher_type"].astype(str)
     
