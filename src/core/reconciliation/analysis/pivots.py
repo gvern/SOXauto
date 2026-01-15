@@ -15,10 +15,31 @@ Example:
     >>> print(nav_pivot.head())
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import pandas as pd
 
-from src.core.schema.schema_utils import require_columns
+
+def _validate_required_columns(df: pd.DataFrame, required_cols: List[str], dataset_id: str) -> None:
+    """
+    Validate that required columns exist in DataFrame.
+    
+    Args:
+        df: DataFrame to validate
+        required_cols: List of required column names
+        dataset_id: Dataset identifier for error messages
+    
+    Raises:
+        ValueError: If required columns are missing
+    """
+    missing = [col for col in required_cols if col not in df.columns]
+    
+    if missing:
+        raise ValueError(
+            f"Required columns missing from {dataset_id}: {missing}. "
+            f"Available columns: {list(df.columns)}. "
+            f"Ensure the DataFrame has been categorized via categorize_nav_vouchers() "
+            f"before calling build_nav_pivot()."
+        )
 
 
 def build_nav_pivot(
@@ -50,7 +71,7 @@ def build_nav_pivot(
         - nav_lines_df: Enriched lines DataFrame with category/type for drilldown
     
     Raises:
-        ValueError: If required columns are missing (via require_columns)
+        ValueError: If required columns are missing
     
     Example:
         >>> categorized_df = categorize_nav_vouchers(cr_03_df)
@@ -71,18 +92,10 @@ def build_nav_pivot(
         return empty_pivot, pd.DataFrame()
     
     # Validate required columns exist
+    # Note: bridge_category and voucher_type are added by categorization pipeline,
+    # not part of the base CR_03 schema contract
     required_cols = ["bridge_category", "voucher_type", "amount"]
-    try:
-        require_columns(cr_03_df, dataset_id, required_cols)
-    except ValueError as e:
-        # If require_columns fails, provide a more helpful error message
-        missing = [col for col in required_cols if col not in cr_03_df.columns]
-        raise ValueError(
-            f"Required columns missing from {dataset_id}: {missing}. "
-            f"Available columns: {list(cr_03_df.columns)}. "
-            f"Ensure the DataFrame has been categorized via categorize_nav_vouchers() "
-            f"before calling build_nav_pivot()."
-        ) from e
+    _validate_required_columns(cr_03_df, required_cols, dataset_id)
     
     # Create working copy
     df = cr_03_df.copy()
