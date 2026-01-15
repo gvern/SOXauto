@@ -290,11 +290,22 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
             
             # Build NAV pivot for Phase 3 reconciliation
             try:
-                nav_pivot_df, nav_lines_df = build_nav_pivot(categorized_df, dataset_id='CR_03')
+                # Determine currency name - default to 'lcy' for backward compatibility
+                # In multi-country scenarios, this should be extracted from country_code
+                currency_name = "lcy"  # TODO: Extract from country_code or pass as parameter
+                
+                nav_pivot_df, nav_lines_df = build_nav_pivot(
+                    categorized_df, 
+                    dataset_id='CR_03',
+                    currency_name=currency_name
+                )
                 processed_data['NAV_pivot'] = nav_pivot_df
                 processed_data['NAV_lines'] = nav_lines_df
                 result['dataframe_summaries']['NAV_pivot'] = _get_dataframe_summary(nav_pivot_df)
                 result['dataframe_summaries']['NAV_lines'] = _get_dataframe_summary(nav_lines_df)
+                
+                # Dynamic currency column name
+                amount_col = f"amount_{currency_name}"
                 
                 # Store pivot summary in categorization results
                 if not nav_pivot_df.empty:
@@ -308,8 +319,9 @@ def run_reconciliation(params: Dict[str, Any]) -> Dict[str, Any]:
                 result['categorization']['nav_pivot_summary'] = {
                     'total_categories': len(nav_pivot_no_total.index.get_level_values('category').unique()) if not nav_pivot_no_total.empty else 0,
                     'total_voucher_types': len(nav_pivot_no_total.index.get_level_values('voucher_type').unique()) if not nav_pivot_no_total.empty else 0,
-                    'total_amount': float(nav_pivot_df['amount_lcy'].sum()) if not nav_pivot_df.empty else 0.0,
+                    'total_amount': float(nav_pivot_df[amount_col].sum()) if not nav_pivot_df.empty else 0.0,
                     'total_rows': int(nav_pivot_df['row_count'].sum()) if not nav_pivot_df.empty else 0,
+                    'currency': currency_name,
                 }
                 
                 logger.info(f"NAV pivot generated: {len(nav_pivot_df)} combinations")

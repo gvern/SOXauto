@@ -246,11 +246,14 @@ class TestBuildNavPivot:
         assert list(nav_lines['voucher_no']) == ['V001', 'V002']
     
     def test_mixed_data_types_in_amounts(self):
-        """Test handling of mixed data types in amount column."""
+        """Test handling of mixed data types in amount column.
+        
+        Uses canonical voucher types per schema.
+        """
         # Arrange - Mix of int and float
         cr_03_df = pd.DataFrame({
             'bridge_category': ['Issuance', 'Usage', 'VTC'],
-            'voucher_type': ['Refund', 'Store Credit', 'Bank'],
+            'voucher_type': ['Refund', 'Store Credit', 'Refund'],
             'amount': [-1000, 500.5, 300],  # Mix of int and float
         })
         
@@ -263,11 +266,14 @@ class TestBuildNavPivot:
         assert total_amount == pytest.approx(-199.5, rel=1e-5)
     
     def test_zero_amounts_handled_correctly(self):
-        """Test that zero amounts are included in the pivot."""
+        """Test that zero amounts are included in the pivot.
+        
+        Uses canonical voucher types per schema.
+        """
         # Arrange
         cr_03_df = pd.DataFrame({
             'bridge_category': ['Issuance', 'Usage', 'VTC'],
-            'voucher_type': ['Refund', 'Store Credit', 'Bank'],
+            'voucher_type': ['Refund', 'Store Credit', 'Refund'],
             'amount': [0.0, 0.0, 100.0],
         })
         
@@ -401,7 +407,7 @@ class TestEdgeCases:
         assert voucher_types == ['Unknown']
     
     def test_amount_column_renamed_to_amount_lcy(self):
-        """Test that 'amount' column is renamed to 'amount_lcy' in output."""
+        """Test that 'amount' column is renamed to 'amount_lcy' in output (default currency)."""
         # Arrange
         cr_03_df = pd.DataFrame({
             'bridge_category': ['Issuance'],
@@ -416,6 +422,31 @@ class TestEdgeCases:
         assert 'amount_lcy' in nav_pivot.columns
         assert 'amount' not in nav_pivot.columns
         assert 'amount_lcy' in nav_lines.columns
+    
+    def test_currency_name_parameter(self):
+        """Test that currency_name parameter dynamically names the output column."""
+        # Arrange
+        cr_03_df = pd.DataFrame({
+            'bridge_category': ['Issuance', 'Usage'],
+            'voucher_type': ['Refund', 'Store Credit'],
+            'amount': [-1000.0, 500.0],
+        })
+        
+        # Act - Test with NGN currency
+        nav_pivot_ngn, nav_lines_ngn = build_nav_pivot(cr_03_df, dataset_id='CR_03', currency_name='NGN')
+        
+        # Assert
+        assert 'amount_ngn' in nav_pivot_ngn.columns
+        assert 'amount_ngn' in nav_lines_ngn.columns
+        assert nav_pivot_ngn.loc[('__TOTAL__', ''), 'amount_ngn'] == -500.0
+        
+        # Act - Test with EGP currency
+        nav_pivot_egp, nav_lines_egp = build_nav_pivot(cr_03_df, dataset_id='CR_03', currency_name='EGP')
+        
+        # Assert
+        assert 'amount_egp' in nav_pivot_egp.columns
+        assert 'amount_egp' in nav_lines_egp.columns
+        assert nav_pivot_egp.loc[('__TOTAL__', ''), 'amount_egp'] == -500.0
 
 
 class TestIntegrationScenarios:

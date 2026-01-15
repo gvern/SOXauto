@@ -43,13 +43,17 @@ def _validate_required_columns(df: pd.DataFrame, required_cols: List[str], datas
 def build_nav_pivot(
     cr_03_df: pd.DataFrame,
     dataset_id: str = "CR_03",
+    currency_name: str = "lcy",
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Build NAV reconciliation pivot from classified CR_03 voucher accrual entries.
     
-    Creates a canonical NAV pivot table (Category × Voucher Type → Amount_LCY) 
+    Creates a canonical NAV pivot table (Category × Voucher Type → Amount) 
     used by Phase 3 reconciliation. Expects a canonicalized + casted CR_03 subset 
     (GL 18412) that has already been schema-normalized and categorized.
+    
+    Supports multi-country operations by parametrizing the currency name in the
+    output column (e.g., amount_ngn, amount_egp, amount_lcy).
     
     Expected Canonical Values (from categorization pipeline):
     - Categories: Issuance, Cancellation, Usage, Expired, VTC
@@ -67,15 +71,18 @@ def build_nav_pivot(
         cr_03_df: Categorized CR_03 DataFrame with required columns:
                   - bridge_category: Bridge category (from categorization pipeline)
                   - voucher_type: Voucher type (may be missing/None)
-                  - amount: Transaction amount in local currency (amount_lcy)
+                  - amount: Transaction amount in local currency
                   - Optional: country_code, voucher_no, document_no, etc.
         dataset_id: Dataset identifier for column validation (default: "CR_03")
+        currency_name: Currency code for output column naming (default: "lcy")
+                      Output column will be named as amount_{currency_name}
+                      e.g., "ngn" → amount_ngn, "egp" → amount_egp
     
     Returns:
         Tuple of (nav_pivot_df, nav_lines_df):
         - nav_pivot_df: Pivot table with deterministically ordered rows:
             * Index: MultiIndex of (category, voucher_type) 
-            * Columns: amount_lcy (sum), row_count
+            * Columns: amount_{currency_name} (sum), row_count
             * Includes margin totals
             * Missing voucher_type values mapped to "Unknown"
         - nav_lines_df: Enriched lines DataFrame with category/type for drilldown
@@ -85,16 +92,19 @@ def build_nav_pivot(
     
     Example:
         >>> categorized_df = categorize_nav_vouchers(cr_03_df)
-        >>> nav_pivot, nav_lines = build_nav_pivot(categorized_df)
+        >>> nav_pivot, nav_lines = build_nav_pivot(categorized_df, currency_name="ngn")
         >>> print(nav_pivot.loc[('Issuance', 'Refund'), :])
-        amount_lcy    -50000.0
+        amount_ngn    -50000.0
         row_count          125
         Name: (Issuance, Refund), dtype: object
     """
+    # Normalize currency name to lowercase for column naming
+    currency_col = f"amount_{currency_name.lower()}"
+    
     # Handle empty DataFrame
     if cr_03_df is None or cr_03_df.empty:
         empty_pivot = pd.DataFrame(
-            columns=["amount_lcy", "row_count"]
+            columns=[currency_col, "row_count"]
         )
         empty_pivot.index = pd.MultiIndex.from_tuples(
             [], names=["category", "voucher_type"]
@@ -111,9 +121,9 @@ def build_nav_pivot(
     df = cr_03_df.copy()
     
     # Normalize column names for pivot
-    # Map 'amount' to 'amount_lcy' for consistency
-    if "amount" in df.columns and "amount_lcy" not in df.columns:
-        df = df.rename(columns={"amount": "amount_lcy"})
+    # Map 'amount' to 'amount_{currency_name}' for consistency
+    if "amount" in df.columns and currency_col not in df.columns:
+        df = df.rename(columns={"amount": currency_col})
     
     # Handle missing voucher_type: fill with "Unknown"
     df["voucher_type"] = df["voucher_type"].fillna("Unknown")
@@ -130,7 +140,7 @@ def build_nav_pivot(
     
     # Build enriched lines DataFrame for drilldown
     # Include key columns for later analysis
-    keep_cols = ["category", "voucher_type", "amount_lcy"]
+    keep_cols = ["category", "voucher_type", currency_col]
     optional_cols = [
         "country_code", "id_company", "voucher_no", "document_no", 
         "posting_date", "document_description", "user_id"
@@ -148,8 +158,8 @@ def build_nav_pivot(
         as_index=True,
         dropna=False
     ).agg(
-        amount_lcy=("amount_lcy", "sum"),
-        row_count=("amount_lcy", "count")
+        **{currency_col: (currency_col, "sum")},
+        row_count=(currency_col, "count")
     )
     
     # Sort index for deterministic ordering
@@ -159,12 +169,12 @@ def build_nav_pivot(
     
     # Add margin totals (grand total row)
     # Calculate totals across all categories and voucher types
-    total_amount = pivot_data["amount_lcy"].sum()
+    total_amount = pivot_data[currency_col].sum()
     total_count = pivot_data["row_count"].sum()
     
     # Create a new row for totals with special index
     totals_row = pd.DataFrame(
-        {"amount_lcy": [total_amount], "row_count": [total_count]},
+        {currency_col: [total_amount], "row_count": [total_count]},
         index=pd.MultiIndex.from_tuples([("__TOTAL__", "")], names=["category", "voucher_type"])
     )
     
