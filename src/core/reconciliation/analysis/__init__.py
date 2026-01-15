@@ -12,17 +12,31 @@ Modules:
     review_tables: "Accounting review required" tables
 
 Example:
-    >>> from src.core.reconciliation.analysis import generate_nav_pivot, calculate_variance
-    >>> nav_pivot = generate_nav_pivot(nav_df, cutoff_date="2025-09-30")
-    >>> variance_df = calculate_variance(nav_pivot, tv_pivot, threshold=1000)
+    >>> from src.core.reconciliation.analysis import build_target_values_pivot_local
+    >>> from src.core.reconciliation.analysis import compute_variance_pivot_local
+    >>> from src.utils.fx_utils import FXConverter
+    >>> 
+    >>> # Build TV pivot from raw data
+    >>> tv_pivot = build_target_values_pivot_local(issuance_df)
+    >>> 
+    >>> # Compute variance with FX conversion
+    >>> fx_converter = FXConverter(cr05_df)
+    >>> variance_df = compute_variance_pivot_local(
+    ...     nav_pivot, tv_pivot, fx_converter, "2025-09-30"
+    ... )
 """
 
-# Placeholder imports - to be populated as modules are implemented
-# from src.core.reconciliation.analysis.pivots import generate_nav_pivot, generate_tv_pivot
-# from src.core.reconciliation.analysis.variance import calculate_variance, apply_thresholds
-# from src.core.reconciliation.analysis.drilldown import generate_drilldown_view
-# from src.core.reconciliation.analysis.review_tables import generate_review_tables
+# Import implemented functions
+from src.core.reconciliation.analysis.pivots import (
+    build_target_values_pivot_local,
+    build_nav_pivot,
+)
+from src.core.reconciliation.analysis.variance import (
+    compute_variance_pivot_local,
+)
 
 __all__ = [
-    # To be populated as modules are implemented
+    "build_target_values_pivot_local",
+    "build_nav_pivot",
+    "compute_variance_pivot_local",
 ]

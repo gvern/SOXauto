@@ -934,3 +934,159 @@ class TestIntegrationScenarios:
         
         # Verify lines DataFrame preserves country_code
         assert all(nav_lines['country_code'] == 'NG')
+
+
+class TestEndToEndPivotToVariance:
+    """End-to-end tests for pivot generation → variance computation workflow."""
+    
+    def test_end_to_end_pivot_to_variance(self):
+        """
+        Test complete workflow from pivots to variance computation.
+        
+        This test validates the integration between:
+        1. build_target_values_pivot_local() - TV pivot generation
+        2. compute_variance_pivot_local() - Variance computation with FX conversion
+        
+        Note: NAV pivot typically uses build_nav_pivot() which returns MultiIndex structure.
+        For variance computation, a flattened NAV pivot with country_code is expected.
+        This test demonstrates the expected input format for variance computation.
+        """
+        from src.core.reconciliation.analysis.variance import compute_variance_pivot_local
+        from src.utils.fx_utils import FXConverter
+        
+        # Step 1: Build TV pivot from raw issuance/usage data
+        issuance_df = pd.DataFrame({
+            'country_code': ['NG', 'NG', 'EG', 'EG'],
+            'category': ['Voucher', 'Voucher', 'Voucher', 'Voucher'],
+            'voucher_type': ['Refund', 'Store Credit', 'Refund', 'Apology'],
+            'amount_local': [1485000.0, 3135000.0, 44010.0, 24450.0]
+        })
+        
+        usage_df = pd.DataFrame({
+            'country_code': ['NG'],
+            'category': ['Voucher'],
+            'voucher_type': ['refund'],
+            'amount_local': [0.0]  # No usage in this period
+        })
+        
+        tv_pivot = build_target_values_pivot_local([issuance_df, usage_df])
+        
+        # Verify TV pivot structure
+        assert list(tv_pivot.columns) == ['country_code', 'category', 'voucher_type', 'tv_amount_local']
+        assert len(tv_pivot) == 4
+        
+        # Step 2: Create NAV pivot (simulated - would come from build_nav_pivot)
+        # In real workflow, NAV pivot would be flattened from MultiIndex structure
+        # with country_code added to match TV pivot grain
+        nav_pivot = pd.DataFrame({
+            'country_code': ['NG', 'NG', 'EG', 'EG'],
+            'category': ['Voucher', 'Voucher', 'Voucher', 'Voucher'],
+            'voucher_type': ['refund', 'store_credit', 'refund', 'apology'],
+            'nav_amount_local': [1650000.0, 3300000.0, 48900.0, 24450.0]
+        })
+        
+        # Step 3: Prepare FX converter
+        cr05_df = pd.DataFrame({
+            'Company_Code': ['EC_NG', 'JM_EG'],
+            'FX_rate': [1650.0, 48.9]
+        })
+        fx_converter = FXConverter(cr05_df)
+        
+        # Step 4: Compute variance with FX conversion
+        variance_df = compute_variance_pivot_local(
+            nav_pivot_local_df=nav_pivot,
+            tv_pivot_local_df=tv_pivot,
+            fx_converter=fx_converter,
+            cutoff_date="2025-09-30"
+        )
+        
+        # Step 5: Validate results
+        assert len(variance_df) == 4
+        
+        # Check NG refund variance
+        ng_refund = variance_df[
+            (variance_df['country_code'] == 'NG') & 
+            (variance_df['voucher_type'] == 'refund')
+        ].iloc[0]
+        
+        assert ng_refund['nav_amount_local'] == 1650000.0
+        assert ng_refund['tv_amount_local'] == 1485000.0
+        assert ng_refund['variance_amount_local'] == 165000.0  # 1650000 - 1485000
+        assert ng_refund['variance_amount_usd'] == pytest.approx(100.0, rel=1e-6)  # 165000 / 1650
+        assert ng_refund['fx_rate_used'] == 1650.0
+        assert ng_refund['fx_missing'] == False
+        
+        # Check EG apology perfect match
+        eg_apology = variance_df[
+            (variance_df['country_code'] == 'EG') & 
+            (variance_df['voucher_type'] == 'apology')
+        ].iloc[0]
+        
+        assert eg_apology['variance_amount_local'] == 0.0  # Perfect match
+        assert eg_apology['variance_amount_usd'] == 0.0
+        
+        # Verify all required columns exist
+        expected_columns = [
+            'country_code', 'category', 'voucher_type',
+            'nav_amount_local', 'tv_amount_local', 'variance_amount_local',
+            'nav_amount_usd', 'tv_amount_usd', 'variance_amount_usd',
+            'fx_rate_used', 'fx_missing'
+        ]
+        assert list(variance_df.columns) == expected_columns
+    
+    def test_end_to_end_with_missing_buckets(self):
+        """
+        Test end-to-end workflow with buckets missing from NAV or TV.
+        
+        Validates that outer join preserves all buckets from both sides.
+        """
+        from src.core.reconciliation.analysis.variance import compute_variance_pivot_local
+        from src.utils.fx_utils import FXConverter
+        
+        # TV pivot has 'expired' bucket that NAV doesn't have
+        tv_pivot = build_target_values_pivot_local(
+            pd.DataFrame({
+                'country_code': ['NG', 'NG'],
+                'category': ['Voucher', 'Voucher'],
+                'voucher_type': ['refund', 'expired'],
+                'amount_local': [1000.0, 500.0]
+            })
+        )
+        
+        # NAV pivot has 'jforce' bucket that TV doesn't have
+        nav_pivot = pd.DataFrame({
+            'country_code': ['NG', 'NG'],
+            'category': ['Voucher', 'Voucher'],
+            'voucher_type': ['refund', 'jforce'],
+            'nav_amount_local': [1100.0, 300.0]
+        })
+        
+        cr05_df = pd.DataFrame({
+            'Company_Code': ['EC_NG'],
+            'FX_rate': [1650.0]
+        })
+        fx_converter = FXConverter(cr05_df)
+        
+        # Compute variance
+        variance_df = compute_variance_pivot_local(
+            nav_pivot, tv_pivot, fx_converter, "2025-09-30"
+        )
+        
+        # Should have 3 buckets: refund (both), expired (TV only), jforce (NAV only)
+        assert len(variance_df) == 3
+        
+        # Check expired (TV only) - nav should be 0
+        expired_row = variance_df[variance_df['voucher_type'] == 'expired'].iloc[0]
+        assert expired_row['nav_amount_local'] == 0.0
+        assert expired_row['tv_amount_local'] == 500.0
+        assert expired_row['variance_amount_local'] == -500.0
+        
+        # Check jforce (NAV only) - tv should be 0
+        jforce_row = variance_df[variance_df['voucher_type'] == 'jforce'].iloc[0]
+        assert jforce_row['nav_amount_local'] == 300.0
+        assert jforce_row['tv_amount_local'] == 0.0
+        assert jforce_row['variance_amount_local'] == 300.0
+        
+        # Check refund (both) - normal variance
+        refund_row = variance_df[variance_df['voucher_type'] == 'refund'].iloc[0]
+        assert refund_row['variance_amount_local'] == 100.0  # 1100 - 1000
