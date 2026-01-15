@@ -82,7 +82,7 @@ def test_mixed_types():
     """Test handling of mixed data types in amounts."""
     cr_03_df = pd.DataFrame({
         'bridge_category': ['Issuance', 'Usage', 'VTC'],
-        'voucher_type': ['Refund', 'Store Credit', 'Bank'],
+        'voucher_type': ['Refund', 'Store Credit', 'Apology'],
         'amount': [-1000, 500.5, 300],  # Mix of int and float
     })
     
