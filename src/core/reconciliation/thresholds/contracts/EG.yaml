@@ -1,0 +1,55 @@
+# Egypt (EG) Threshold Contract
+#
+# Country-specific thresholds for Egypt operations.
+# These rules override DEFAULT rules when country_code = "EG".
+#
+# Precedence: Most specific rule wins
+# (country, gl_account, category, voucher_type, threshold_type)
+# > (country, gl_account, category, threshold_type)
+# > (country, gl_account, threshold_type)
+# > (country, threshold_type)
+# > DEFAULT
+
+version: 1
+effective_date: "2025-01-01"
+description: "Egypt-specific threshold contract for voucher accrual reconciliation"
+country_code: "EG"
+
+rules:
+  # GL Account 18412 (Voucher Liabilities) - Bucket thresholds
+  - threshold_type: BUCKET_USD
+    value_usd: 1000.0
+    description: "Voucher accrual bucket threshold for GL 18412"
+    scope:
+      gl_accounts: ["18412"]
+  
+  # GL Account 18412 (Voucher Liabilities) - Line-item thresholds
+  - threshold_type: LINE_ITEM_USD
+    value_usd: 5000.0
+    description: "Material line-item threshold for individual vouchers in GL 18412"
+    scope:
+      gl_accounts: ["18412"]
+  
+  # Country-level materiality for Egypt
+  - threshold_type: COUNTRY_MATERIALITY_USD
+    value_usd: 22000.0
+    description: "Egypt country-level materiality threshold (aggregate reporting only)"
+    scope:
+      # No gl_account filter means this applies to all GL accounts at country level
+  
+  # Example: More specific rule for a particular category in GL 18412
+  # Uncomment and modify as needed:
+  # - threshold_type: BUCKET_USD
+  #   value_usd: 2000.0
+  #   description: "Higher threshold for Compensation category in GL 18412"
+  #   scope:
+  #     gl_accounts: ["18412"]
+  #     categories: ["Compensation"]
+  
+  # Example: Voucher-type specific rule
+  # - threshold_type: BUCKET_USD
+  #   value_usd: 500.0
+  #   description: "Lower threshold for store_credit vouchers in GL 18412"
+  #   scope:
+  #     gl_accounts: ["18412"]
+  #     voucher_types: ["store_credit"]

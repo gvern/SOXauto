@@ -314,6 +314,158 @@ def _map_country_to_company(country_code: str) -> Optional[str]:
     return f"EC_{country_code}"
 
 
+def evaluate_thresholds_variance_pivot(
+    variance_df: pd.DataFrame,
+    gl_account: str,
+) -> pd.DataFrame:
+    """
+    Evaluate BUCKET_USD thresholds on variance pivot and mark status (OK/INVESTIGATE).
+    
+    This function applies threshold evaluation AFTER FX conversion to USD.
+    It resolves thresholds using the catalog system with full precedence logic.
+    
+    For each (country_code, category, voucher_type) bucket, it:
+    1. Resolves the BUCKET_USD threshold using country + gl_account + category + voucher_type
+    2. Compares abs(variance_usd) against the threshold
+    3. Marks status as "OK" or "INVESTIGATE"
+    4. Adds threshold metadata for audit trail
+    
+    Args:
+        variance_df: Variance DataFrame from compute_variance_pivot_local() with columns:
+            - country_code: Country code
+            - category: Category classification
+            - voucher_type: Voucher type
+            - variance_amount_usd: Variance in USD (required)
+            - nav_amount_usd, tv_amount_usd, etc. (optional but preserved)
+        gl_account: GL account number for threshold resolution (e.g., "18412")
+    
+    Returns:
+        DataFrame with additional threshold columns:
+            - threshold_usd: Resolved threshold value in USD
+            - status: "OK" or "INVESTIGATE"
+            - threshold_contract_version: Contract version used
+            - threshold_contract_hash: Contract hash for evidence
+            - threshold_rule_description: Matched rule description
+            - threshold_source: "catalog" or "fallback"
+            - threshold_specificity: Specificity score of matched rule
+        
+        All original columns are preserved.
+    
+    Raises:
+        ValueError: If required columns are missing from variance_df
+    
+    Examples:
+        >>> # After computing variance with FX conversion
+        >>> variance_df = compute_variance_pivot_local(nav_pivot, tv_pivot, fx_converter, cutoff_date)
+        >>> 
+        >>> # Evaluate thresholds for GL 18412 (Voucher Liabilities)
+        >>> evaluated_df = evaluate_thresholds_variance_pivot(variance_df, gl_account="18412")
+        >>> 
+        >>> # Check results
+        >>> print(evaluated_df[["country_code", "category", "variance_amount_usd", "threshold_usd", "status"]])
+        >>> 
+        >>> # Find buckets requiring investigation
+        >>> investigate = evaluated_df[evaluated_df["status"] == "INVESTIGATE"]
+        >>> print(f"Buckets to investigate: {len(investigate)}")
+    
+    Notes:
+        - Threshold evaluation happens on USD amounts (post-FX conversion)
+        - Missing FX rates (NaN variance_usd) are marked as "INVESTIGATE" by default
+        - Threshold resolution uses full precedence: country → gl_account → category → voucher_type
+        - All threshold metadata is included for complete audit trail
+    """
+    # Import here to avoid circular dependency
+    from src.core.reconciliation.thresholds import resolve_bucket_threshold
+    
+    # Validate required columns
+    required_cols = ["country_code", "category", "voucher_type", "variance_amount_usd"]
+    missing_cols = [col for col in required_cols if col not in variance_df.columns]
+    if missing_cols:
+        raise ValueError(
+            f"Required columns missing from variance_df: {missing_cols}. "
+            f"Available columns: {list(variance_df.columns)}"
+        )
+    
+    if variance_df.empty:
+        logger.warning("Empty variance DataFrame, returning as-is with threshold columns")
+        # Add empty threshold columns
+        variance_df["threshold_usd"] = pd.Series(dtype=float)
+        variance_df["status"] = pd.Series(dtype=str)
+        variance_df["threshold_contract_version"] = pd.Series(dtype=int)
+        variance_df["threshold_contract_hash"] = pd.Series(dtype=str)
+        variance_df["threshold_rule_description"] = pd.Series(dtype=str)
+        variance_df["threshold_source"] = pd.Series(dtype=str)
+        variance_df["threshold_specificity"] = pd.Series(dtype=int)
+        return variance_df
+    
+    # Make a copy to avoid modifying input
+    result_df = variance_df.copy()
+    
+    # Initialize threshold columns
+    threshold_data = []
+    
+    # Resolve threshold for each row
+    for idx, row in result_df.iterrows():
+        country_code = row["country_code"]
+        category = row["category"]
+        voucher_type = row["voucher_type"]
+        variance_usd = row["variance_amount_usd"]
+        
+        # Resolve threshold with full context
+        resolved = resolve_bucket_threshold(
+            country_code=country_code,
+            gl_account=gl_account,
+            category=category,
+            voucher_type=voucher_type,
+        )
+        
+        # Determine status
+        # If variance_usd is NaN (missing FX rate), mark as INVESTIGATE by default
+        if pd.isna(variance_usd):
+            status = "INVESTIGATE"
+            logger.warning(
+                f"Missing variance_usd for {country_code}/{category}/{voucher_type}, "
+                f"marking as INVESTIGATE"
+            )
+        else:
+            abs_variance = abs(variance_usd)
+            status = "OK" if abs_variance < resolved.value_usd else "INVESTIGATE"
+        
+        # Store threshold metadata
+        threshold_data.append({
+            "threshold_usd": resolved.value_usd,
+            "status": status,
+            "threshold_contract_version": resolved.contract_version,
+            "threshold_contract_hash": resolved.contract_hash,
+            "threshold_rule_description": resolved.matched_rule_description,
+            "threshold_source": resolved.source,
+            "threshold_specificity": resolved.specificity_score,
+        })
+    
+    # Add threshold columns to result
+    threshold_df = pd.DataFrame(threshold_data, index=result_df.index)
+    result_df = pd.concat([result_df, threshold_df], axis=1)
+    
+    # Log summary
+    investigate_count = (result_df["status"] == "INVESTIGATE").sum()
+    ok_count = (result_df["status"] == "OK").sum()
+    
+    logger.info(
+        f"Evaluated thresholds for {len(result_df)} buckets (GL {gl_account}): "
+        f"{investigate_count} INVESTIGATE, {ok_count} OK"
+    )
+    
+    if result_df["threshold_source"].eq("fallback").any():
+        fallback_count = result_df["threshold_source"].eq("fallback").sum()
+        logger.warning(
+            f"{fallback_count} rows used fallback thresholds. "
+            f"Consider adding threshold contracts for better control."
+        )
+    
+    return result_df
+
+
 __all__ = [
     "compute_variance_pivot_local",
+    "evaluate_thresholds_variance_pivot",
 ]

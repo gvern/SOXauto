@@ -34,9 +34,15 @@ from src.core.reconciliation.analysis.pivots import (
 from src.core.reconciliation.analysis.variance import (
     compute_variance_pivot_local,
 )
+from src.core.reconciliation.analysis.drilldown import (
+    extract_nav_line_items,
+    extract_tv_line_items,
+)
 
 __all__ = [
     "build_target_values_pivot_local",
     "build_nav_pivot",
     "compute_variance_pivot_local",
+    "extract_nav_line_items",
+    "extract_tv_line_items",
 ]

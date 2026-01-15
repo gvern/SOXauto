@@ -8,7 +8,7 @@ Extracted from legacy config_cpg1_athena.py to keep reconciliation logic
 separate from data configuration.
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 
 class CPG1ReconciliationConfig:
@@ -37,7 +37,7 @@ class CPG1ReconciliationConfig:
         },
         'variance': {
             'formula': 'actuals - target_values',
-            'threshold': 1000,  # Acceptable variance in LCY
+            'threshold': 1000,  # Legacy threshold for backward compatibility
             'status_rules': {
                 'RECONCILED': 'abs(variance) < threshold',
                 'VARIANCE_DETECTED': 'abs(variance) >= threshold'
@@ -67,20 +67,81 @@ class CPG1ReconciliationConfig:
         return cls.GL_ACCOUNT_MAPPING.get(gl_account, f"Unknown GL: {gl_account}")
     
     @classmethod
-    def calculate_variance(cls, actuals: float, target_values: float) -> Dict[str, Any]:
-        """Calculate reconciliation variance and determine status."""
+    def calculate_variance(
+        cls,
+        actuals: float,
+        target_values: float,
+        use_threshold_catalog: bool = False,
+        country_code: Optional[str] = None,
+        gl_account: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Calculate reconciliation variance and determine status.
+        
+        Args:
+            actuals: Actual amount from GL balance
+            target_values: Sum of target value components
+            use_threshold_catalog: If True, use threshold catalog system.
+                                  Requires country_code parameter.
+            country_code: Country code for threshold resolution (required if use_threshold_catalog=True)
+            gl_account: GL account for threshold resolution (optional, improves precision)
+        
+        Returns:
+            Dictionary with variance calculation results and status
+        """
         variance = actuals - target_values
         abs_variance = abs(variance)
-        threshold = cls.RECONCILIATION_FORMULA['variance']['threshold']
         
-        status = 'RECONCILED' if abs_variance < threshold else 'VARIANCE_DETECTED'
-        
-        return {
-            'actuals': actuals,
-            'target_values': target_values,
-            'variance': variance,
-            'abs_variance': abs_variance,
-            'threshold': threshold,
-            'status': status,
-            'is_reconciled': status == 'RECONCILED'
-        }
+        # Determine threshold and status
+        if use_threshold_catalog:
+            if not country_code:
+                raise ValueError(
+                    "country_code is required when use_threshold_catalog=True"
+                )
+            
+            # Use threshold catalog system
+            from src.core.reconciliation.thresholds import (
+                resolve_bucket_threshold,
+                ThresholdType,
+            )
+            
+            resolved = resolve_bucket_threshold(
+                country_code=country_code,
+                gl_account=gl_account,
+            )
+            
+            threshold = resolved.value_usd
+            
+            # Note: This assumes variance is already in USD if using catalog
+            # For LCY variance, caller should convert to USD first
+            status = 'RECONCILED' if abs_variance < threshold else 'VARIANCE_DETECTED'
+            
+            return {
+                'actuals': actuals,
+                'target_values': target_values,
+                'variance': variance,
+                'abs_variance': abs_variance,
+                'threshold': threshold,
+                'status': status,
+                'is_reconciled': status == 'RECONCILED',
+                'threshold_source': 'catalog',
+                'threshold_contract_version': resolved.contract_version,
+                'threshold_contract_hash': resolved.contract_hash,
+                'threshold_rule_description': resolved.matched_rule_description,
+            }
+        else:
+            # Legacy behavior: use hardcoded threshold (backward compatibility)
+            threshold = cls.RECONCILIATION_FORMULA['variance']['threshold']
+            status = 'RECONCILED' if abs_variance < threshold else 'VARIANCE_DETECTED'
+            
+            return {
+                'actuals': actuals,
+                'target_values': target_values,
+                'variance': variance,
+                'abs_variance': abs_variance,
+                'threshold': threshold,
+                'status': status,
+                'is_reconciled': status == 'RECONCILED',
+                'threshold_source': 'legacy',
+            }
+

@@ -1,0 +1,37 @@
+# DEFAULT Threshold Contract
+# 
+# This is the fallback threshold contract used when no country-specific
+# contract is available. It provides conservative defaults suitable for
+# multi-country reconciliation.
+#
+# Threshold Types:
+# - BUCKET_USD: Applied to variance pivot aggregates (Category × Voucher Type)
+# - LINE_ITEM_USD: Applied to individual voucher/transaction line items
+# - COUNTRY_MATERIALITY_USD: Top-level materiality threshold (for future use)
+
+version: 1
+effective_date: "2025-01-01"
+description: "Default threshold contract for all countries without specific overrides"
+country_code: "DEFAULT"
+
+rules:
+  # Bucket-level thresholds (applied to Category × Voucher Type aggregates)
+  - threshold_type: BUCKET_USD
+    value_usd: 1000.0
+    description: "Default bucket variance threshold - investigate if abs(variance_usd) >= 1000"
+    scope:
+      # No filters means this applies to all buckets by default
+  
+  # Line-item thresholds (applied to individual vouchers)
+  - threshold_type: LINE_ITEM_USD
+    value_usd: 500.0
+    description: "Default line-item materiality threshold for individual vouchers"
+    scope:
+      # No filters means this applies to all line items by default
+  
+  # Country-level materiality (reserved for future use, not applied to buckets)
+  - threshold_type: COUNTRY_MATERIALITY_USD
+    value_usd: 10000.0
+    description: "Default country-level materiality threshold (for aggregate reporting only)"
+    scope:
+      # This is informational only, not used in bucket/line-item evaluation
