@@ -137,4 +137,59 @@ def lookup_voucher_type(
     return None
 
 
-__all__ = ["COUNTRY_CODES", "lookup_voucher_type"]
+def harmonize_voucher_type(voucher_type: str) -> str:
+    """
+    Harmonize voucher_type labels to canonical enum.
+    
+    Maps various voucher type labels to canonical standardized values.
+    Handles None/NaN values by returning "Unknown".
+    
+    Args:
+        voucher_type: Raw voucher type label from source data
+        
+    Returns:
+        Canonical voucher type string (one of: refund, store_credit, apology, 
+        jforce, expired, vtc, other, Unknown)
+    
+    Examples:
+        >>> harmonize_voucher_type("Refund")
+        'refund'
+        >>> harmonize_voucher_type("STORE CREDIT")
+        'store_credit'
+        >>> harmonize_voucher_type(None)
+        'Unknown'
+        >>> harmonize_voucher_type("")
+        'Unknown'
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    if pd.isna(voucher_type) or not voucher_type or str(voucher_type).strip() == "":
+        return "Unknown"
+    
+    # Normalize: lowercase and strip
+    vt = str(voucher_type).lower().strip()
+    
+    # Canonical mapping
+    # Based on voucher classification system in cat_issuance_classifier.py
+    if vt in ["refund", "rf_", "rfn"]:
+        return "refund"
+    elif vt in ["store credit", "store_credit", "storecredit"]:
+        return "store_credit"
+    elif vt in ["apology", "commercial gesture", "cxp"]:
+        return "apology"
+    elif vt in ["jforce", "pyt_", "pyt_pf"]:
+        return "jforce"
+    elif vt in ["expired", "exp"]:
+        return "expired"
+    elif vt in ["vtc", "voucher to cash"]:
+        return "vtc"
+    elif vt in ["other", "unknown"]:
+        return "other"
+    else:
+        # Unknown voucher types should be mapped to "other"
+        logger.debug(f"Unknown voucher_type '{voucher_type}' mapped to 'other'")
+        return "other"
+
+
+__all__ = ["COUNTRY_CODES", "lookup_voucher_type", "harmonize_voucher_type"]

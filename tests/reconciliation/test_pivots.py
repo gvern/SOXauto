@@ -18,7 +18,9 @@ import pytest
 
 from src.core.reconciliation.analysis.pivots import (
     build_target_values_pivot_local,
-    _harmonize_voucher_type,
+)
+from src.core.reconciliation.voucher_classification.voucher_utils import (
+    harmonize_voucher_type,
 )
 
 
@@ -27,54 +29,54 @@ class TestHarmonizeVoucherType:
 
     def test_harmonize_refund_variants(self):
         """Test that various refund labels map to canonical 'refund'."""
-        assert _harmonize_voucher_type("Refund") == "refund"
-        assert _harmonize_voucher_type("REFUND") == "refund"
-        assert _harmonize_voucher_type("rf_") == "refund"
-        assert _harmonize_voucher_type("RFN") == "refund"
+        assert harmonize_voucher_type("Refund") == "refund"
+        assert harmonize_voucher_type("REFUND") == "refund"
+        assert harmonize_voucher_type("rf_") == "refund"
+        assert harmonize_voucher_type("RFN") == "refund"
 
     def test_harmonize_store_credit_variants(self):
         """Test that various store credit labels map to canonical 'store_credit'."""
-        assert _harmonize_voucher_type("Store Credit") == "store_credit"
-        assert _harmonize_voucher_type("STORE CREDIT") == "store_credit"
-        assert _harmonize_voucher_type("store_credit") == "store_credit"
-        assert _harmonize_voucher_type("storecredit") == "store_credit"
+        assert harmonize_voucher_type("Store Credit") == "store_credit"
+        assert harmonize_voucher_type("STORE CREDIT") == "store_credit"
+        assert harmonize_voucher_type("store_credit") == "store_credit"
+        assert harmonize_voucher_type("storecredit") == "store_credit"
 
     def test_harmonize_apology_variants(self):
         """Test that apology-related labels map to canonical 'apology'."""
-        assert _harmonize_voucher_type("Apology") == "apology"
-        assert _harmonize_voucher_type("APOLOGY") == "apology"
-        assert _harmonize_voucher_type("Commercial Gesture") == "apology"
-        assert _harmonize_voucher_type("CXP") == "apology"
+        assert harmonize_voucher_type("Apology") == "apology"
+        assert harmonize_voucher_type("APOLOGY") == "apology"
+        assert harmonize_voucher_type("Commercial Gesture") == "apology"
+        assert harmonize_voucher_type("CXP") == "apology"
 
     def test_harmonize_jforce_variants(self):
         """Test that JForce labels map to canonical 'jforce'."""
-        assert _harmonize_voucher_type("JForce") == "jforce"
-        assert _harmonize_voucher_type("jforce") == "jforce"
-        assert _harmonize_voucher_type("PYT_") == "jforce"
-        assert _harmonize_voucher_type("pyt_pf") == "jforce"
+        assert harmonize_voucher_type("JForce") == "jforce"
+        assert harmonize_voucher_type("jforce") == "jforce"
+        assert harmonize_voucher_type("PYT_") == "jforce"
+        assert harmonize_voucher_type("pyt_pf") == "jforce"
 
     def test_harmonize_expired(self):
         """Test that expired labels map to canonical 'expired'."""
-        assert _harmonize_voucher_type("Expired") == "expired"
-        assert _harmonize_voucher_type("EXP") == "expired"
+        assert harmonize_voucher_type("Expired") == "expired"
+        assert harmonize_voucher_type("EXP") == "expired"
 
     def test_harmonize_vtc(self):
         """Test that VTC labels map to canonical 'vtc'."""
-        assert _harmonize_voucher_type("VTC") == "vtc"
-        assert _harmonize_voucher_type("Voucher to Cash") == "vtc"
+        assert harmonize_voucher_type("VTC") == "vtc"
+        assert harmonize_voucher_type("Voucher to Cash") == "vtc"
 
     def test_harmonize_missing_values(self):
         """Test that missing/empty values map to 'Unknown'."""
-        assert _harmonize_voucher_type(None) == "Unknown"
-        assert _harmonize_voucher_type("") == "Unknown"
-        assert _harmonize_voucher_type("   ") == "Unknown"
-        assert _harmonize_voucher_type(pd.NA) == "Unknown"
+        assert harmonize_voucher_type(None) == "Unknown"
+        assert harmonize_voucher_type("") == "Unknown"
+        assert harmonize_voucher_type("   ") == "Unknown"
+        assert harmonize_voucher_type(pd.NA) == "Unknown"
 
     def test_harmonize_unknown_types(self):
         """Test that unknown voucher types map to 'other'."""
-        assert _harmonize_voucher_type("SomethingRandom") == "other"
-        assert _harmonize_voucher_type("UNKNOWN") == "other"
-        assert _harmonize_voucher_type("XYZ123") == "other"
+        assert harmonize_voucher_type("SomethingRandom") == "other"
+        assert harmonize_voucher_type("UNKNOWN") == "other"
+        assert harmonize_voucher_type("XYZ123") == "other"
 
 
 class TestBuildTargetValuesPivotLocal:
@@ -594,7 +596,7 @@ class TestBuildNavPivot:
         nav_pivot, nav_lines = build_nav_pivot(cr_03_df, dataset_id='CR_03')
         
         # Assert
-        refund_row = nav_pivot.loc[('Issuance', 'Refund'), :]
+        refund_row = nav_pivot.loc[('Issuance', 'refund'), :]
         assert refund_row['amount_lcy'] == -1750.0
         assert refund_row['row_count'] == 3
     
@@ -611,8 +613,8 @@ class TestBuildNavPivot:
         nav_pivot, nav_lines = build_nav_pivot(cr_03_df, dataset_id='CR_03')
         
         # Assert
-        issuance_count = nav_pivot.loc[('Issuance', 'Refund'), 'row_count']
-        usage_count = nav_pivot.loc[('Usage', 'Store Credit'), 'row_count']
+        issuance_count = nav_pivot.loc[('Issuance', 'refund'), 'row_count']
+        usage_count = nav_pivot.loc[('Usage', 'store_credit'), 'row_count']
         total_count = nav_pivot.loc[('__TOTAL__', ''), 'row_count']
         
         assert issuance_count == 5
@@ -697,8 +699,8 @@ class TestBuildNavPivot:
         nav_pivot, nav_lines = build_nav_pivot(cr_03_df, dataset_id='CR_03')
         
         # Assert
-        issuance_amount = nav_pivot.loc[('Issuance', 'Refund'), 'amount_lcy']
-        usage_amount = nav_pivot.loc[('Usage', 'Store Credit'), 'amount_lcy']
+        issuance_amount = nav_pivot.loc[('Issuance', 'refund'), 'amount_lcy']
+        usage_amount = nav_pivot.loc[('Usage', 'store_credit'), 'amount_lcy']
         
         assert issuance_amount == 0.0
         assert usage_amount == 0.0
@@ -736,9 +738,9 @@ class TestBuildNavPivot:
         assert len(issuance_rows) == 3  # Three different voucher types
         
         # Check individual voucher types
-        assert ('Issuance', 'Refund') in nav_pivot.index
-        assert ('Issuance', 'Apology') in nav_pivot.index
-        assert ('Issuance', 'JForce') in nav_pivot.index
+        assert ('Issuance', 'refund') in nav_pivot.index
+        assert ('Issuance', 'apology') in nav_pivot.index
+        assert ('Issuance', 'jforce') in nav_pivot.index
     
     def test_whitespace_in_category_and_type(self):
         """Test handling of whitespace in category and voucher type values."""
@@ -781,8 +783,8 @@ class TestBuildNavPivot:
         assert nav_pivot.index.names == ['category', 'voucher_type']
         
         # Test index access
-        assert ('Issuance', 'Refund') in nav_pivot.index
-        assert ('Usage', 'Store Credit') in nav_pivot.index
+        assert ('Issuance', 'refund') in nav_pivot.index
+        assert ('Usage', 'store_credit') in nav_pivot.index
 
 
 class TestEdgeCases:
@@ -802,7 +804,7 @@ class TestEdgeCases:
         
         # Assert
         assert len(nav_pivot) == 2  # One data row + one total row
-        assert nav_pivot.loc[('Issuance', 'Refund'), 'amount_lcy'] == -1000.0
+        assert nav_pivot.loc[('Issuance', 'refund'), 'amount_lcy'] == -1000.0
     
     def test_all_unknown_voucher_types(self):
         """Test when all voucher types are missing."""
@@ -929,7 +931,7 @@ class TestIntegrationScenarios:
         
         # Verify all voucher types are from the canonical schema (or Unknown)
         voucher_types = nav_lines['voucher_type'].unique()
-        canonical_voucher_types = {'Refund', 'Apology', 'JForce', 'Store Credit', 'Unknown'}
+        canonical_voucher_types = {'refund', 'apology', 'jforce', 'store_credit', 'Unknown'}
         assert set(voucher_types).issubset(canonical_voucher_types), f"Voucher types should be from canonical schema. Got: {set(voucher_types)}"
         
         # Verify lines DataFrame preserves country_code

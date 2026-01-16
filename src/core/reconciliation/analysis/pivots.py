@@ -18,60 +18,9 @@ import pandas as pd
 import logging
 
 from src.utils.pandas_utils import require_columns, ensure_required_numeric
+from src.core.reconciliation.voucher_classification.voucher_utils import harmonize_voucher_type
 
 logger = logging.getLogger(__name__)
-
-
-def _harmonize_voucher_type(voucher_type: str) -> str:
-    """
-    Harmonize voucher_type labels to canonical enum.
-    
-    Maps various voucher type labels to canonical standardized values.
-    Handles None/NaN values by returning "Unknown".
-    
-    Args:
-        voucher_type: Raw voucher type label from source data
-        
-    Returns:
-        Canonical voucher type string (one of: refund, store_credit, apology, 
-        jforce, expired, vtc, other, Unknown)
-    
-    Examples:
-        >>> _harmonize_voucher_type("Refund")
-        'refund'
-        >>> _harmonize_voucher_type("STORE CREDIT")
-        'store_credit'
-        >>> _harmonize_voucher_type(None)
-        'Unknown'
-        >>> _harmonize_voucher_type("")
-        'Unknown'
-    """
-    if pd.isna(voucher_type) or not voucher_type or str(voucher_type).strip() == "":
-        return "Unknown"
-    
-    # Normalize: lowercase and strip
-    vt = str(voucher_type).lower().strip()
-    
-    # Canonical mapping
-    # Based on voucher classification system in cat_issuance_classifier.py
-    if vt in ["refund", "rf_", "rfn"]:
-        return "refund"
-    elif vt in ["store credit", "store_credit", "storecredit"]:
-        return "store_credit"
-    elif vt in ["apology", "commercial gesture", "cxp"]:
-        return "apology"
-    elif vt in ["jforce", "pyt_", "pyt_pf"]:
-        return "jforce"
-    elif vt in ["expired", "exp"]:
-        return "expired"
-    elif vt in ["vtc", "voucher to cash"]:
-        return "vtc"
-    elif vt in ["other", "unknown"]:
-        return "other"
-    else:
-        # Unknown voucher types should be mapped to "other"
-        logger.debug(f"Unknown voucher_type '{voucher_type}' mapped to 'other'")
-        return "other"
 
 
 def build_target_values_pivot_local(
@@ -198,7 +147,7 @@ def build_target_values_pivot_local(
     
     # Harmonize voucher_type to canonical enum
     if "voucher_type" in df.columns:
-        df["voucher_type"] = df["voucher_type"].apply(_harmonize_voucher_type)
+        df["voucher_type"] = df["voucher_type"].apply(harmonize_voucher_type)
     
     # Ensure amount column is numeric (fillna=0.0 for aggregation safety)
     df = ensure_required_numeric(df, required=[amount_col], fillna=0.0)
@@ -337,16 +286,16 @@ def build_nav_pivot(
     if "amount" in df.columns and currency_col not in df.columns:
         df = df.rename(columns={"amount": currency_col})
     
-    # Handle missing voucher_type: fill with "Unknown"
-    df["voucher_type"] = df["voucher_type"].fillna("Unknown")
+    # Harmonize voucher_type to canonical enum (for NAV vouchers)
+    # This handles None/NaN values by returning "Unknown"
+    df["voucher_type"] = df["voucher_type"].apply(harmonize_voucher_type)
     
     # Handle missing bridge_category: fill with "Uncategorized"
     df["bridge_category"] = df["bridge_category"].fillna("Uncategorized")
     
     # Normalize category and voucher_type to strings for grouping.
-    # Note: fillna above already replaces missing values with "Unknown"/"Uncategorized",
-    # but we still cast to str as defensive programming to ensure any remaining pandas
-    # NA/nullable types are coerced to plain Python strings for type-safe grouping.
+    # Note: harmonize_voucher_type already returns strings and handles missing values,
+    # but we still cast to str as defensive programming to ensure consistent string types.
     df["category"] = df["bridge_category"].astype(str)
     df["voucher_type"] = df["voucher_type"].astype(str)
     
