@@ -1,3 +1,11 @@
+-- =============================================
+-- Report: Monthly Closing FX Rates (CR_05)
+-- Description: Official month-end closing rates for financial reporting
+-- Parameters: {fx_year}, {fx_month}
+-- Source: RPT_FX_RATES (aggregated rates table)
+-- Purpose: Get official closing rates for month-end reconciliation with company mapping
+-- =============================================
+
 SELECT
     comp.[Company_Code],
     comp.[Company_Name],
@@ -7,22 +15,28 @@ SELECT
     fx.[rate_type],
     fx.[year],
     fx.[cod_month],
-    case
-        when c.[Country_Name] in ('United States of America') or (c.[Country_Name] in ('Germany') and right(comp.[Company_Code],4)='_USD')
-        then 1
-        else fx.rate
-    end FX_rate,
+    CASE
+        WHEN c.[Country_Name] IN ('United States of America') 
+            OR (c.[Country_Name] IN ('Germany') AND RIGHT(comp.[Company_Code], 4) = '_USD')
+        THEN 1
+        ELSE fx.rate
+    END AS FX_rate,
     c.[Country_Name]
 FROM [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] comp
-left join (
-    Select [country_code],[rate_type],[year],[cod_month],[rate]
-    from [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]
-    where [year] = {year}
-    and [cod_month] = {month}
-    and [rate_type] = 'Closing'
-    and [base_currency] = 'USD'
-    and country <> 'United arab emirates (the)'
+LEFT JOIN (
+    SELECT 
+        [country_code],
+        [rate_type],
+        [year],
+        [cod_month],
+        [rate]
+    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_FX_RATES]
+    WHERE [year] = {fx_year}
+        AND [cod_month] = {fx_month}
+        AND [rate_type] = 'Closing'
+        AND [base_currency] = 'USD'
+        AND [country] <> 'United arab emirates (the)'
 ) fx
-    on fx.country_code = comp.Company_Country
-left join [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Country] c
-    on comp.[Company_Country] = c.[Country_Code]
+    ON fx.country_code = comp.Company_Country
+LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Country] c
+    ON comp.[Company_Country] = c.[Country_Code];
