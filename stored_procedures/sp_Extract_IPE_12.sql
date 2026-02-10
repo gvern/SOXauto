@@ -1,0 +1,121 @@
+-- =============================================
+-- Stored Procedure: sp_Extract_IPE_12
+-- Description: Extract TV Packages Delivered Not Reconciled data to CSV file
+-- Purpose: Packages delivered but not yet reconciled (payment issues)
+-- Parameters: 
+--   @cutoff_date: Cutoff date for extraction (YYYY-MM-DD)
+--   @output_path: Directory for output file (default: C:\SQLExports\)
+-- Returns: File path, filename, and row count
+-- Source: OMS
+-- Business Logic: Packages delivered up to cutoff date that remain unreconciled
+-- =============================================
+CREATE PROCEDURE [dbo].[sp_Extract_IPE_12]
+    @cutoff_date DATE,
+    @output_path NVARCHAR(500) = 'C:\SQLExports\'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @full_path NVARCHAR(500)
+    DECLARE @filename NVARCHAR(200)
+    DECLARE @bcp_cmd NVARCHAR(4000)
+    DECLARE @result_code INT
+    DECLARE @row_count BIGINT
+    DECLARE @query NVARCHAR(MAX)
+    DECLARE @cutoff_str NVARCHAR(10)
+    
+    -- Generate unique filename with timestamp
+    SET @filename = 'IPE_12_' + 
+                    FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
+    SET @full_path = @output_path + @filename
+    
+    -- Convert date to string for query
+    SET @cutoff_str = CAST(@cutoff_date AS NVARCHAR(10))
+    
+    -- Build dynamic query with parameters
+    SET @query = '
+    SELECT 
+        soi.[ID_COMPANY],
+        soi.[COD_OMS_ID_PACKAGE],
+        soi.[PAYMENT_METHOD],
+        soi.[IS_MARKETPLACE],
+        soi.[Order_nr],
+        soi.[PACKAGE_NUMBER],
+        soi.[VOUCHER_TYPE],
+        soi.[BOB_ID_CUSTOMER],
+        soi.[ORDER_NR],
+        soi.[ORDER_CREATION_DATE],
+        soi.[SHIPPED_DATE],
+        soi.[DELIVERED_DATE],
+        soi.[PACKAGE_DELIVERY_DATE],
+        soi.[IS_PREPAYMENT],
+        soi.[MTR_SHIPPING_FEE_MODIFICATION],
+        soi.[TRACKING_NUMBER],
+        soi.[OMS_PACKAGE_STATUS],
+        ct.[Customer_Type_L1] AS Customer_Type,
+        pck.amount_expected,
+        pck.amount_received,
+        pck.fk_package_status,
+        pck.delivered_update_date,
+        pck.delivery_date,
+        pck.fk_collection_partner,
+        pck.last_mile,
+        pck.package_status,
+        pck.payment_method_confirmed,
+        pck.order_nr,
+        pck.troubleshoot_resolution_date,
+        ISNULL(soi.[MTR_AMOUNT_PAID], 0) AS amount_paid,
+        ISNULL(soi.[MTR_PAID_PRICE], 0) AS paid_price,
+        ISNULL(soi.[MTR_BASE_SHIPPING_AMOUNT], 0)
+            - ISNULL(soi.[MTR_SHIPPING_CART_RULE_DISCOUNT], 0)
+            - ISNULL(soi.[MTR_SHIPPING_VOUCHER_DISCOUNT], 0)
+            + ISNULL(soi.[MTR_INTERNATIONAL_CUSTOMS_FEE_AMOUNT], 0)
+            - ISNULL(soi.[MTR_INTERNATIONAL_CUSTOMS_FEE_CART_RULE_DISCOUNT], 0)
+            + ISNULL(soi.[MTR_INTERNATIONAL_FREIGHT_FEE], 0)
+            - ISNULL(soi.[MTR_INTERNATIONAL_DELIVERY_FEE_CART_RULE], 0) AS paid_shipping
+    FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI] soi
+    LEFT JOIN [STG_AIG_NAV_JUMIA_REC].[OMS].[PACKAGE_CASHREC] pck
+        ON pck.ID_COMPANY = soi.ID_COMPANY 
+        AND pck.[package_nr] = soi.PACKAGE_NUMBER
+    LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_DIM_BOB_CUSTOMER_TYPE] ct 
+        ON ct.Bob_Customer_Type = soi.BOB_CUSTOMER_TYPE
+    WHERE soi.IS_PREPAYMENT = 0 
+        AND soi.Payment_method <> ''NoPayment'' 
+        AND soi.DELIVERED_DATE BETWEEN ''2019-01-01 00:00:00'' AND CAST(''' + @cutoff_str + ''' AS DATE)
+        AND (
+            pck.troubleshoot_resolution_date IS NULL 
+            OR pck.troubleshoot_resolution_date > CAST(''' + @cutoff_str + ''' AS DATE)
+        )
+    '
+    
+    -- Get row count first
+    DECLARE @count_query NVARCHAR(MAX)
+    SET @count_query = 'SELECT @count = COUNT(*) FROM (' + @query + ') AS subquery'
+    EXEC sp_executesql @count_query, N'@count BIGINT OUTPUT', @row_count OUTPUT
+    
+    -- Build BCP command for export
+    SET @bcp_cmd = 'bcp "' + @query + '" queryout "' + @full_path + 
+                   '" -c -t"," -T -S' + @@SERVERNAME + ' -d AIG_Nav_Jumia_Reconciliation'
+    
+    -- Execute BCP export
+    EXEC @result_code = xp_cmdshell @bcp_cmd
+    
+    -- Check if export succeeded
+    IF @result_code <> 0
+    BEGIN
+        SELECT 
+            'error' AS status,
+            'BCP export failed' AS error_message,
+            @result_code AS error_code
+        RETURN
+    END
+    
+    -- Return success result to n8n
+    SELECT 
+        'success' AS status,
+        @full_path AS file_path,
+        @filename AS file_name,
+        @row_count AS row_count,
+        FORMAT(GETDATE(), 'yyyy-MM-dd HH:mm:ss') AS execution_timestamp
+END
+GO
