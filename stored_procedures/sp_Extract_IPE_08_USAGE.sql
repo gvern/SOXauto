@@ -19,8 +19,10 @@ BEGIN
     
     DECLARE @full_path NVARCHAR(500)
     DECLARE @filename NVARCHAR(200)
-    DECLARE @bcp_cmd NVARCHAR(4000)
-    DECLARE @result_code INT
+    DECLARE @openrowset_sql NVARCHAR(MAX)
+    DECLARE @export_status NVARCHAR(20) = 'success'
+    DECLARE @error_message NVARCHAR(4000) = NULL
+    DECLARE @webhook_url NVARCHAR(1000) = 'https://n8n.ops.jumia.com/webhook-test/10d7f0e2-995f-4e76-a766-e2bd3029e75e'
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
     
@@ -72,20 +74,35 @@ BEGIN
     SET @count_query = 'SELECT @count = COUNT(*) FROM (' + @query + ') AS subquery'
     EXEC sp_executesql @count_query, N'@count BIGINT OUTPUT', @row_count OUTPUT
     
-    -- Build BCP command for export
-    SET @bcp_cmd = 'bcp "' + @query + '" queryout "' + @full_path + 
-                   '" -c -t"," -T -S' + @@SERVERNAME + ' -d AIG_Nav_Jumia_Reconciliation'
-    
-    -- Execute BCP export
-    EXEC @result_code = xp_cmdshell @bcp_cmd
-    
-    -- Check if export succeeded
-    IF @result_code <> 0
+    BEGIN TRY
+        SET @openrowset_sql = N'
+        INSERT INTO OPENROWSET(
+            ''Microsoft.ACE.OLEDB.12.0'',
+            ''Text;Database=' + REPLACE(@output_path, '''', '''''') + ';HDR=YES;FMT=Delimited'',
+            ''SELECT * FROM [' + @filename + ']'')
+        ' + @query
+
+        EXEC sp_executesql @openrowset_sql
+    END TRY
+    BEGIN CATCH
+        SET @export_status = 'error'
+        SET @error_message = ERROR_MESSAGE()
+    END CATCH
+
+    EXEC [dbo].[sp_Send_Csv_To_Webhook]
+        @webhook_url = @webhook_url,
+        @file_path = @full_path,
+        @file_name = @filename,
+        @procedure_name = OBJECT_SCHEMA_NAME(@@PROCID) + '.' + OBJECT_NAME(@@PROCID),
+        @row_count = @row_count,
+        @export_status = @export_status,
+        @error_message = @error_message
+
+    IF @export_status <> 'success'
     BEGIN
         SELECT 
             'error' AS status,
-            'BCP export failed' AS error_message,
-            @result_code AS error_code
+            @error_message AS error_message
         RETURN
     END
     
