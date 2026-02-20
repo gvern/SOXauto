@@ -1,16 +1,16 @@
-# SOXauto Data Architecture - Temporal.io Orchestration
+# SOXauto Data Architecture - Apache Airflow Orchestration
 
 **Date**: 06 November 2025  
-**Architecture**: Temporal.io workflow orchestration with direct connection to on-premises SQL Server via Teleport secure tunnel
+**Architecture**: Apache Airflow DAG orchestration with direct connection to on-premises SQL Server via Teleport secure tunnel
 
 ---
 
-## 🎯 Overview: Temporal-Orchestrated Data Access
+## 🎯 Overview: Airflow-Orchestrated Data Access
 
-SOXauto uses Temporal.io for durable workflow orchestration and connects directly to the on-premises SQL Server database using:
+SOXauto uses Apache Airflow for workflow orchestration and connects directly to the on-premises SQL Server database using:
 
-1. **Orchestration**: Temporal.io Workflows and Activities
-2. **Worker**: Temporal Worker (`src/orchestrators/cpg1_worker.py`)
+1. **Orchestration**: Apache Airflow DAGs and Tasks
+2. **Runtime**: Airflow Scheduler + Executor Workers
 3. **Connection Method**: Teleport (`tsh`) secure tunnel
 4. **Database Server**: `fin-sql.jumia.local` (SQL Server)
 5. **Runner Module**: `src/core/runners/mssql_runner.py`
@@ -22,8 +22,8 @@ SOXauto uses Temporal.io for durable workflow orchestration and connects directl
 
 | Aspect | Implementation |
 |--------|----------------|
-| **Orchestration** | Temporal.io Workflows and Activities |
-| **Worker** | Temporal Worker (`src/orchestrators/cpg1_worker.py`) |
+| **Orchestration** | Apache Airflow DAGs and Tasks |
+| **Runtime** | Airflow Scheduler + Executor Workers |
 | **Connection Tool** | Teleport (`tsh`) |
 | **Server** | `fin-sql.jumia.local` |
 | **Authentication** | Teleport-managed (no local credentials) |
@@ -41,13 +41,13 @@ SOXauto uses Temporal.io for durable workflow orchestration and connects directl
 ### How SOXauto Accesses Data
 
 ```
-Temporal Scheduler
+Airflow Scheduler
     ↓
-[Temporal Workflow: Execute IPE Extraction]
+[Airflow DAG Run: Execute IPE Extraction]
     ↓
-[Temporal Worker: cpg1_worker.py]
+[Airflow Worker: task execution]
     ↓
-[Temporal Activity: IPE Extraction for each IPE]
+[Airflow Task: IPE Extraction for each IPE]
     ↓
 [Authenticate via Teleport]
     ↓
@@ -67,53 +67,49 @@ Evidence Manager generates audit trail
 
 ### Connection Details
 
-**Orchestration**: Temporal.io  
-**Worker**: `src/orchestrators/cpg1_worker.py`  
+**Orchestration**: Apache Airflow  
+**Runtime**: Airflow Scheduler + Workers  
 **Server**: `fin-sql.jumia.local`  
 **Authentication**: Teleport-managed  
 **Access Tool**: Python with pyodbc via Teleport tunnel  
 **Access Via**: Teleport secure tunnel  
 
-### Example Workflow and Activity
+### Example Airflow DAG and Task
 
 ```python
-# Temporal Workflow definition
-from datetime import timedelta
-from temporalio import workflow, activity
+# Airflow DAG definition
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from datetime import datetime
 from src.core.runners.mssql_runner import IPERunner
 from src.core.catalog.cpg1 import get_ipe_config
 
-@workflow.defn
-class IPEExtractionWorkflow:
-    @workflow.run
-    async def run(self, cutoff_date: str) -> dict:
-        # Execute IPE extraction as Temporal Activity
-        result = await workflow.execute_activity(
-            extract_ipe_activity,
-            args=["IPE_07", cutoff_date],
-            start_to_close_timeout=timedelta(minutes=10)
-        )
-        return result
-
-@activity.defn
-async def extract_ipe_activity(ipe_id: str, cutoff_date: str) -> dict:
-    # Load IPE configuration
+def extract_ipe_task(ipe_id: str, cutoff_date: str) -> dict:
     config = get_ipe_config(ipe_id)
-    
-    # Execute via Teleport tunnel
     runner = IPERunner(config, cutoff_date=cutoff_date)
-    df = runner.run()  # Returns pandas DataFrame with validation
-    
+    df = runner.run()
     return {"rows": len(df), "status": "success"}
+
+with DAG(
+    dag_id="soxauto_cpg1_reconciliation",
+    start_date=datetime(2025, 1, 1),
+    schedule="@monthly",
+    catchup=False,
+) as dag:
+    run_ipe_07 = PythonOperator(
+        task_id="extract_ipe_07",
+        python_callable=extract_ipe_task,
+        op_kwargs={"ipe_id": "IPE_07", "cutoff_date": "{{ ds }}"},
+    )
 ```
 
 ### Why This Architecture
 
 - 🔒 **Security**: Teleport manages all credentials and access
-- 🔄 **Reliability**: Temporal provides durable, fault-tolerant workflows
-- ⚡ **Scalability**: Temporal Workers can scale horizontally
+- 🔄 **Reliability**: Airflow provides retry policies, backfills, and resilient scheduling
+- ⚡ **Scalability**: Airflow workers/executors can scale horizontally
 - 🎯 **Direct Access**: No intermediate data lakes or ETL
-- 📊 **Observability**: Temporal UI provides real-time workflow visibility
+- 📊 **Observability**: Airflow UI provides real-time DAG/task visibility
 - ✅ **SOX Compliant**: Digital Evidence Package for every extraction
 
 ---
@@ -169,8 +165,8 @@ Every IPE extraction generates a complete Digital Evidence Package:
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| **Temporal Worker** | `src/orchestrators/cpg1_worker.py` | Executes workflows and activities |
-| **Temporal Workflows** | `src/orchestrators/workflow.py` | Orchestrates IPE extraction process |
+| **Airflow DAGs** | `dags/` | Orchestrates IPE extraction process |
+| **Airflow Tasks** | `dags/` | Executes extraction/reconciliation steps |
 | **IPE Runner** | `src/core/runners/mssql_runner.py` | Executes IPE queries |
 | **Evidence Manager** | `src/core/evidence/manager.py` | Generates SOX evidence |
 | **IPE Catalog** | `src/core/catalog/cpg1.py` | IPE definitions |
@@ -178,9 +174,10 @@ Every IPE extraction generates a complete Digital Evidence Package:
 ### Environment Variables
 
 ```bash
-# Temporal configuration
-TEMPORAL_ADDRESS="localhost:7233"  # Temporal server address
-TEMPORAL_NAMESPACE="default"       # Temporal namespace
+# Airflow configuration
+AIRFLOW_HOME="/opt/airflow"
+AIRFLOW__CORE__EXECUTOR="LocalExecutor"
+AIRFLOW__CORE__LOAD_EXAMPLES="False"
 
 # Database connection (via Teleport)
 # Note: Actual credentials are managed by Teleport - no passwords stored locally
@@ -219,29 +216,29 @@ CUTOFF_DATE="2025-09-30"
 ## 🔄 Data Flow
 
 ```
-1. Temporal Scheduler triggers Workflow execution (monthly)
+1. Airflow Scheduler triggers DAG execution (monthly)
          ↓
-2. Temporal Workflow starts on Worker (cpg1_worker.py)
+2. Airflow DAG run starts on Scheduler/Executor
          ↓
-3. Workflow loads IPE configurations from catalog
+3. DAG loads IPE configurations from catalog
          ↓
-4. For each IPE, Workflow executes Activity
+4. For each IPE, DAG executes Task
          ↓
-5. Activity establishes Teleport tunnel connection
+5. Task establishes Teleport tunnel connection
          ↓
-6. Activity executes SQL query on fin-sql.jumia.local
+6. Task executes SQL query on fin-sql.jumia.local
          ↓
-7. Activity loads results into Pandas DataFrame
+7. Task loads results into Pandas DataFrame
          ↓
-8. Activity runs SOX validation queries
+8. Task runs SOX validation queries
          ↓
-9. Activity generates Digital Evidence Package
+9. Task generates Digital Evidence Package
          ↓
-10. Activity saves evidence to local directory
+10. Task saves evidence to local directory
          ↓
-11. Activity returns validated data to Workflow
+11. Task returns validated data to DAG run context
          ↓
-12. Workflow completes when all IPEs are processed
+12. DAG run completes when all IPEs are processed
 ```
 
 ---

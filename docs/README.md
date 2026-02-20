@@ -1,20 +1,21 @@
 # Documentation Index
 
-This index highlights current, active documentation aligned with the final architecture (Temporal.io + Teleport + on‑prem MSSQL).
+This index highlights current, active documentation aligned with the final architecture (Apache Airflow + Teleport + on‑prem MSSQL).
 
 - Architecture
   - architecture/DATA_ARCHITECTURE.md
   - architecture/NEW_ARCHITECTURE.mmd
 - Deployment
-  - deployment/temporal_worker_deploy.md (current)
+  - deployment/airflow_deploy.md (current)
+  - deployment/temporal_worker_deploy.md (legacy Temporal runbook)
   - deployment/aws_deploy.md (deprecated – kept for history)
 - Development
   - development/evidence_documentation.md
   - development/BRIDGES_RULES.md
   - development/RECONCILIATION_FLOW.md
   - development/RECONCILIATION_FLOW_DIAGRAM.md
-  - development/TESTING_GUIDE.md (updated for Temporal)
-  - development/RUNNING_EXTRACTIONS.md (ensure References Temporal starter)
+  - development/TESTING_GUIDE.md
+  - development/RUNNING_EXTRACTIONS.md (Airflow orchestration run guide)
 - Setup
   - setup/DATABASE_CONNECTION.md
   - setup/OKTA_AWS_SETUP.md

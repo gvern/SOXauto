@@ -1,6 +1,6 @@
 # Guide d'Exécution et de Paramétrage des Extractions SQL
 
-Ce guide explique comment exécuter les extractions IPE via Temporal et comment paramétrer les requêtes SQL avec des dates dynamiques.
+Ce guide explique comment exécuter les extractions IPE via Apache Airflow et comment paramétrer les requêtes SQL avec des dates dynamiques.
 
 ---
 
@@ -8,7 +8,7 @@ Ce guide explique comment exécuter les extractions IPE via Temporal et comment 
 
 Toutes les requêtes SQL sont stockées dans le catalogue (`src/core/catalog/cpg1.py`) et contiennent des **placeholders** comme `{cutoff_date}`.
 
-L'orchestration est gérée par **Temporal.io**, qui exécute les workflows et activities de manière durable et fiable. Avant l'exécution des requêtes, les placeholders sont remplacés par les valeurs des **variables d'environnement** correspondantes via `src/utils/sql_template.py`.
+L'orchestration est gérée par **Apache Airflow**, qui exécute les DAGs et tasks de manière planifiée et fiable. Avant l'exécution des requêtes, les placeholders sont remplacés par les valeurs des **variables d'environnement** correspondantes via `src/utils/sql_template.py`.
 
 ---
 
@@ -45,46 +45,46 @@ export FX_DATE='2025-09-30 00:00:00.000'
 
 Astuce: Placez ces variables dans un fichier `.env` et sourcez-le.
 
-### b) Lancer le Temporal Worker
+### b) Démarrer les services Airflow
 
-Le worker Temporal exécute les workflows d'extraction IPE de manière durable et fiable.
-
-```bash
-# Démarrer le Temporal Worker
-python -m src.orchestrators.cpg1_worker
-```
-
-Le worker se connecte à Temporal et attend que des workflows soient déclenchés. Les workflows peuvent être déclenchés manuellement ou via des schedules Temporal configurés pour exécuter automatiquement les extractions mensuelles.
-
-### c) Déclencher un Workflow Manuellement (Débogage)
+Airflow orchestre les extractions IPE via un DAG dédié (mensuel ou à la demande).
 
 ```bash
-# Exemple: Déclencher un workflow d'extraction via Temporal CLI
-tctl workflow start \
-  --taskqueue soxauto-tasks \
-  --workflow_type IPEExtractionWorkflow \
-  --input '"2025-10-01"'
+# Initialiser la base Airflow (une seule fois)
+airflow db init
 
-# Ou via un script Python
-python -c "
-from temporalio.client import Client
-import asyncio
+# Créer un utilisateur admin (si nécessaire)
+airflow users create \
+  --username admin \
+  --firstname SOX \
+  --lastname Admin \
+  --role Admin \
+  --email admin@example.com
 
-async def trigger_workflow():
-    client = await Client.connect('localhost:7233')
-    result = await client.execute_workflow(
-        'IPEExtractionWorkflow',
-        args=['2025-10-01'],
-        id='extraction-sept-2025',
-        task_queue='soxauto-tasks'
-    )
-    print(f'Workflow result: {result}')
+# Démarrer le scheduler
+airflow scheduler
 
-asyncio.run(trigger_workflow())
-"
+# Démarrer le webserver (dans un second terminal)
+airflow webserver --port 8080
 ```
 
-**Note**: Les anciens scripts (`scripts/run_full_reconciliation.py`, `scripts/generate_*.py`) sont obsolètes et remplacés par l'orchestration Temporal.
+Airflow planifie et exécute les DAG runs. Les extractions peuvent être déclenchées manuellement via UI/CLI ou via un schedule mensuel.
+
+### c) Déclencher un DAG Manuellement (Débogage)
+
+```bash
+# Exemple: déclencher un run avec une date de clôture
+airflow dags trigger soxauto_cpg1_reconciliation \
+  --conf '{"cutoff_date": "2025-10-01"}'
+
+# Lister les DAGs disponibles
+airflow dags list
+
+# Vérifier l'état des runs
+airflow dags list-runs -d soxauto_cpg1_reconciliation
+```
+
+**Note**: Les scripts historiques (`scripts/run_full_reconciliation.py`, `scripts/generate_*.py`) restent utiles pour tests ciblés, mais l'orchestration officielle passe par Airflow.
 
 ---
 
@@ -94,20 +94,20 @@ La fonction `render_sql` lève une erreur si des placeholders restent non résol
 
 Pour diagnostiquer une exécution:
 
-1. Consultez le **Temporal Web UI** (`http://localhost:8080` ou Temporal Cloud) pour voir l'état du workflow
+1. Consultez l'**Airflow UI** (`http://localhost:8080`) pour voir l'état du DAG run et des tasks
 2. Ouvrez le package de preuves généré: `evidence/<IPE_ID>/<timestamp>/`
 3. Consultez `01_executed_query.sql` pour voir la requête exécutée et `02_query_parameters.json` pour les paramètres
-4. Vérifiez les logs du Temporal Worker pour les erreurs d'exécution
+4. Vérifiez les logs des tasks Airflow pour les erreurs d'exécution
 
 ---
 
 ## 5. Notes Opérationnelles
 
-- L'orchestration est gérée par **Temporal.io** pour une exécution durable et fiable
+- L'orchestration est gérée par **Apache Airflow** pour une exécution planifiée et fiable
 - La connexion SQL Server utilise un tunnel **Teleport (`tsh`)** sécurisé vers `fin-sql.jumia.local`
 - Les packages de preuves complets (8 fichiers) sont générés automatiquement par IPE dans `evidence/<IPE_ID>/`
 - La classification des "Bridges & Adjustments" est décrite dans `docs/development/BRIDGES_RULES.md`
-- Le Temporal Web UI permet de surveiller l'état de tous les workflows en temps réel
+- L'Airflow UI permet de surveiller l'état des DAG runs et tasks en temps réel
 
 ---
 
@@ -115,6 +115,5 @@ Pour diagnostiquer une exécution:
 
 - Catalogue SQL: `src/core/catalog/cpg1.py`
 - Rendu SQL: `src/utils/sql_template.py`
-- Temporal Worker: `src/orchestrators/cpg1_worker.py`
-- Workflows Temporal: `src/orchestrators/workflow.py`
+- DAG Airflow: `dags/` (orchestration mensuelle et déclenchement manuel)
 - IPE Runner: `src/core/runners/mssql_runner.py`

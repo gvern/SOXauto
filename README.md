@@ -2,9 +2,9 @@
 
 > Architecture Update — 2025-11-06
 >
-> The system is orchestrated by Temporal.io Workflows and connects to on‑prem MSSQL via Teleport (`tsh`).
+> The system is orchestrated by Apache Airflow DAGs and connects to on‑prem MSSQL via Teleport (`tsh`).
 > Previous Flask/script-based orchestration and serverless (Lambda/Fargate) plans are deprecated.
-> See `src/orchestrators/` and `docs/deployment/temporal_worker_deploy.md`.
+> See `docs/development/RUNNING_EXTRACTIONS.md` and `docs/deployment/temporal_worker_deploy.md` (legacy Temporal runbook).
 
 > NOTE ON CURRENT PROJECT STATE
 >
@@ -17,7 +17,7 @@ The system connects to the on-premises SQL Server database via:
 - **Database Server**: `fin-sql.jumia.local`
 - **Connection Method**: Secure Teleport (`tsh`) tunnel
 - **Runner Module**: `src/core/runners/mssql_runner.py`
-- **Orchestration**: Temporal Workflow (`src/orchestrators/cpg1_workflow.py`) + Activities (`src/orchestrators/cpg1_activities.py`)
+- **Orchestration**: Apache Airflow DAGs (scheduled and manually triggerable)
 - **Evidence System**: Full Digital Evidence Package generation for SOX compliance
 
 For detailed implementation status and tracking, see `PROJECT_DASHBOARD.md`.
@@ -78,9 +78,9 @@ SOXauto PG-01 is an enterprise-grade automation system that transforms manual SO
 
 ```mermaid
 graph TD
-    subgraph "Temporal.io Orchestration"
-        A[Temporal Scheduler] -- Triggers Monthly --> B[Temporal Workflow]
-        B -- For each IPE --> C[Temporal Activity: IPE Extraction]
+  subgraph "Apache Airflow Orchestration"
+    A[Airflow Scheduler] -- Triggers Monthly --> B[Airflow DAG Run]
+    B -- For each IPE --> C[Airflow Task: IPE Extraction]
         C -- Reads --> D{IPE Catalog}
         C -- Establishes tunnel --> E[Teleport tsh]
         E -- Secure connection --> F[SQL Server fin-sql.jumia.local]
@@ -109,9 +109,9 @@ graph TD
 
 | Component | Role | Technology |
 |-----------|------|------------|
-| **Temporal Workflow** | Main workflow orchestration | Temporal.io Workflows |
-| **Temporal Activities** | IPE extraction and processing | Temporal.io Activities |
-| **Temporal Worker** | Executes workflows and activities | Python (`src/orchestrators/cpg1_worker.py`) |
+| **Airflow DAG** | Main workflow orchestration | Apache Airflow |
+| **Airflow Tasks** | IPE extraction and processing | Apache Airflow Operators |
+| **Airflow Workers** | Executes task instances | Airflow Executor Workers |
 | **IPE Runner** | Individual IPE processor | Python + Pandas |
 | **Evidence Manager** | SOX compliance engine | Cryptographic hashing |
 | **Database Connection** | Secure tunnel to SQL Server | Teleport (tsh) |
@@ -137,11 +137,11 @@ Here’s a step-by-step breakdown:
 - **Key Scripts**: `src/core/runners/mssql_runner.py`
 - **Result**: A secure, authenticated connection to `fin-sql.jumia.local` is established.
 
-#### 2. Orchestration (The "Temporal Workflow")
+#### 2. Orchestration (The "Airflow DAG")
 
-- **What happens**: A Temporal Workflow orchestrates the entire process. It loops through all the IPEs defined in your catalog and executes them one by one as Temporal Activities.
-- **Key Components**: Temporal Worker (`src/orchestrators/cpg1_worker.py`), Temporal Workflows, Temporal Activities
-- **Result**: Each IPE is executed as a Temporal Activity for reliable, distributed processing.
+- **What happens**: An Airflow DAG orchestrates the entire process. It loops through all the IPEs defined in your catalog and executes them one by one as Airflow tasks.
+- **Key Components**: Airflow Scheduler, Airflow Webserver, Airflow DAG tasks
+- **Result**: Each IPE is executed as a task instance with retries, logs, and scheduling managed by Airflow.
 
 #### 3. Execution (The "Runner")
 
@@ -171,7 +171,7 @@ Here’s a step-by-step breakdown:
 - Docker
 - Teleport (`tsh`) client configured with access to `fin-sql.jumia.local`
 - SQL Server ODBC Driver
-- Temporal Server (self-hosted or Temporal Cloud)
+- Apache Airflow (Scheduler + Webserver + Worker/Executor)
 
 ### Local Development
 
@@ -185,14 +185,15 @@ pip install -r requirements.txt
 
 # Set environment variables
 export CUTOFF_DATE="2024-05-01"
-export TEMPORAL_ADDRESS="localhost:7233"  # or your Temporal server address
+export AIRFLOW_HOME="$PWD/.airflow"
 
 # Establish Teleport tunnel
 tsh login --proxy=teleport.jumia.com --user=your-username
 tsh db connect fin-sql
 
-# Start the Temporal Worker
-python -m src.orchestrators.cpg1_worker
+# Start Airflow services (example)
+airflow scheduler
+airflow webserver --port 8080
 
 # Run timing difference bridge analysis
 python -m src.bridges.timing_difference
@@ -204,9 +205,9 @@ python -m src.bridges.timing_difference
 # Build the image
 docker build -t soxauto-pg01 .
 
-# Run the Temporal Worker container
+# Run the Airflow worker container (project-specific command)
 docker run \
-  -e TEMPORAL_ADDRESS="temporal.example.com:7233" \
+  -e AIRFLOW__CORE__EXECUTOR="LocalExecutor" \
   -e CUTOFF_DATE="2024-05-01" \
   soxauto-pg01
 ```
@@ -233,10 +234,10 @@ PG-01/
 │   │   ├── recon/                # Reconciliation logic
 │   │   │   ├── __init__.py
 │   │   │   └── cpg1.py           # CPG1 business rules
-│   ├── orchestrators/             # Temporal orchestration
+│   ├── orchestrators/             # Legacy orchestration code (Temporal)
 │   │   ├── __init__.py
-│   │   ├── cpg1_worker.py         # Temporal Worker for C-PG-1
-│   │   └── workflow.py            # Temporal Workflow definitions
+│   │   ├── cpg1_worker.py         # Legacy Temporal Worker for C-PG-1
+│   │   └── workflow.py            # Legacy Temporal Workflow definitions
 │   ├── bridges/                  # Bridge analysis scripts
 │   │   ├── __init__.py
 │   │   └── timing_difference.py  # Timing difference automation
@@ -252,7 +253,8 @@ PG-01/
 │   ├── architecture/             # System design
 │   │   └── DATA_ARCHITECTURE.md
 │   ├── deployment/               # Deployment guides
-│   │   └── aws_deploy.md
+│   │   ├── airflow_deploy.md
+│   │   └── temporal_worker_deploy.md  # Legacy
 │   ├── development/              # Development guides
 │   │   ├── TESTING_GUIDE.md
 │   │   ├── SECURITY_FIXES.md
@@ -285,8 +287,8 @@ PG-01/
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| **Orchestration** | Temporal.io | Durable workflow orchestration |
-| **Worker** | Python 3.11 | Temporal Worker executing workflows/activities |
+| **Orchestration** | Apache Airflow | DAG-based scheduling and workflow orchestration |
+| **Execution Runtime** | Python 3.11 | Airflow tasks running extraction/reconciliation jobs |
 | **Data Access** | pyodbc + Teleport | SQL Server via secure tunnel |
 | **Database Connection** | Teleport (`tsh`) | Secure tunnel to on-premises SQL Server |
 | **Evidence System** | hashlib (SHA-256) | Cryptographic integrity verification |
@@ -444,7 +446,8 @@ Comprehensive documentation available in `docs/`:
 
 ### Deployment
 
-- **[RECONCILIATION_FLOW.md](docs/development/RECONCILIATION_FLOW.md)** - Reconciliation workflow
+- **[airflow_deploy.md](docs/deployment/airflow_deploy.md)** - Airflow deployment and operations
+- **[temporal_worker_deploy.md](docs/deployment/temporal_worker_deploy.md)** - Legacy Temporal deployment runbook
 
 ------
 
