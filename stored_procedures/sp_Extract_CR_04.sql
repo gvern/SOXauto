@@ -11,7 +11,7 @@
 -- Source: NAV Data Warehouse
 -- GL Accounts: 18650, 18397 (and accounts starting with 145%, 15%)
 -- =============================================
-CREATE PROCEDURE [dbo].[sp_Extract_CR_04]
+CREATE PROCEDURE [n8n].[sp_Extract_CR_04]
     @year_start DATE,
     @year_end DATE,
     @gl_accounts_cr_04 NVARCHAR(500),
@@ -28,17 +28,20 @@ BEGIN
     DECLARE @webhook_url NVARCHAR(1000) = 'https://n8n.ops.jumia.com/webhook-test/10d7f0e2-995f-4e76-a766-e2bd3029e75e'
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
+    DECLARE @procedure_name NVARCHAR(255)
     DECLARE @year_start_str NVARCHAR(10)
     DECLARE @year_end_str NVARCHAR(10)
     
+    -- Store procedure name (@@PROCID doesn't work in EXEC parameters)
+    SET @procedure_name = 'n8n.sp_Extract_CR_04'
+    
     -- Generate unique filename with timestamp
-    SET @filename = 'CR_04_' + 
-                    FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
+    SET @filename = 'CR_04_' + FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
     SET @full_path = @output_path + @filename
     
     -- Convert dates to strings for query
-    SET @year_start_str = CAST(@year_start AS NVARCHAR(10))
-    SET @year_end_str = CAST(@year_end AS NVARCHAR(10))
+    SET @year_start_str = CONVERT(NVARCHAR(10), @year_start, 120)
+    SET @year_end_str = CONVERT(NVARCHAR(10), @year_end, 120)
     
     -- Build dynamic query with parameters
     SET @query = '
@@ -64,23 +67,23 @@ BEGIN
             ''Text;Database=' + REPLACE(@output_path, '''', '''''') + ';HDR=YES;FMT=Delimited'',
             ''SELECT * FROM [' + @filename + ']'')
         ' + @query
-
+        
         EXEC sp_executesql @openrowset_sql
     END TRY
     BEGIN CATCH
         SET @export_status = 'error'
         SET @error_message = ERROR_MESSAGE()
     END CATCH
-
-    EXEC [dbo].[sp_Send_Csv_To_Webhook]
+    
+    EXEC [n8n].[sp_Send_Csv_To_Webhook]
         @webhook_url = @webhook_url,
         @file_path = @full_path,
         @file_name = @filename,
-        @procedure_name = OBJECT_SCHEMA_NAME(@@PROCID) + '.' + OBJECT_NAME(@@PROCID),
+        @procedure_name = @procedure_name,
         @row_count = @row_count,
         @export_status = @export_status,
         @error_message = @error_message
-
+        
     IF @export_status <> 'success'
     BEGIN
         SELECT 
