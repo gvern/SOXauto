@@ -28,6 +28,8 @@ BEGIN
     
     -- Store procedure name (@@PROCID doesn't work in EXEC parameters)
     SET @procedure_name = 'n8n.sp_Extract_IPE_08_ISSUANCE'
+    
+    -- Convert date to string for dynamic SQL
     SET @cutoff_str = CONVERT(NVARCHAR(10), @cutoff_date, 120)
     
     -- Generate unique filename with timestamp
