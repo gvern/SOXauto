@@ -8,7 +8,7 @@
 -- Returns: File path, filename, and row count
 -- Bridge: Timing Difference
 -- =============================================
-CREATE PROCEDURE [dbo].[sp_Extract_IPE_08_TIMING]
+CREATE PROCEDURE [n8n].[sp_Extract_IPE_08_TIMING]
     @cutoff_date DATE,
     @output_path NVARCHAR(500) = 'C:\SQLExports\'
 AS
@@ -23,10 +23,17 @@ BEGIN
     DECLARE @webhook_url NVARCHAR(1000) = 'https://n8n.ops.jumia.com/webhook-test/10d7f0e2-995f-4e76-a766-e2bd3029e75e'
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
+    DECLARE @procedure_name NVARCHAR(255)
+    DECLARE @cutoff_str NVARCHAR(10)
+    
+    -- Store procedure name (@@PROCID doesn't work in EXEC parameters)
+    SET @procedure_name = 'n8n.sp_Extract_IPE_08_TIMING'
+    
+    -- Convert date to string for dynamic SQL
+    SET @cutoff_str = CONVERT(NVARCHAR(10), @cutoff_date, 120)
     
     -- Generate unique filename with timestamp
-    SET @filename = 'IPE_08_TIMING_' + 
-                    FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
+    SET @filename = 'IPE_08_TIMING_' + FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
     SET @full_path = @output_path + @filename
     
     -- Build dynamic query with parameters
@@ -58,14 +65,14 @@ BEGIN
     FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING] t1
     LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI] tTwo
         ON t1.fk_Sales_Order_Item = tTwo.ID_Sales_Order_Item
-    WHERE t1.[Creation_Date] < ''' + CAST(@cutoff_date AS NVARCHAR(10)) + '''
+    WHERE t1.[Creation_Date] < ''' + @cutoff_str + '''
         AND t1.[Status] = ''inactive''
-        AND t1.[End_Date] >= ''' + CAST(@cutoff_date AS NVARCHAR(10)) + '''
+        AND t1.[End_Date] >= ''' + @cutoff_str + '''
         AND (tTwo.[Order_Item_Status] NOT IN (''delivered'', ''cancelled'', ''closed'') 
              OR tTwo.[Order_Item_Status] IS NULL)
-        AND (tTwo.[Order_Delivery_Date] >= ''' + CAST(@cutoff_date AS NVARCHAR(10)) + '''
+        AND (tTwo.[Order_Delivery_Date] >= ''' + @cutoff_str + '''
              OR tTwo.[Order_Delivery_Date] IS NULL)
-        AND (tTwo.[Order_Cancellation_Date] >= ''' + CAST(@cutoff_date AS NVARCHAR(10)) + '''
+        AND (tTwo.[Order_Cancellation_Date] >= ''' + @cutoff_str + '''
              OR tTwo.[Order_Cancellation_Date] IS NULL)
     '
     
@@ -89,11 +96,11 @@ BEGIN
         SET @error_message = ERROR_MESSAGE()
     END CATCH
 
-    EXEC [dbo].[sp_Send_Csv_To_Webhook]
+    EXEC [n8n].[sp_Send_Csv_To_Webhook]
         @webhook_url = @webhook_url,
         @file_path = @full_path,
         @file_name = @filename,
-        @procedure_name = OBJECT_SCHEMA_NAME(@@PROCID) + '.' + OBJECT_NAME(@@PROCID),
+        @procedure_name = @procedure_name,
         @row_count = @row_count,
         @export_status = @export_status,
         @error_message = @error_message
