@@ -10,7 +10,7 @@
 -- Source: NAV Data Warehouse
 -- GL Account: 15010
 -- =============================================
-CREATE PROCEDURE [dbo].[sp_Extract_CR_03]
+CREATE PROCEDURE [n8n].[sp_Extract_CR_03]
     @subsequent_month_start DATETIME,
     @gl_accounts_cr_03 NVARCHAR(500),
     @output_path NVARCHAR(500) = 'C:\SQLExports\'
@@ -30,7 +30,7 @@ BEGIN
     DECLARE @procedure_name NVARCHAR(255)
     
     -- Store procedure name early 
-    SET @procedure_name = 'dbo.sp_Extract_CR_03'
+    SET @procedure_name = 'n8n.sp_Extract_CR_03'
     
     -- Generate unique filename with timestamp
     SET @filename = 'CR_03_' + 
@@ -89,13 +89,13 @@ BEGIN
             THEN ''BackMargin''
             ELSE ''Other''
         END AS EntryType
-    FROM [AIG_Nav_DW].[dbo].[G_L Entries] gl WITH (INDEX([IDX_NAV_GL_Entries]))
+    FROM [AIG_Nav_DW].[n8n].[G_L Entries] gl WITH (INDEX([IDX_NAV_GL_Entries]))
     INNER JOIN (
         SELECT
             det.[id_company],
             det.[Gen_ Ledger Entry No_],
             SUM(det.[Amount]) AS rem_bal_LCY
-        FROM [AIG_Nav_DW].[dbo].[Detailed G_L Entry] det
+        FROM [AIG_Nav_DW].[n8n].[Detailed G_L Entry] det
         LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] comp
             ON comp.Company_Code = det.id_company
         WHERE det.[Posting Date] < CAST(''' + @subsequent_str + ''' AS DATETIME)
@@ -111,7 +111,7 @@ BEGIN
     LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_ChartOfAccounts] coa
         ON coa.[Company_Code] = gl.id_company 
         AND coa.[G/L_Account_No] = gl.[Chart of Accounts No_]
-    LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[GDOC_IFRS_Tabular_Mapping] ifrs
+    LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[n8n].[GDOC_IFRS_Tabular_Mapping] ifrs
         ON ifrs.Level_4_Code = coa.Group_COA_Account_no
     WHERE gl.[Posting Date] < CAST(''' + @subsequent_str + ''' AS DATETIME)
         AND gl.[id_company] NOT LIKE ''%USD%''
@@ -138,7 +138,7 @@ BEGIN
     END CATCH
 
     -- Call webhook with stored procedure name variable
-    EXEC [dbo].[sp_Send_Csv_To_Webhook]
+    EXEC [n8n].[sp_Send_Csv_To_Webhook]
         @webhook_url = @webhook_url,
         @file_path = @full_path,
         @file_name = @filename,
