@@ -27,6 +27,10 @@ BEGIN
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
     DECLARE @subsequent_str NVARCHAR(30)
+    DECLARE @procedure_name NVARCHAR(255)
+    
+    -- Store procedure name early 
+    SET @procedure_name = 'dbo.sp_Extract_CR_03'
     
     -- Generate unique filename with timestamp
     SET @filename = 'CR_03_' + 
@@ -133,11 +137,12 @@ BEGIN
         SET @error_message = ERROR_MESSAGE()
     END CATCH
 
+    -- Call webhook with stored procedure name variable
     EXEC [dbo].[sp_Send_Csv_To_Webhook]
         @webhook_url = @webhook_url,
         @file_path = @full_path,
         @file_name = @filename,
-        @procedure_name = OBJECT_SCHEMA_NAME(@@PROCID) + '.' + OBJECT_NAME(@@PROCID),
+        @procedure_name = @procedure_name,
         @row_count = @row_count,
         @export_status = @export_status,
         @error_message = @error_message
