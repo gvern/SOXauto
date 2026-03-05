@@ -9,7 +9,7 @@
 -- Source: OMS
 -- Business Logic: Packages delivered up to cutoff date that remain unreconciled
 -- =============================================
-CREATE PROCEDURE [dbo].[sp_Extract_IPE_12]
+CREATE PROCEDURE [n8n].[sp_Extract_IPE_12]
     @cutoff_date DATE,
     @output_path NVARCHAR(500) = 'C:\SQLExports\'
 AS
@@ -24,15 +24,18 @@ BEGIN
     DECLARE @webhook_url NVARCHAR(1000) = 'https://n8n.ops.jumia.com/webhook-test/10d7f0e2-995f-4e76-a766-e2bd3029e75e'
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
+    DECLARE @procedure_name NVARCHAR(255)
     DECLARE @cutoff_str NVARCHAR(10)
     
-    -- Generate unique filename with timestamp
-    SET @filename = 'IPE_12_' + 
-                    FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
-    SET @full_path = @output_path + @filename
+    -- Store procedure name (@@PROCID doesn't work in EXEC parameters)
+    SET @procedure_name = 'n8n.sp_Extract_IPE_12'
     
-    -- Convert date to string for query
-    SET @cutoff_str = CAST(@cutoff_date AS NVARCHAR(10))
+    -- Convert date to string for dynamic SQL
+    SET @cutoff_str = CONVERT(NVARCHAR(10), @cutoff_date, 120)
+    
+    -- Generate unique filename with timestamp
+    SET @filename = 'IPE_12_' + FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
+    SET @full_path = @output_path + @filename
     
     -- Build dynamic query with parameters
     SET @query = '
@@ -110,11 +113,11 @@ BEGIN
         SET @error_message = ERROR_MESSAGE()
     END CATCH
 
-    EXEC [dbo].[sp_Send_Csv_To_Webhook]
+    EXEC [n8n].[sp_Send_Csv_To_Webhook]
         @webhook_url = @webhook_url,
         @file_path = @full_path,
         @file_name = @filename,
-        @procedure_name = OBJECT_SCHEMA_NAME(@@PROCID) + '.' + OBJECT_NAME(@@PROCID),
+        @procedure_name = @procedure_name,
         @row_count = @row_count,
         @export_status = @export_status,
         @error_message = @error_message
