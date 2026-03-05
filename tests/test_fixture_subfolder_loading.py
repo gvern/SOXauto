@@ -162,6 +162,38 @@ class TestExtractionPipelineSubfolderLoading:
         finally:
             ep_module.REPO_ROOT = original_repo_root
 
+    def test_skips_malformed_fixture_lines(self, tmp_path):
+        """Test malformed CSV lines are skipped instead of crashing fixture loading."""
+        company = "EC_NG"
+        item_id = "CR_04"
+
+        fixtures_dir = tmp_path / "tests" / "fixtures"
+        fixtures_dir.mkdir(parents=True, exist_ok=True)
+
+        fixture_path = fixtures_dir / f"fixture_{item_id}.csv"
+        fixture_path.write_text(
+            "id,value\n"
+            "A1,100\n"
+            "BROKEN,too,many,columns,here\n"
+            "A2,200\n",
+            encoding="utf-8",
+        )
+
+        params = {'cutoff_date': '2025-09-30', 'id_companies_active': f"('{company}')"}
+
+        original_repo_root = ep_module.REPO_ROOT
+        try:
+            ep_module.REPO_ROOT = str(tmp_path)
+            pipeline = ExtractionPipeline(params, company, "202509")
+
+            df = pipeline._load_fixture(item_id)
+
+            assert not df.empty
+            assert len(df) == 2
+            assert list(df["id"]) == ["A1", "A2"]
+        finally:
+            ep_module.REPO_ROOT = original_repo_root
+
 
 class TestJDashLoaderSubfolderLoading:
     """Tests for JDASH loader with company subfolder support."""

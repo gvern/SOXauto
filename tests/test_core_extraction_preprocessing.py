@@ -11,6 +11,7 @@ Tests cover:
 import os
 import sys
 import tempfile
+from unittest.mock import patch
 import pandas as pd
 import pytest
 
@@ -34,6 +35,7 @@ from src.core.evidence.evidence_locator import (
     get_latest_evidence_zip,
     find_evidence_packages,
 )
+from src.core.extraction_pipeline import load_all_data
 
 
 # ============================================================================
@@ -284,6 +286,95 @@ class TestValidateJdashData:
         result = validate_jdash_data(df)
         
         assert result["stats"]["row_count"] == 0
+
+
+# ============================================================================
+# Tests for extraction_pipeline.py
+# ============================================================================
+
+class TestExtractionPipelineLoadAllData:
+    """Tests for load_all_data orchestration behavior."""
+
+    def test_default_required_ipes_include_jdash(self):
+        """Default extraction set should include JDASH for timing bridge compatibility."""
+        params = {
+            "company": "EC_NG",
+            "cutoff_date": "2025-09-30",
+            "id_companies_active": "('EC_NG')",
+        }
+
+        with patch("src.core.extraction_pipeline.ExtractionPipeline") as mock_pipeline_class:
+            mock_pipeline = mock_pipeline_class.return_value
+            mock_pipeline.filter_by_country.side_effect = lambda df: df
+            mock_pipeline._load_fixture.return_value = pd.DataFrame()
+            mock_pipeline.last_extraction_source = "none"
+
+            with patch("asyncio.run") as mock_async:
+                mock_async.return_value = (pd.DataFrame(), None)
+
+                data_store, _, _ = load_all_data(params=params)
+
+        assert "JDASH" in data_store
+
+    def test_source_store_marks_fixture_when_async_falls_back(self):
+        """Fixture fallback via async extraction should be labeled as Local Fixture."""
+        params = {
+            "company": "EC_NG",
+            "cutoff_date": "2025-09-30",
+            "id_companies_active": "('EC_NG')",
+        }
+
+        fixture_df = pd.DataFrame([{"ID_COMPANY": "EC_NG", "value": 1}])
+
+        with patch("src.core.extraction_pipeline.ExtractionPipeline") as mock_pipeline_class:
+            mock_pipeline = mock_pipeline_class.return_value
+            mock_pipeline.filter_by_country.side_effect = lambda df: df
+            mock_pipeline.last_extraction_source = "fixture"
+
+            with patch("asyncio.run") as mock_async:
+                mock_async.return_value = (fixture_df, None)
+
+                _, _, source_store = load_all_data(
+                    params=params,
+                    required_ipes=["IPE_07"],
+                )
+
+        assert source_store["IPE_07"] == "Local Fixture"
+
+    def test_aliases_add_explicit_ipe08_keys_from_legacy_keys(self):
+        """When legacy keys are loaded, explicit split IPE_08 keys should be exposed too."""
+        params = {
+            "company": "EC_NG",
+            "cutoff_date": "2025-09-30",
+            "id_companies_active": "('EC_NG')",
+        }
+
+        issuance_df = pd.DataFrame([{"ID_COMPANY": "EC_NG", "id": 1}])
+        usage_df = pd.DataFrame([{"ID_COMPANY": "EC_NG", "VoucherId": "V1"}])
+
+        def fake_run(_):
+            if fake_run.calls == 0:
+                fake_run.calls += 1
+                return issuance_df, None
+            return usage_df, None
+
+        fake_run.calls = 0
+
+        with patch("src.core.extraction_pipeline.ExtractionPipeline") as mock_pipeline_class:
+            mock_pipeline = mock_pipeline_class.return_value
+            mock_pipeline.filter_by_country.side_effect = lambda df: df
+            mock_pipeline.last_extraction_source = "live"
+
+            with patch("asyncio.run", side_effect=fake_run):
+                data_store, _, source_store = load_all_data(
+                    params=params,
+                    required_ipes=["IPE_08", "DOC_VOUCHER_USAGE"],
+                )
+
+        assert "IPE_08_ISSUANCE" in data_store
+        assert "IPE_08_USAGE" in data_store
+        assert source_store["IPE_08_ISSUANCE"] == source_store["IPE_08"]
+        assert source_store["IPE_08_USAGE"] == source_store["DOC_VOUCHER_USAGE"]
 
 
 # ============================================================================

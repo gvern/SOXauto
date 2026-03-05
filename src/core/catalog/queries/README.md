@@ -7,7 +7,9 @@ This directory contains SQL query definitions for IPEs (Internal Process Evidenc
 ### IPE Queries
 
 - **IPE_07.sql** - Customer balances - Monthly balances at date (Ageing details)
-- **IPE_08.sql** - TV - Voucher liabilities (Issuance baseline)
+- **IPE_08_ISSUANCE.sql** - TV voucher issuance baseline (main liability extract)
+- **IPE_08_TIMING.sql** - TV voucher timing-focused extract
+- **IPE_08_USAGE.sql** - TV voucher usage extract
 - **IPE_10.sql** - Customer prepayments TV (PBI report)
 - **IPE_31.sql** - PG detailed TV extraction (Collection Accounts)
 - **IPE_REC_ERRORS.sql** - Master Integration Errors consolidation (Task 3)
@@ -21,7 +23,20 @@ This directory contains SQL query definitions for IPEs (Internal Process Evidenc
 
 ### DOC Queries
 
-- **DOC_VOUCHER_USAGE.sql** - Voucher Usage TV Extract (for Timing Bridge)
+- **DOC_VOUCHER_USAGE** is mapped in catalog to **IPE_08_USAGE.sql** for backward compatibility.
+
+## IPE_08 Split Model
+
+`IPE_08` is now modeled as a 3-query package:
+
+1. `IPE_08_ISSUANCE` (baseline liability)
+2. `IPE_08_TIMING` (timing support)
+3. `IPE_08_USAGE` (usage support)
+
+Compatibility aliases kept in code:
+
+- `IPE_08` -> `IPE_08_ISSUANCE`
+- `DOC_VOUCHER_USAGE` -> `IPE_08_USAGE`
 
 ## Query Loading
 

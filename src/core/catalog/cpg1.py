@@ -278,11 +278,42 @@ This provides the complete voucher liability picture for reconciliation purposes
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[StoreCreditVoucher]", system="BOB", domain="FinRec"),
             _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
         ],
-        sql_query=_load_sql("IPE_08"),
+        sql_query=_load_sql("IPE_08_ISSUANCE"),
         quality_rules=[
             RowCountCheck(min_rows=1),
             ColumnExistsCheck("remaining_amount"),
             ColumnExistsCheck("id"),
+        ],
+    ),
+    CatalogItem(
+        item_id="IPE_08_TIMING",
+        item_type="IPE",
+        control="C-PG-1",
+        title="TV - Voucher timing differences",
+        change_status="No changes",
+        last_updated="2026-03-05",
+        output_type="Query",
+        tool="PowerPivot",
+        third_party=False,
+        status="Completed",
+        baseline_required=True,
+        cross_reference=None,
+        description="""Timing-oriented extract for inactive vouchers still valid at cutoff, used for timing-difference analysis support.""",
+        notes=(
+            "Split query from IPE_08 package: timing dataset. "
+            "Sources: V_STORECREDITVOUCHER_CLOSING + RPT_SOI"
+        ),
+        evidence_ref="IPE_08_TIMING",
+        descriptor_excel=None,
+        sources=[
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING]", system="BOB", domain="FinRec"),
+            _src_sql("[AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]", system="OMS", domain="FinRec"),
+        ],
+        sql_query=_load_sql("IPE_08_TIMING"),
+        quality_rules=[
+            RowCountCheck(min_rows=1),
+            ColumnExistsCheck("Voucher_ID"),
+            ColumnExistsCheck("Status"),
         ],
     ),
     # =================================================================
@@ -336,7 +367,7 @@ voucher id, transaction number, voucher type, business use, creation year, and d
                 domain="FinRec",
             ),
         ],
-        sql_query=_load_sql("DOC_VOUCHER_USAGE"),
+        sql_query=_load_sql("IPE_08_USAGE"),
         quality_rules=[
             RowCountCheck(min_rows=1),
             ColumnExistsCheck("TotalAmountUsed"),

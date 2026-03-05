@@ -2,11 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import sys
-import asyncio
-import time
-import glob
 from datetime import datetime
-from unittest.mock import MagicMock
 
 # --- PATH CONFIGURATION ---
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -14,9 +10,9 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 # --- BACKEND IMPORTS ---
-from src.core.runners.mssql_runner import IPERunner
 from src.core.catalog.cpg1 import get_item_by_id
-from src.utils.aws_utils import AWSSecretsManager
+from src.core.extraction_pipeline import load_all_data as load_all_data_pipeline
+from src.core.jdash_loader import load_jdash_data as load_jdash_data_pipeline
 from src.bridges import (
     categorize_nav_vouchers,
     calculate_vtc_adjustment,
@@ -83,6 +79,23 @@ def convert_df(df: pd.DataFrame) -> bytes:
     """Convert a DataFrame to CSV bytes for Streamlit download buttons."""
     return df.to_csv(index=False).encode("utf-8")
 
+
+def load_jdash_data(uploaded_file, company: str | None = None):
+    """Load JDASH data via core loader (uploaded file preferred, then fixtures)."""
+    return load_jdash_data_pipeline(
+        source=uploaded_file,
+        fixture_fallback=True,
+        company=company,
+    )
+
+
+def load_all_data(params, uploaded_files=None):
+    """Load required datasets via core extraction pipeline."""
+    return load_all_data_pipeline(
+        params=params,
+        uploaded_files=uploaded_files,
+    )
+
 # --- PAGE CONFIG ---
 st.set_page_config(
     page_title="SOXauto | C-PG-1 Audit Agent",
@@ -123,203 +136,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- HELPER FUNCTIONS ---
-
-
-def get_latest_evidence_zip(item_id):
-    """Finds the most recent ZIP package generated for an IPE."""
-    evidence_root = os.path.join(REPO_ROOT, "evidence")
-    if not os.path.exists(evidence_root):
-        return None
-
-    # Search for folders starting with item_id
-    candidates = []
-    for folder_name in os.listdir(evidence_root):
-        if folder_name.startswith(item_id):
-            folder_path = os.path.join(evidence_root, folder_name)
-            # Look for zip inside
-            zip_files = glob.glob(os.path.join(folder_path, "*.zip"))
-            if zip_files:
-                # Add (timestamp, zip_path)
-                candidates.append((os.path.getmtime(zip_files[0]), zip_files[0]))
-
-    if not candidates:
-        return None
-
-    # Return the newest one
-    candidates.sort(key=lambda x: x[0], reverse=True)
-    return candidates[0][1]
-
-
-async def run_extraction_with_evidence(item_id, params, country_code, period_str):
-    """
-    Executes extraction via IPERunner.run() ensuring Rich Metadata & Evidence Generation.
-    Includes a PATCH for CR_05 column names.
-    """
-    mock_secrets = MagicMock(spec=AWSSecretsManager)
-    mock_secrets.get_secret.return_value = "FAKE_SECRET"
-
-    item = get_item_by_id(item_id)
-    if not item:
-        return pd.DataFrame(), None
-
-    # Injection manuelle des paramètres dans la requête SQL pour l'exécution directe (fallback)
-    final_query = item.sql_query
-    for key, value in params.items():
-        if f"{{{key}}}" in final_query:
-            final_query = final_query.replace(f"{{{key}}}", str(value))
-
-    ipe_config = {
-        "id": item.item_id,
-        "description": getattr(item, "description", ""),
-        "secret_name": "fake",
-        "main_query": final_query,
-        "validation": {},
-    }
-
-    runner = IPERunner(
-        ipe_config,
-        mock_secrets,
-        cutoff_date=params["cutoff_date"],
-        country=country_code,
-        period=period_str,
-        full_params=params
-    )
-    
-    # === PATCH CRITIQUE (Le même que fetch_live_fixtures.py) ===
-    # Force le runner à ignorer les '?' dans les noms de colonnes de CR_05
-    # et à exécuter la requête telle quelle (car les params sont déjà injectés)
-    def patched_exec(query, params=None):
-        return pd.read_sql(query, runner.connection)
-    
-    runner._execute_query_with_parameters = patched_exec
-    # ===========================================================
-    
-    try:
-        # runner.run() va maintenant utiliser notre méthode patchée
-        df = runner.run()
-
-        # On récupère le zip le plus récent
-        zip_path = get_latest_evidence_zip(item_id)
-
-        return df, zip_path
-
-    except Exception as e:
-        # Fallback fixture (Mode Démo sans BDD)
-        fixture_path = os.path.join(
-            REPO_ROOT, "tests", "fixtures", f"fixture_{item_id}.csv"
-        )
-        if os.path.exists(fixture_path):
-            return pd.read_csv(fixture_path, low_memory=False), None
-        return pd.DataFrame(), None
-
-
-def load_jdash_data(uploaded_file):
-    if uploaded_file is not None:
-        return pd.read_csv(uploaded_file), "Uploaded File"
-    fixture_path = os.path.join(REPO_ROOT, "tests", "fixtures", "fixture_JDASH.csv")
-    if os.path.exists(fixture_path):
-        return pd.read_csv(fixture_path), "Local Fixture"
-    return pd.DataFrame(columns=["Voucher Id", "Amount Used"]), "No Data"
-
-
-def load_all_data(params, uploaded_files=None):
-    """Orchestrates loading and evidence collection with context.
-    
-    Args:
-        params: SQL parameters dictionary
-        uploaded_files: Dictionary of {item_id: UploadedFile} for manual CSV overrides
-    
-    Returns:
-        tuple: (data_store, evidence_store, source_store) where source_store tracks 
-               the source of each dataset ("Uploaded File", "Live Database", "Local Fixture")
-    """
-    REQUIRED_IPES = ["CR_04", "CR_03", "CR_05", "IPE_07", "IPE_08", "DOC_VOUCHER_USAGE"]
-    data_store = {}
-    evidence_store = {}
-    source_store = {}  # Track data source for visual feedback
-    
-    if uploaded_files is None:
-        uploaded_files = {}
-
-    status_container = st.empty()
-    progress_bar = st.progress(0)
-
-    # --- MISE À JOUR : Extraction du Contexte (Pays/Période) ---
-    # On nettoie le format SQL "('JD_GH')" pour avoir juste "JD_GH"
-    country_code = params["id_companies_active"].strip("()'")
-    # On transforme "2025-09-30" en "202509"
-    period_str = params["cutoff_date"].replace("-", "")[:6]
-
-    for i, item_id in enumerate(REQUIRED_IPES):
-        status_container.markdown(
-            f"🛡️ **Audit Process:** Processing `{item_id}` for **{country_code}**..."
-        )
-
-        # Priority 1: Check if a file was uploaded for this IPE
-        if item_id in uploaded_files and uploaded_files[item_id] is not None:
-            try:
-                df = pd.read_csv(uploaded_files[item_id], low_memory=False)
-                zip_path = None  # No evidence package for uploaded files
-                source_store[item_id] = "Uploaded File"
-                status_container.markdown(
-                    f"✅ **{item_id}:** Loaded from uploaded CSV ({len(df):,} rows)"
-                )
-            except Exception as e:
-                st.warning(f"⚠️ Error reading uploaded file for {item_id}: {e}. Falling back to live extraction.")
-                df = None
-                zip_path = None
-                source_store[item_id] = None
-        else:
-            df = None
-            zip_path = None
-            source_store[item_id] = None
-
-        # Priority 2: Try live SQL extraction if no uploaded file
-        if df is None:
-            try:
-                df, zip_path = asyncio.run(
-                    run_extraction_with_evidence(item_id, params, country_code, period_str)
-                )
-                if not df.empty:
-                    source_store[item_id] = "Live Database"
-                else:
-                    # Empty result from live extraction, try fixture
-                    df = None
-            except Exception:
-                df = None
-                zip_path = None
-
-        # Priority 3: Fall back to local fixture
-        if df is None or (df is not None and df.empty and source_store.get(item_id) != "Uploaded File"):
-            fixture_path = os.path.join(
-                REPO_ROOT, "tests", "fixtures", f"fixture_{item_id}.csv"
-            )
-            if os.path.exists(fixture_path):
-                df = pd.read_csv(fixture_path, low_memory=False)
-                zip_path = None
-                source_store[item_id] = "Local Fixture"
-            else:
-                df = pd.DataFrame()
-                zip_path = None
-                source_store[item_id] = "No Data"
-
-        # Filtrage local pour l'affichage (si nécessaire)
-        for col in ["ID_COMPANY", "id_company", "ID_Company", "country"]:
-            if col in df.columns:
-                df = df[df[col] == country_code].copy()
-                break
-
-        data_store[item_id] = df
-        evidence_store[item_id] = zip_path
-
-        progress_bar.progress((i + 1) / len(REQUIRED_IPES))
-
-    progress_bar.empty()
-    status_container.empty()
-    return data_store, evidence_store, source_store
-
-
 # --- MAIN APP ---
 
 
@@ -353,16 +169,36 @@ def main():
                 help="Customer balances - Monthly balances at date"
             )
             uploaded_ipe08 = st.file_uploader(
-                "IPE_08 - Voucher Issuance", type="csv", key="upload_ipe08",
-                help="TV - Voucher liabilities from BOB"
+                "IPE_08_ISSUANCE - Voucher Issuance", type="csv", key="upload_ipe08",
+                help="TV voucher issuance extract (liability baseline)"
+            )
+            uploaded_ipe08_timing = st.file_uploader(
+                "IPE_08_TIMING - Timing Extract", type="csv", key="upload_ipe08_timing",
+                help="Inactive vouchers still valid at cutoff (timing support)"
             )
             uploaded_doc_voucher = st.file_uploader(
-                "DOC_VOUCHER_USAGE - Voucher Usage", type="csv", key="upload_doc_voucher",
+                "IPE_08_USAGE - Voucher Usage", type="csv", key="upload_doc_voucher",
                 help="Voucher Usage TV Extract for Timing Bridge"
             )
             uploaded_cr05 = st.file_uploader(
                 "CR_05 - FX Rates", type="csv", key="upload_cr05",
                 help="Monthly closing FX rates"
+            )
+            uploaded_ipe10 = st.file_uploader(
+                "IPE_10 - Customer Prepayments", type="csv", key="upload_ipe10",
+                help="Customer prepayments liability extract"
+            )
+            uploaded_ipe12 = st.file_uploader(
+                "IPE_12 - Delivered Not Reconciled", type="csv", key="upload_ipe12",
+                help="Delivered packages not yet reconciled"
+            )
+            uploaded_ipe31 = st.file_uploader(
+                "IPE_31 - Collection Accounts", type="csv", key="upload_ipe31",
+                help="Payment Gateway detailed TV extraction"
+            )
+            uploaded_ipe34 = st.file_uploader(
+                "IPE_34 - Marketplace Refund Liability", type="csv", key="upload_ipe34",
+                help="Marketplace refund liabilities extract"
             )
             uploaded_jdash = st.file_uploader(
                 "JDASH - Jdash Export", type="csv", key="upload_jdash",
@@ -375,8 +211,15 @@ def main():
             "CR_03": uploaded_cr03,
             "IPE_07": uploaded_ipe07,
             "IPE_08": uploaded_ipe08,
+            "IPE_08_ISSUANCE": uploaded_ipe08,
+            "IPE_08_TIMING": uploaded_ipe08_timing,
             "DOC_VOUCHER_USAGE": uploaded_doc_voucher,
+            "IPE_08_USAGE": uploaded_doc_voucher,
             "CR_05": uploaded_cr05,
+            "IPE_10": uploaded_ipe10,
+            "IPE_12": uploaded_ipe12,
+            "IPE_31": uploaded_ipe31,
+            "IPE_34": uploaded_ipe34,
         }
         
         st.markdown("---")
@@ -390,6 +233,7 @@ def main():
             "year_end": format_yyyy_mm_dd(cutoff_date),
             "year": year,
             "month": month,
+            "company": target_country,
             "gl_accounts": "('15010','18303','18304','18406','18408','18409','18411','18412','18416','18417','18419','18421','18320','18307','18308','18309','18312','18310','18314','18380','18635','18317','18318','18319')",
             "id_companies_active": f"('{target_country}')",
         }
@@ -426,7 +270,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             st.markdown("**Full Parameters Dictionary:**")
             st.json(params)
 
-        jdash_df, jdash_source = load_jdash_data(uploaded_jdash)
+        jdash_df, jdash_source = load_jdash_data(uploaded_jdash, target_country)
 
         # --- PREPROCESSING & LOGIC BLUEPRINT (new informational section) ---
         st.header("0. Preprocessing & Logic Blueprint")
@@ -435,8 +279,8 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
         pre_cols = st.columns(3)
         pre_cols[0].metric("JDASH Rows Loaded", f"{len(jdash_df):,}")
         pre_cols[0].caption(f"Source: {jdash_source}")
-        pre_cols[1].metric("IPE Scope Filter", "Non-Marketing + GL 18412")
-        pre_cols[1].caption("`filter_ipe08_scope` enforces account and business_use rules.")
+        pre_cols[1].metric("IPE_08_ISSUANCE Scope", "Non-Marketing + GL 18412")
+        pre_cols[1].caption("`filter_ipe08_scope` enforces account and business_use rules on issuance data.")
         pre_cols[2].metric("Cutoff Date", params["cutoff_date"])
         pre_cols[2].caption("All preprocessing buckets data into Month N vs N+1 windows.")
 
@@ -447,7 +291,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             ),
             (
                 "BOB Scope Enforcement",
-                "`filter_ipe08_scope()` restricts IPE_08 to Non-Marketing vouchers, includes GL 18412, and keeps only valid, country-specific liabilities."
+                "`filter_ipe08_scope()` restricts IPE_08_ISSUANCE (legacy: IPE_08) to Non-Marketing vouchers, includes GL 18412, and keeps only valid, country-specific liabilities."
             ),
             (
                 "Cutoff Bucketing",
@@ -489,13 +333,16 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
         st.subheader("📦 Source Data Packages (Authenticated)")
         st.markdown("*Click 'View Source Query' to see the actual SQL executed for each extraction.*")
 
-        # Row 1 - Enhanced with SQL expanders
+        st.markdown("**Core CR Extracts**")
+
+        # Row 1 - Core CR extracts
         c1, c2, c3 = st.columns(3)
         with c1:
             st.metric("GL Balances (CR_04)", f"{len(data['CR_04']):,} rows")
             display_source_badge(source_info.get("CR_04", "No Data"))
-            if evidence_paths.get("CR_04"):
-                with open(evidence_paths["CR_04"], "rb") as fp:
+            cr04_evidence_path = evidence_paths.get("CR_04")
+            if cr04_evidence_path:
+                with open(cr04_evidence_path, "rb") as fp:
                     st.download_button(
                         "🔒 Download Package (ZIP)",
                         fp,
@@ -509,8 +356,9 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
         with c2:
             st.metric("GL Entries (CR_03)", f"{len(data['CR_03']):,} rows")
             display_source_badge(source_info.get("CR_03", "No Data"))
-            if evidence_paths.get("CR_03"):
-                with open(evidence_paths["CR_03"], "rb") as fp:
+            cr03_evidence_path = evidence_paths.get("CR_03")
+            if cr03_evidence_path:
+                with open(cr03_evidence_path, "rb") as fp:
                     st.download_button(
                         "🔒 Download Package (ZIP)",
                         fp,
@@ -522,21 +370,31 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
                 st.code(get_sql_query_for_item("CR_03"), language="sql")
 
         with c3:
-            st.metric("Voucher Liability (IPE_08)", f"{len(data['IPE_08']):,} rows")
-            display_source_badge(source_info.get("IPE_08", "No Data"))
-            if evidence_paths.get('IPE_08'):
-                with open(evidence_paths['IPE_08'], "rb") as fp:
-                    st.download_button("🔒 Download Package (ZIP)", fp, "IPE_08_Evidence.zip", "application/zip", key="dl_ipe08")
+            st.metric("FX Rates (CR_05)", f"{len(data['CR_05']):,} rows")
+            display_source_badge(source_info.get("CR_05", "No Data"))
+            cr05_evidence_path = evidence_paths.get("CR_05")
+            if cr05_evidence_path:
+                with open(cr05_evidence_path, "rb") as fp:
+                    st.download_button(
+                        "🔒 Download Package (ZIP)",
+                        fp,
+                        "CR_05_Evidence.zip",
+                        "application/zip",
+                        key="dl_cr05",
+                    )
             with st.expander("View Source Query"):
-                st.code(get_sql_query_for_item("IPE_08"), language="sql")
+                st.code(get_sql_query_for_item("CR_05"), language="sql")
 
-        # Row 2 - Additional IPEs with expanders
+        st.markdown("**Voucher Package (IPE_08 Split)**")
+
+        # Row 2 - IPE_08 split extracts
         c4, c5, c6 = st.columns(3)
         with c4:
             st.metric("Customer Balances (IPE_07)", f"{len(data['IPE_07']):,} rows")
             display_source_badge(source_info.get("IPE_07", "No Data"))
-            if evidence_paths.get("IPE_07"):
-                with open(evidence_paths["IPE_07"], "rb") as fp:
+            ipe07_evidence_path = evidence_paths.get("IPE_07")
+            if ipe07_evidence_path:
+                with open(ipe07_evidence_path, "rb") as fp:
                     st.download_button(
                         "🔒 Download Package (ZIP)",
                         fp,
@@ -548,34 +406,125 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
                 st.code(get_sql_query_for_item("IPE_07"), language="sql")
         
         with c5:
-            st.metric("FX Rates (CR_05)", f"{len(data['CR_05']):,} rows")
-            display_source_badge(source_info.get("CR_05", "No Data"))
-            if evidence_paths.get("CR_05"):
-                with open(evidence_paths["CR_05"], "rb") as fp:
-                    st.download_button(
-                        "🔒 Download Package (ZIP)",
-                        fp,
-                        "CR_05_Evidence.zip",
-                        "application/zip",
-                        key="dl_cr05",
-                    )
+            st.metric("Voucher Issuance (IPE_08_ISSUANCE)", f"{len(data.get('IPE_08_ISSUANCE', data.get('IPE_08', pd.DataFrame()))):,} rows")
+            display_source_badge(source_info.get("IPE_08_ISSUANCE", source_info.get("IPE_08", "No Data")))
+            issuance_evidence_path = evidence_paths.get('IPE_08_ISSUANCE') or evidence_paths.get('IPE_08')
+            if issuance_evidence_path:
+                with open(issuance_evidence_path, "rb") as fp:
+                    st.download_button("🔒 Download Package (ZIP)", fp, "IPE_08_ISSUANCE_Evidence.zip", "application/zip", key="dl_ipe08")
             with st.expander("View Source Query"):
-                st.code(get_sql_query_for_item("CR_05"), language="sql")
+                st.code(get_sql_query_for_item("IPE_08"), language="sql")
         
         with c6:
-            st.metric("Voucher Usage (DOC)", f"{len(data['DOC_VOUCHER_USAGE']):,} rows")
-            display_source_badge(source_info.get("DOC_VOUCHER_USAGE", "No Data"))
-            if evidence_paths.get("DOC_VOUCHER_USAGE"):
-                with open(evidence_paths["DOC_VOUCHER_USAGE"], "rb") as fp:
+            st.metric("Voucher Usage (IPE_08_USAGE)", f"{len(data.get('IPE_08_USAGE', data.get('DOC_VOUCHER_USAGE', pd.DataFrame()))):,} rows")
+            display_source_badge(source_info.get("IPE_08_USAGE", source_info.get("DOC_VOUCHER_USAGE", "No Data")))
+            usage_evidence_path = evidence_paths.get("IPE_08_USAGE") or evidence_paths.get("DOC_VOUCHER_USAGE")
+            if usage_evidence_path:
+                with open(usage_evidence_path, "rb") as fp:
                     st.download_button(
                         "🔒 Download Package (ZIP)",
                         fp,
-                        "DOC_VOUCHER_USAGE_Evidence.zip",
+                        "IPE_08_USAGE_Evidence.zip",
                         "application/zip",
                         key="dl_doc_voucher",
                     )
             with st.expander("View Source Query"):
                 st.code(get_sql_query_for_item("DOC_VOUCHER_USAGE"), language="sql")
+
+        c7, _, _ = st.columns(3)
+        with c7:
+            st.metric("Voucher Timing (IPE_08_TIMING)", f"{len(data.get('IPE_08_TIMING', pd.DataFrame())):,} rows")
+            display_source_badge(source_info.get("IPE_08_TIMING", "No Data"))
+            ipe08_timing_evidence_path = evidence_paths.get("IPE_08_TIMING")
+            if ipe08_timing_evidence_path:
+                with open(ipe08_timing_evidence_path, "rb") as fp:
+                    st.download_button(
+                        "🔒 Download Package (ZIP)",
+                        fp,
+                        "IPE_08_TIMING_Evidence.zip",
+                        "application/zip",
+                        key="dl_ipe08_timing",
+                    )
+            with st.expander("View Source Query"):
+                st.code(get_sql_query_for_item("IPE_08_TIMING"), language="sql")
+
+        st.markdown("**Supporting IPE Extracts**")
+
+        c8, c9, c10, c11 = st.columns(4)
+        with c8:
+            st.metric("Customer Prepayments (IPE_10)", f"{len(data.get('IPE_10', pd.DataFrame())):,} rows")
+            display_source_badge(source_info.get("IPE_10", "No Data"))
+            ipe10_evidence_path = evidence_paths.get("IPE_10")
+            if ipe10_evidence_path:
+                with open(ipe10_evidence_path, "rb") as fp:
+                    st.download_button(
+                        "🔒 Download Package (ZIP)",
+                        fp,
+                        "IPE_10_Evidence.zip",
+                        "application/zip",
+                        key="dl_ipe10",
+                    )
+            with st.expander("View Source Query"):
+                st.code(get_sql_query_for_item("IPE_10"), language="sql")
+
+        with c9:
+            st.metric("Delivered Not Reconciled (IPE_12)", f"{len(data.get('IPE_12', pd.DataFrame())):,} rows")
+            display_source_badge(source_info.get("IPE_12", "No Data"))
+            ipe12_evidence_path = evidence_paths.get("IPE_12")
+            if ipe12_evidence_path:
+                with open(ipe12_evidence_path, "rb") as fp:
+                    st.download_button(
+                        "🔒 Download Package (ZIP)",
+                        fp,
+                        "IPE_12_Evidence.zip",
+                        "application/zip",
+                        key="dl_ipe12",
+                    )
+            with st.expander("View Source Query"):
+                st.code(get_sql_query_for_item("IPE_12"), language="sql")
+
+        with c10:
+            st.metric("Collection Accounts (IPE_31)", f"{len(data.get('IPE_31', pd.DataFrame())):,} rows")
+            display_source_badge(source_info.get("IPE_31", "No Data"))
+            ipe31_evidence_path = evidence_paths.get("IPE_31")
+            if ipe31_evidence_path:
+                with open(ipe31_evidence_path, "rb") as fp:
+                    st.download_button(
+                        "🔒 Download Package (ZIP)",
+                        fp,
+                        "IPE_31_Evidence.zip",
+                        "application/zip",
+                        key="dl_ipe31",
+                    )
+            with st.expander("View Source Query"):
+                st.code(get_sql_query_for_item("IPE_31"), language="sql")
+
+        with c11:
+            st.metric("Marketplace Refunds (IPE_34)", f"{len(data.get('IPE_34', pd.DataFrame())):,} rows")
+            display_source_badge(source_info.get("IPE_34", "No Data"))
+            ipe34_evidence_path = evidence_paths.get("IPE_34")
+            if ipe34_evidence_path:
+                with open(ipe34_evidence_path, "rb") as fp:
+                    st.download_button(
+                        "🔒 Download Package (ZIP)",
+                        fp,
+                        "IPE_34_Evidence.zip",
+                        "application/zip",
+                        key="dl_ipe34",
+                    )
+            with st.expander("View Source Query"):
+                st.code(get_sql_query_for_item("IPE_34"), language="sql")
+
+        c12, _, _ = st.columns(3)
+        with c12:
+            st.metric("Jdash Export (JDASH)", f"{len(jdash_df):,} rows")
+            if "Fixture" in jdash_source:
+                display_source_badge("Local Fixture")
+            elif "Uploaded" in jdash_source or "File" in jdash_source:
+                display_source_badge("Uploaded File")
+            else:
+                display_source_badge("No Data")
+            st.caption(f"Source detail: {jdash_source}")
         st.markdown("---")
 
         # --- PHASE 2: THE AGENT (LOGIC) ---

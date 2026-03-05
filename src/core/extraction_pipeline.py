@@ -82,6 +82,7 @@ class ExtractionPipeline:
             self.period_str = params['cutoff_date'].replace("-", "")[:6]
         else:
             self.period_str = period_str or ""
+        self.last_extraction_source: str = "none"
     
     async def run_extraction_with_evidence(
         self, 
@@ -107,6 +108,7 @@ class ExtractionPipeline:
         item = get_item_by_id(item_id)
         if not item:
             logger.warning(f"Item {item_id} not found in catalog")
+            self.last_extraction_source = "none"
             return pd.DataFrame(), None
         
         # Inject parameters into SQL query for direct execution (fallback)
@@ -144,11 +146,14 @@ class ExtractionPipeline:
         try:
             df = runner.run()
             zip_path = get_latest_evidence_zip(item_id)
+            self.last_extraction_source = "live"
             return df, zip_path
         except Exception as e:
             logger.error(f"Extraction failed for {item_id}: {e}")
             # Fallback to fixture
-            return self._load_fixture(item_id), None
+            fixture_df = self._load_fixture(item_id)
+            self.last_extraction_source = "fixture" if not fixture_df.empty else "none"
+            return fixture_df, None
     
     def _load_fixture(self, item_id: str) -> pd.DataFrame:
         """
@@ -168,6 +173,23 @@ class ExtractionPipeline:
         Returns:
             DataFrame from fixture file, or empty DataFrame if not found
         """
+        def read_fixture_csv(path: str) -> pd.DataFrame:
+            """Read fixture CSV with tolerant fallback for malformed lines."""
+            try:
+                return pd.read_csv(path, low_memory=False)
+            except pd.errors.ParserError as exc:
+                logger.warning(
+                    "Malformed CSV fixture for %s at %s (%s). Retrying with tolerant parser.",
+                    item_id,
+                    path,
+                    exc,
+                )
+                return pd.read_csv(
+                    path,
+                    engine="python",
+                    on_bad_lines="skip",
+                )
+
         # Try entity-specific fixture first if company code is available
         if self.country_code:
             entity_fixture_path = os.path.join(
@@ -175,7 +197,7 @@ class ExtractionPipeline:
             )
             if os.path.exists(entity_fixture_path):
                 logger.info(f"Loading entity-specific fixture for {item_id}: {entity_fixture_path}")
-                return pd.read_csv(entity_fixture_path, low_memory=False)
+                return read_fixture_csv(entity_fixture_path)
         
         # Fallback to root-level fixture
         fixture_path = os.path.join(
@@ -183,7 +205,7 @@ class ExtractionPipeline:
         )
         if os.path.exists(fixture_path):
             logger.info(f"Loading fixture for {item_id} from root fixtures: {fixture_path}")
-            return pd.read_csv(fixture_path, low_memory=False)
+            return read_fixture_csv(fixture_path)
         
         logger.warning(f"No fixture found for {item_id} (checked entity-specific and root)")
         return pd.DataFrame()
@@ -269,7 +291,20 @@ def load_all_data(
     import asyncio
     
     if required_ipes is None:
-        required_ipes = ["CR_04", "CR_03", "CR_05", "IPE_07", "IPE_08", "DOC_VOUCHER_USAGE"]
+        required_ipes = [
+            "CR_04",
+            "CR_03",
+            "CR_05",
+            "IPE_07",
+            "IPE_08",
+            "IPE_10",
+            "IPE_12",
+            "IPE_31",
+            "IPE_34",
+            "IPE_08_TIMING",
+            "DOC_VOUCHER_USAGE",
+            "JDASH",
+        ]
     
     data_store: Dict[str, pd.DataFrame] = {}
     evidence_store: Dict[str, Optional[str]] = {}
@@ -328,8 +363,13 @@ def load_all_data(
                     pipeline.run_extraction_with_evidence(item_id)
                 )
                 if not df.empty:
-                    source = "Live Database"
-                    logger.info(f"{item_id}: Loaded from database ({len(df)} rows)")
+                    if pipeline.last_extraction_source == "fixture":
+                        source = "Local Fixture"
+                    elif pipeline.last_extraction_source == "live":
+                        source = "Live Database"
+                    else:
+                        source = "No Data"
+                    logger.info(f"{item_id}: Loaded from {source} ({len(df)} rows)")
                 else:
                     df = None
             except Exception as e:
@@ -364,6 +404,27 @@ def load_all_data(
         data_store[item_id] = df
         evidence_store[item_id] = zip_path
         source_store[item_id] = source or "No Data"
+
+    # Backward/forward-compatible aliases for split IPE_08 package
+    # Issuance alias: IPE_08 <-> IPE_08_ISSUANCE
+    if "IPE_08" not in data_store and "IPE_08_ISSUANCE" in data_store:
+        data_store["IPE_08"] = data_store["IPE_08_ISSUANCE"]
+        evidence_store["IPE_08"] = evidence_store.get("IPE_08_ISSUANCE")
+        source_store["IPE_08"] = source_store.get("IPE_08_ISSUANCE", "No Data")
+    if "IPE_08_ISSUANCE" not in data_store and "IPE_08" in data_store:
+        data_store["IPE_08_ISSUANCE"] = data_store["IPE_08"]
+        evidence_store["IPE_08_ISSUANCE"] = evidence_store.get("IPE_08")
+        source_store["IPE_08_ISSUANCE"] = source_store.get("IPE_08", "No Data")
+
+    # Usage alias: DOC_VOUCHER_USAGE <-> IPE_08_USAGE
+    if "DOC_VOUCHER_USAGE" not in data_store and "IPE_08_USAGE" in data_store:
+        data_store["DOC_VOUCHER_USAGE"] = data_store["IPE_08_USAGE"]
+        evidence_store["DOC_VOUCHER_USAGE"] = evidence_store.get("IPE_08_USAGE")
+        source_store["DOC_VOUCHER_USAGE"] = source_store.get("IPE_08_USAGE", "No Data")
+    if "IPE_08_USAGE" not in data_store and "DOC_VOUCHER_USAGE" in data_store:
+        data_store["IPE_08_USAGE"] = data_store["DOC_VOUCHER_USAGE"]
+        evidence_store["IPE_08_USAGE"] = evidence_store.get("DOC_VOUCHER_USAGE")
+        source_store["IPE_08_USAGE"] = source_store.get("DOC_VOUCHER_USAGE", "No Data")
     
     return data_store, evidence_store, source_store
 
