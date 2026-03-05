@@ -9,7 +9,7 @@
 --   @output_path: Directory for output file (default: C:\SQLExports\)
 -- Returns: File path, filename, and row count
 -- =============================================
-CREATE PROCEDURE [dbo].[sp_Extract_IPE_07]
+CREATE PROCEDURE [n8n].[sp_Extract_IPE_07]
     @cutoff_date DATE,
     @customer_posting_groups NVARCHAR(500),
     @output_path NVARCHAR(500) = 'C:\SQLExports\'
@@ -25,63 +25,78 @@ BEGIN
     DECLARE @webhook_url NVARCHAR(1000) = 'https://n8n.ops.jumia.com/webhook-test/10d7f0e2-995f-4e76-a766-e2bd3029e75e'
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
+    DECLARE @procedure_name NVARCHAR(255)
+    DECLARE @cutoff_str NVARCHAR(10)
+    DECLARE @spid_str NVARCHAR(10)
+    DECLARE @temp1_name NVARCHAR(50)
+    DECLARE @temp2_name NVARCHAR(50)
+    DECLARE @sql NVARCHAR(MAX)
+    
+    -- Store procedure name
+    SET @procedure_name = 'n8n.sp_Extract_IPE_07'
+    
+    -- Convert values to strings for dynamic SQL
+    SET @cutoff_str = CONVERT(NVARCHAR(10), @cutoff_date, 120)
+    SET @spid_str = CAST(@@SPID AS NVARCHAR(10))
+    SET @temp1_name = '##temp_' + @spid_str
+    SET @temp2_name = '##temp2_' + @spid_str
     
     -- Generate unique filename with timestamp
-    SET @filename = 'IPE_07_' + 
-                    FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
+    SET @filename = 'IPE_07_' + FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
     SET @full_path = @output_path + @filename
     
     -- Clean up any existing temp tables
-    IF OBJECT_ID('tempdb..##temp_' + CAST(@@SPID AS NVARCHAR(10))) IS NOT NULL 
-        DROP TABLE ##temp_' + CAST(@@SPID AS NVARCHAR(10))
-    IF OBJECT_ID('tempdb..##temp2_' + CAST(@@SPID AS NVARCHAR(10))) IS NOT NULL 
-        DROP TABLE ##temp2_' + CAST(@@SPID AS NVARCHAR(10))
+    SET @sql = 'IF OBJECT_ID(''tempdb..' + @temp1_name + ''') IS NOT NULL DROP TABLE ' + @temp1_name
+    EXEC sp_executesql @sql
+    
+    SET @sql = 'IF OBJECT_ID(''tempdb..' + @temp2_name + ''') IS NOT NULL DROP TABLE ' + @temp2_name
+    EXEC sp_executesql @sql
     
     -- Build temp table 1: Customer-level remaining balances
-    EXEC('
+    SET @sql = '
     SELECT * 
-    INTO ##temp_' + CAST(@@SPID AS NVARCHAR(10)) + '
+    INTO ' + @temp1_name + '
     FROM (
         SELECT 
             [id_company],
             [Customer No_],
             SUM([Amount (LCY)]) AS rem_bal_LCY
         FROM [AIG_Nav_DW].[dbo].[Detailed Customer Ledg_ Entry]
-        WHERE [Posting Date] <= ''' + CAST(@cutoff_date AS NVARCHAR(10)) + '''
+        WHERE [Posting Date] <= ''' + @cutoff_str + '''
         GROUP BY [id_company], [Customer No_]
         HAVING SUM([Amount (LCY)]) <> 0
-    ) a
-    ')
+    ) a'
+    EXEC sp_executesql @sql
     
     -- Create index on temp table 1
-    EXEC('
-    CREATE NONCLUSTERED INDEX IDX_Temp_' + CAST(@@SPID AS NVARCHAR(10)) + '
-    ON ##temp_' + CAST(@@SPID AS NVARCHAR(10)) + ' ([ID_company], [Customer No_])
-    INCLUDE (rem_bal_LCY)
-    ')
+    SET @sql = '
+    CREATE NONCLUSTERED INDEX IDX_Temp_' + @spid_str + '
+    ON ' + @temp1_name + ' ([ID_company], [Customer No_])
+    INCLUDE (rem_bal_LCY)'
+    EXEC sp_executesql @sql
     
     -- Build temp table 2: Entry-level remaining balances
-    EXEC('
+    SET @sql = '
     SELECT * 
-    INTO ##temp2_' + CAST(@@SPID AS NVARCHAR(10)) + '
+    INTO ' + @temp2_name + '
     FROM (
         SELECT 
             [id_company],
             [Cust_ Ledger Entry No_],
             SUM([Amount (LCY)]) AS rem_amt_LCY
         FROM [AIG_Nav_DW].[dbo].[Detailed Customer Ledg_ Entry]
-        WHERE [Posting Date] <= ''' + CAST(@cutoff_date AS NVARCHAR(10)) + '''
+        WHERE [Posting Date] <= ''' + @cutoff_str + '''
         GROUP BY [id_company], [Cust_ Ledger Entry No_]
         HAVING SUM([Amount (LCY)]) <> 0
-    ) b
-    ')
+    ) b'
+    EXEC sp_executesql @sql
     
     -- Create index on temp table 2
-    EXEC('
-    CREATE NONCLUSTERED INDEX IDX_Temp2_' + CAST(@@SPID AS NVARCHAR(10)) + '
-    ON ##temp2_' + CAST(@@SPID AS NVARCHAR(10)) + ' ([ID_company], [Cust_ Ledger Entry No_])
-    INCLUDE (rem_amt_LCY)
-    ')
+    SET @sql = '
+    CREATE NONCLUSTERED INDEX IDX_Temp2_' + @spid_str + '
+    ON ' + @temp2_name + ' ([ID_company], [Cust_ Ledger Entry No_])
+    INCLUDE (rem_amt_LCY)'
+    EXEC sp_executesql @sql
     
     -- Build main query with parameters
     SET @query = '
@@ -121,15 +136,15 @@ BEGIN
         cle.[Partner Code],
         cle.[IC Partner Code],
         CASE 
-            WHEN EOMONTH(cle.[Due Date]) < EOMONTH(CAST(''' + CAST(@cutoff_date AS NVARCHAR(10)) + ''' AS DATE)) THEN ''Credit''
-            WHEN EOMONTH(cle.[Due Date]) > EOMONTH(CAST(''' + CAST(@cutoff_date AS NVARCHAR(10)) + ''' AS DATE)) THEN ''Debit''
+            WHEN EOMONTH(cle.[Due Date]) < EOMONTH(CAST(''' + @cutoff_str + ''' AS DATE)) THEN ''Credit''
+            WHEN EOMONTH(cle.[Due Date]) > EOMONTH(CAST(''' + @cutoff_str + ''' AS DATE)) THEN ''Debit''
             ELSE ''Due Month'' 
         END AS Debit_Credit_DueMonth
     FROM [AIG_Nav_DW].[dbo].[Customer Ledger Entries] cle
-    INNER JOIN ##temp_' + CAST(@@SPID AS NVARCHAR(10)) + ' dcle
+    INNER JOIN ' + @temp1_name + ' dcle
         ON cle.ID_company = dcle.ID_company 
         AND cle.[Customer No_] = dcle.[Customer No_]
-    INNER JOIN ##temp2_' + CAST(@@SPID AS NVARCHAR(10)) + ' dcle_2
+    INNER JOIN ' + @temp2_name + ' dcle_2
         ON cle.ID_company = dcle_2.ID_company 
         AND cle.[Entry No_] = dcle_2.[Cust_ Ledger Entry No_]
     LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] comp
@@ -140,10 +155,9 @@ BEGIN
     LEFT JOIN [AIG_Nav_DW].[dbo].[Customers] cst
         ON cst.[id_company] = cle.id_company 
         AND cst.[No_] = cle.[Customer No_]
-    WHERE cle.[Posting Date] <= ''' + CAST(@cutoff_date AS NVARCHAR(10)) + '''
+    WHERE cle.[Posting Date] <= ''' + @cutoff_str + '''
         AND cle.[Customer Posting Group] IN (' + @customer_posting_groups + ')
-        AND comp.Flg_In_Conso_Scope = 1
-    '
+        AND comp.Flg_In_Conso_Scope = 1'
     
     -- Get row count first
     DECLARE @count_query NVARCHAR(MAX)
@@ -166,18 +180,18 @@ BEGIN
     END CATCH
     
     -- Clean up temp tables
-    EXEC('
-    IF OBJECT_ID(''tempdb..##temp_' + CAST(@@SPID AS NVARCHAR(10)) + ''') IS NOT NULL 
-        DROP TABLE ##temp_' + CAST(@@SPID AS NVARCHAR(10)) + '
-    IF OBJECT_ID(''tempdb..##temp2_' + CAST(@@SPID AS NVARCHAR(10)) + ''') IS NOT NULL 
-        DROP TABLE ##temp2_' + CAST(@@SPID AS NVARCHAR(10)) + '
-    ')
+    SET @sql = 'IF OBJECT_ID(''tempdb..' + @temp1_name + ''') IS NOT NULL DROP TABLE ' + @temp1_name
+    EXEC sp_executesql @sql
     
-    EXEC [dbo].[sp_Send_Csv_To_Webhook]
+    SET @sql = 'IF OBJECT_ID(''tempdb..' + @temp2_name + ''') IS NOT NULL DROP TABLE ' + @temp2_name
+    EXEC sp_executesql @sql
+    
+    -- Send to webhook
+    EXEC [n8n].[sp_Send_Csv_To_Webhook]
         @webhook_url = @webhook_url,
         @file_path = @full_path,
         @file_name = @filename,
-        @procedure_name = OBJECT_SCHEMA_NAME(@@PROCID) + '.' + OBJECT_NAME(@@PROCID),
+        @procedure_name = @procedure_name,
         @row_count = @row_count,
         @export_status = @export_status,
         @error_message = @error_message
