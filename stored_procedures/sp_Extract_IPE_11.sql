@@ -12,7 +12,7 @@
 -- GL Accounts: Marketplace accrued revenue accounts
 -- Logic: Captures transactions created during the reporting period that remain unpaid
 -- =============================================
-CREATE PROCEDURE [dbo].[sp_Extract_IPE_11]
+CREATE PROCEDURE [n8n].[sp_Extract_IPE_11]
     @cutoff_date DATE,
     @period_month_start DATETIME,
     @subsequent_month_start DATETIME,
@@ -29,13 +29,16 @@ BEGIN
     DECLARE @webhook_url NVARCHAR(1000) = 'https://n8n.ops.jumia.com/webhook-test/10d7f0e2-995f-4e76-a766-e2bd3029e75e'
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
+    DECLARE @procedure_name NVARCHAR(255)
     DECLARE @cutoff_str NVARCHAR(30)
     DECLARE @period_start_str NVARCHAR(30)
     DECLARE @subsequent_start_str NVARCHAR(30)
     
+    -- Store procedure name (@@PROCID doesn't work in EXEC parameters)
+    SET @procedure_name = 'n8n.sp_Extract_IPE_11'
+    
     -- Generate unique filename with timestamp
-    SET @filename = 'IPE_11_' + 
-                    FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
+    SET @filename = 'IPE_11_' + FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
     SET @full_path = @output_path + @filename
     
     -- Convert parameters to strings for query
@@ -117,11 +120,11 @@ BEGIN
         SET @error_message = ERROR_MESSAGE()
     END CATCH
 
-    EXEC [dbo].[sp_Send_Csv_To_Webhook]
+    EXEC [n8n].[sp_Send_Csv_To_Webhook]
         @webhook_url = @webhook_url,
         @file_path = @full_path,
         @file_name = @filename,
-        @procedure_name = OBJECT_SCHEMA_NAME(@@PROCID) + '.' + OBJECT_NAME(@@PROCID),
+        @procedure_name = @procedure_name,
         @row_count = @row_count,
         @export_status = @export_status,
         @error_message = @error_message
