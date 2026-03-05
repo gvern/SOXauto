@@ -3,12 +3,12 @@
 -- Description: Extract TV Voucher Usage data to CSV file
 -- Parameters: 
 --   @cutoff_date: Cutoff date for extraction (YYYY-MM-DD)
---   @cutoff_year: Cutoff year for filtering (YYYY) - Not used in query but kept for consistency
---   @id_companies_active: Comma-separated list of company IDs (e.g., '1,2,3')
+--   @cutoff_year: Year of cutoff (INT) - kept for consistency
+--   @id_companies_active: Comma-separated list of company IDs
 --   @output_path: Directory for output file (default: C:\SQLExports\)
 -- Returns: File path, filename, and row count
 -- =============================================
-CREATE PROCEDURE [dbo].[sp_Extract_IPE_08_USAGE]
+CREATE PROCEDURE [n8n].[sp_Extract_IPE_08_USAGE]
     @cutoff_date DATE,
     @cutoff_year INT,
     @id_companies_active NVARCHAR(500),
@@ -25,48 +25,49 @@ BEGIN
     DECLARE @webhook_url NVARCHAR(1000) = 'https://n8n.ops.jumia.com/webhook-test/10d7f0e2-995f-4e76-a766-e2bd3029e75e'
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
+    DECLARE @procedure_name NVARCHAR(255)
+    DECLARE @cutoff_str NVARCHAR(10)
+    
+    -- Store procedure name (@@PROCID doesn't work in EXEC parameters)
+    SET @procedure_name = 'n8n.sp_Extract_IPE_08_USAGE'
+    
+    -- Convert date to string for dynamic SQL
+    SET @cutoff_str = CONVERT(NVARCHAR(10), @cutoff_date, 120)
     
     -- Generate unique filename with timestamp
-    SET @filename = 'IPE_08_USAGE_' + 
-                    FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
+    SET @filename = 'IPE_08_USAGE_' + FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
     SET @full_path = @output_path + @filename
     
     -- Build dynamic query with parameters
     SET @query = '
-    SELECT 
+    SELECT
         soi.[ID_Company],
-        scv.[id],
+        scv.[id] AS voucher_id,
         soi.[voucher_type],
         scv.[business_use],
         YEAR(scv.[created_at]) AS creation_year,
-        YEAR(soi.[PACKAGE_DELIVERY_DATE]) * 100 + MONTH(soi.[PACKAGE_DELIVERY_DATE]) AS Delivery_mth,
+        CONCAT(YEAR(soi.[DELIVERED_DATE]), ''-'', FORMAT(soi.[DELIVERED_DATE], ''MM'')) AS Delivery_mth,
         SUM(ISNULL(soi.[MTR_SHIPPING_VOUCHER_DISCOUNT], 0)) AS shipping_storecredit,
         SUM(CASE WHEN soi.[is_marketplace] = 1 THEN ISNULL(soi.[MTR_COUPON_MONEY_VALUE], 0) ELSE 0 END) AS MPL_storecredit,
         SUM(CASE WHEN soi.[is_marketplace] = 0 THEN ISNULL(soi.[MTR_COUPON_MONEY_VALUE], 0) ELSE 0 END) AS RTL_storecredit,
-        SUM(ISNULL(soi.[MTR_COUPON_MONEY_VALUE], 0) + ISNULL(soi.[MTR_SHIPPING_VOUCHER_DISCOUNT], 0)) AS TotalAmountUsed
+        SUM(ISNULL(soi.[MTR_SHIPPING_VOUCHER_DISCOUNT], 0)) + 
+        SUM(CASE WHEN soi.[is_marketplace] = 1 THEN ISNULL(soi.[MTR_COUPON_MONEY_VALUE], 0) ELSE 0 END) +
+        SUM(CASE WHEN soi.[is_marketplace] = 0 THEN ISNULL(soi.[MTR_COUPON_MONEY_VALUE], 0) ELSE 0 END) AS TotalAmountUsed
     FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI] soi
-    LEFT JOIN (
-        SELECT 
-            ID_company,
-            [id],
-            [code],
-            [business_use],
-            [created_at]
-        FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING]
-    ) scv
-        ON scv.ID_company = soi.[ID_Company] 
-        AND scv.[code] = soi.[voucher_code]
+    LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING] scv
+        ON soi.[ID_Company] = scv.[ID_Company]
+        AND soi.[voucher_code] = scv.[code]
     WHERE soi.[VOUCHER_TYPE] = ''reusablecredit''
-        AND soi.[PACKAGE_DELIVERY_DATE] < ''' + CAST(@cutoff_date AS NVARCHAR(10)) + '''
+        AND soi.[PACKAGE_DELIVERY_DATE] < ''' + @cutoff_str + '''
         AND YEAR(soi.[DELIVERED_DATE]) > 2014
-        AND soi.ID_Company IN (' + @id_companies_active + ')
+        AND soi.[ID_Company] IN (' + @id_companies_active + ')
     GROUP BY
         soi.[ID_Company],
         scv.[id],
         soi.[voucher_type],
         scv.[business_use],
         YEAR(scv.[created_at]),
-        YEAR(soi.[PACKAGE_DELIVERY_DATE]) * 100 + MONTH(soi.[PACKAGE_DELIVERY_DATE])
+        CONCAT(YEAR(soi.[DELIVERED_DATE]), ''-'', FORMAT(soi.[DELIVERED_DATE], ''MM''))
     '
     
     -- Get row count first
@@ -89,11 +90,11 @@ BEGIN
         SET @error_message = ERROR_MESSAGE()
     END CATCH
 
-    EXEC [dbo].[sp_Send_Csv_To_Webhook]
+    EXEC [n8n].[sp_Send_Csv_To_Webhook]
         @webhook_url = @webhook_url,
         @file_path = @full_path,
         @file_name = @filename,
-        @procedure_name = OBJECT_SCHEMA_NAME(@@PROCID) + '.' + OBJECT_NAME(@@PROCID),
+        @procedure_name = @procedure_name,
         @row_count = @row_count,
         @export_status = @export_status,
         @error_message = @error_message
