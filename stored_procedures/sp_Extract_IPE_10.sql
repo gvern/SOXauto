@@ -8,7 +8,7 @@
 -- Returns: File path, filename, and row count
 -- GL Accounts: Customer prepayment liability accounts
 -- =============================================
-CREATE PROCEDURE [dbo].[sp_Extract_IPE_10]
+CREATE PROCEDURE [n8n].[sp_Extract_IPE_10]
     @cutoff_date DATE,
     @output_path NVARCHAR(500) = 'C:\SQLExports\'
 AS
@@ -23,15 +23,18 @@ BEGIN
     DECLARE @webhook_url NVARCHAR(1000) = 'https://n8n.ops.jumia.com/webhook-test/10d7f0e2-995f-4e76-a766-e2bd3029e75e'
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
-    DECLARE @cutoff_datetime NVARCHAR(20)
+    DECLARE @procedure_name NVARCHAR(255)
+    DECLARE @cutoff_str NVARCHAR(10)
+    
+    -- Store procedure name (@@PROCID doesn't work in EXEC parameters)
+    SET @procedure_name = 'n8n.sp_Extract_IPE_10'
+    
+    -- Convert date to string for dynamic SQL
+    SET @cutoff_str = CONVERT(NVARCHAR(10), @cutoff_date, 120)
     
     -- Generate unique filename with timestamp
-    SET @filename = 'IPE_10_' + 
-                    FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
+    SET @filename = 'IPE_10_' + FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
     SET @full_path = @output_path + @filename
-    
-    -- Convert date to datetime string for query
-    SET @cutoff_datetime = CAST(@cutoff_date AS NVARCHAR(10))
     
     -- Build dynamic query with parameters
     SET @query = '
@@ -59,18 +62,18 @@ BEGIN
     FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI]
     WHERE ORDER_CREATION_DATE > ''2018-01-01 00:00:00''
         AND [IS_PREPAYMENT] = 1
-        AND [FINANCE_VERIFIED_DATE] BETWEEN ''2018-01-01 00:00:00'' AND CAST(''' + @cutoff_datetime + ''' AS DATETIME)
+        AND [FINANCE_VERIFIED_DATE] BETWEEN ''2018-01-01 00:00:00'' AND CAST(''' + @cutoff_str + ''' AS DATETIME)
         AND (
             (
                 IS_MARKETPLACE = 1
                 AND (
                     (
                         [DELIVERED_DATE] IS NULL
-                        OR [DELIVERED_DATE] > CAST(''' + @cutoff_datetime + ''' AS DATETIME)
+                        OR [DELIVERED_DATE] > CAST(''' + @cutoff_str + ''' AS DATETIME)
                     )
                     AND (
                         [REFUND_DATE] IS NULL
-                        OR [REFUND_DATE] > CAST(''' + @cutoff_datetime + ''' AS DATETIME)
+                        OR [REFUND_DATE] > CAST(''' + @cutoff_str + ''' AS DATETIME)
                     )
                 )
             )
@@ -83,7 +86,7 @@ BEGIN
                             [DELIVERY_TYPE] IN (''Digital Content'', ''Gift Card'')
                             AND (
                                 [DELIVERED_DATE] IS NULL
-                                OR [DELIVERED_DATE] > CAST(''' + @cutoff_datetime + ''' AS DATETIME)
+                                OR [DELIVERED_DATE] > CAST(''' + @cutoff_str + ''' AS DATETIME)
                             )
                         )
                         OR
@@ -91,13 +94,13 @@ BEGIN
                             [DELIVERY_TYPE] NOT IN (''Digital Content'', ''Gift Card'')
                             AND (
                                 [PACKAGE_DELIVERY_DATE] IS NULL
-                                OR [PACKAGE_DELIVERY_DATE] > CAST(''' + @cutoff_datetime + ''' AS DATETIME)
+                                OR [PACKAGE_DELIVERY_DATE] > CAST(''' + @cutoff_str + ''' AS DATETIME)
                             )
                         )
                     )
                     AND (
                         [REFUND_DATE] IS NULL
-                        OR [REFUND_DATE] > CAST(''' + @cutoff_datetime + ''' AS DATETIME)
+                        OR [REFUND_DATE] > CAST(''' + @cutoff_str + ''' AS DATETIME)
                     )
                 )
             )
@@ -124,11 +127,11 @@ BEGIN
         SET @error_message = ERROR_MESSAGE()
     END CATCH
 
-    EXEC [dbo].[sp_Send_Csv_To_Webhook]
+    EXEC [n8n].[sp_Send_Csv_To_Webhook]
         @webhook_url = @webhook_url,
         @file_path = @full_path,
         @file_name = @filename,
-        @procedure_name = OBJECT_SCHEMA_NAME(@@PROCID) + '.' + OBJECT_NAME(@@PROCID),
+        @procedure_name = @procedure_name,
         @row_count = @row_count,
         @export_status = @export_status,
         @error_message = @error_message
