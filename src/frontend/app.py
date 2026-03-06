@@ -140,6 +140,9 @@ st.markdown(
 
 
 def main():
+    if "run_reconciliation_started" not in st.session_state:
+        st.session_state["run_reconciliation_started"] = False
+
     with st.sidebar:
         st.title("⚙️ Configuration")
         target_country = st.selectbox(
@@ -224,6 +227,8 @@ def main():
         
         st.markdown("---")
         run_btn = st.button("🚀 Start SOX Reconciliation", type="primary")
+        if run_btn:
+            st.session_state["run_reconciliation_started"] = True
 
         year = cutoff_date.year
         month = cutoff_date.month
@@ -243,7 +248,7 @@ def main():
         f"**Entity:** {target_country} | **Period:** {cutoff_date.strftime('%Y-%m')}"
     )
 
-    if run_btn:
+    if st.session_state["run_reconciliation_started"]:
         # --- EXECUTION CONTEXT (Acceptance Criteria #1) ---
         with st.expander("📋 Execution Context", expanded=True):
             st.markdown("### SQL Execution Parameters")
