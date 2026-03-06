@@ -329,6 +329,35 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             else:
                 st.markdown('<span class="evidence-badge" style="background-color: #f8d7da; color: #721c24; border-color: #f5c6cb;">⚠️ Source: No Data</span>', unsafe_allow_html=True)
 
+        def render_download_controls(
+            item_id: str,
+            df: pd.DataFrame,
+            evidence_path: str | None,
+            zip_filename: str,
+            key_prefix: str,
+        ):
+            """Render reliable ZIP/CSV download actions for one data package."""
+            if evidence_path and os.path.exists(evidence_path):
+                with open(evidence_path, "rb") as fp:
+                    st.download_button(
+                        "🔒 Download Evidence (ZIP)",
+                        fp.read(),
+                        zip_filename,
+                        "application/zip",
+                        key=f"{key_prefix}_zip",
+                    )
+            else:
+                st.caption("No evidence ZIP available for this source.")
+
+            if df is not None and not df.empty:
+                st.download_button(
+                    "📄 Download Data (CSV)",
+                    convert_df(df),
+                    f"{item_id}.csv",
+                    "text/csv",
+                    key=f"{key_prefix}_csv",
+                )
+
         # Evidence Grid (Acceptance Criteria #2 - Enhanced Extraction Section)
         st.subheader("📦 Source Data Packages (Authenticated)")
         st.markdown("*Click 'View Source Query' to see the actual SQL executed for each extraction.*")
@@ -341,15 +370,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             st.metric("GL Balances (CR_04)", f"{len(data['CR_04']):,} rows")
             display_source_badge(source_info.get("CR_04", "No Data"))
             cr04_evidence_path = evidence_paths.get("CR_04")
-            if cr04_evidence_path:
-                with open(cr04_evidence_path, "rb") as fp:
-                    st.download_button(
-                        "🔒 Download Package (ZIP)",
-                        fp,
-                        "CR_04_Evidence.zip",
-                        "application/zip",
-                        key="dl_cr04",
-                    )
+            render_download_controls("CR_04", data["CR_04"], cr04_evidence_path, "CR_04_Evidence.zip", "dl_cr04")
             with st.expander("View Source Query"):
                 st.code(get_sql_query_for_item("CR_04"), language="sql")
 
@@ -357,15 +378,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             st.metric("GL Entries (CR_03)", f"{len(data['CR_03']):,} rows")
             display_source_badge(source_info.get("CR_03", "No Data"))
             cr03_evidence_path = evidence_paths.get("CR_03")
-            if cr03_evidence_path:
-                with open(cr03_evidence_path, "rb") as fp:
-                    st.download_button(
-                        "🔒 Download Package (ZIP)",
-                        fp,
-                        "CR_03_Evidence.zip",
-                        "application/zip",
-                        key="dl_cr03",
-                    )
+            render_download_controls("CR_03", data["CR_03"], cr03_evidence_path, "CR_03_Evidence.zip", "dl_cr03")
             with st.expander("View Source Query"):
                 st.code(get_sql_query_for_item("CR_03"), language="sql")
 
@@ -373,15 +386,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             st.metric("FX Rates (CR_05)", f"{len(data['CR_05']):,} rows")
             display_source_badge(source_info.get("CR_05", "No Data"))
             cr05_evidence_path = evidence_paths.get("CR_05")
-            if cr05_evidence_path:
-                with open(cr05_evidence_path, "rb") as fp:
-                    st.download_button(
-                        "🔒 Download Package (ZIP)",
-                        fp,
-                        "CR_05_Evidence.zip",
-                        "application/zip",
-                        key="dl_cr05",
-                    )
+            render_download_controls("CR_05", data["CR_05"], cr05_evidence_path, "CR_05_Evidence.zip", "dl_cr05")
             with st.expander("View Source Query"):
                 st.code(get_sql_query_for_item("CR_05"), language="sql")
 
@@ -393,41 +398,25 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             st.metric("Customer Balances (IPE_07)", f"{len(data['IPE_07']):,} rows")
             display_source_badge(source_info.get("IPE_07", "No Data"))
             ipe07_evidence_path = evidence_paths.get("IPE_07")
-            if ipe07_evidence_path:
-                with open(ipe07_evidence_path, "rb") as fp:
-                    st.download_button(
-                        "🔒 Download Package (ZIP)",
-                        fp,
-                        "IPE_07_Evidence.zip",
-                        "application/zip",
-                        key="dl_ipe07",
-                    )
+            render_download_controls("IPE_07", data["IPE_07"], ipe07_evidence_path, "IPE_07_Evidence.zip", "dl_ipe07")
             with st.expander("View Source Query"):
                 st.code(get_sql_query_for_item("IPE_07"), language="sql")
         
         with c5:
             st.metric("Voucher Issuance (IPE_08_ISSUANCE)", f"{len(data.get('IPE_08_ISSUANCE', data.get('IPE_08', pd.DataFrame()))):,} rows")
             display_source_badge(source_info.get("IPE_08_ISSUANCE", source_info.get("IPE_08", "No Data")))
+            issuance_df = data.get('IPE_08_ISSUANCE', data.get('IPE_08', pd.DataFrame()))
             issuance_evidence_path = evidence_paths.get('IPE_08_ISSUANCE') or evidence_paths.get('IPE_08')
-            if issuance_evidence_path:
-                with open(issuance_evidence_path, "rb") as fp:
-                    st.download_button("🔒 Download Package (ZIP)", fp, "IPE_08_ISSUANCE_Evidence.zip", "application/zip", key="dl_ipe08")
+            render_download_controls("IPE_08_ISSUANCE", issuance_df, issuance_evidence_path, "IPE_08_ISSUANCE_Evidence.zip", "dl_ipe08")
             with st.expander("View Source Query"):
                 st.code(get_sql_query_for_item("IPE_08"), language="sql")
         
         with c6:
             st.metric("Voucher Usage (IPE_08_USAGE)", f"{len(data.get('IPE_08_USAGE', data.get('DOC_VOUCHER_USAGE', pd.DataFrame()))):,} rows")
             display_source_badge(source_info.get("IPE_08_USAGE", source_info.get("DOC_VOUCHER_USAGE", "No Data")))
+            usage_df = data.get('IPE_08_USAGE', data.get('DOC_VOUCHER_USAGE', pd.DataFrame()))
             usage_evidence_path = evidence_paths.get("IPE_08_USAGE") or evidence_paths.get("DOC_VOUCHER_USAGE")
-            if usage_evidence_path:
-                with open(usage_evidence_path, "rb") as fp:
-                    st.download_button(
-                        "🔒 Download Package (ZIP)",
-                        fp,
-                        "IPE_08_USAGE_Evidence.zip",
-                        "application/zip",
-                        key="dl_doc_voucher",
-                    )
+            render_download_controls("IPE_08_USAGE", usage_df, usage_evidence_path, "IPE_08_USAGE_Evidence.zip", "dl_doc_voucher")
             with st.expander("View Source Query"):
                 st.code(get_sql_query_for_item("DOC_VOUCHER_USAGE"), language="sql")
 
@@ -436,15 +425,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             st.metric("Voucher Timing (IPE_08_TIMING)", f"{len(data.get('IPE_08_TIMING', pd.DataFrame())):,} rows")
             display_source_badge(source_info.get("IPE_08_TIMING", "No Data"))
             ipe08_timing_evidence_path = evidence_paths.get("IPE_08_TIMING")
-            if ipe08_timing_evidence_path:
-                with open(ipe08_timing_evidence_path, "rb") as fp:
-                    st.download_button(
-                        "🔒 Download Package (ZIP)",
-                        fp,
-                        "IPE_08_TIMING_Evidence.zip",
-                        "application/zip",
-                        key="dl_ipe08_timing",
-                    )
+            render_download_controls("IPE_08_TIMING", data.get('IPE_08_TIMING', pd.DataFrame()), ipe08_timing_evidence_path, "IPE_08_TIMING_Evidence.zip", "dl_ipe08_timing")
             with st.expander("View Source Query"):
                 st.code(get_sql_query_for_item("IPE_08_TIMING"), language="sql")
 
@@ -455,15 +436,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             st.metric("Customer Prepayments (IPE_10)", f"{len(data.get('IPE_10', pd.DataFrame())):,} rows")
             display_source_badge(source_info.get("IPE_10", "No Data"))
             ipe10_evidence_path = evidence_paths.get("IPE_10")
-            if ipe10_evidence_path:
-                with open(ipe10_evidence_path, "rb") as fp:
-                    st.download_button(
-                        "🔒 Download Package (ZIP)",
-                        fp,
-                        "IPE_10_Evidence.zip",
-                        "application/zip",
-                        key="dl_ipe10",
-                    )
+            render_download_controls("IPE_10", data.get('IPE_10', pd.DataFrame()), ipe10_evidence_path, "IPE_10_Evidence.zip", "dl_ipe10")
             with st.expander("View Source Query"):
                 st.code(get_sql_query_for_item("IPE_10"), language="sql")
 
@@ -471,15 +444,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             st.metric("Delivered Not Reconciled (IPE_12)", f"{len(data.get('IPE_12', pd.DataFrame())):,} rows")
             display_source_badge(source_info.get("IPE_12", "No Data"))
             ipe12_evidence_path = evidence_paths.get("IPE_12")
-            if ipe12_evidence_path:
-                with open(ipe12_evidence_path, "rb") as fp:
-                    st.download_button(
-                        "🔒 Download Package (ZIP)",
-                        fp,
-                        "IPE_12_Evidence.zip",
-                        "application/zip",
-                        key="dl_ipe12",
-                    )
+            render_download_controls("IPE_12", data.get('IPE_12', pd.DataFrame()), ipe12_evidence_path, "IPE_12_Evidence.zip", "dl_ipe12")
             with st.expander("View Source Query"):
                 st.code(get_sql_query_for_item("IPE_12"), language="sql")
 
@@ -487,15 +452,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             st.metric("Collection Accounts (IPE_31)", f"{len(data.get('IPE_31', pd.DataFrame())):,} rows")
             display_source_badge(source_info.get("IPE_31", "No Data"))
             ipe31_evidence_path = evidence_paths.get("IPE_31")
-            if ipe31_evidence_path:
-                with open(ipe31_evidence_path, "rb") as fp:
-                    st.download_button(
-                        "🔒 Download Package (ZIP)",
-                        fp,
-                        "IPE_31_Evidence.zip",
-                        "application/zip",
-                        key="dl_ipe31",
-                    )
+            render_download_controls("IPE_31", data.get('IPE_31', pd.DataFrame()), ipe31_evidence_path, "IPE_31_Evidence.zip", "dl_ipe31")
             with st.expander("View Source Query"):
                 st.code(get_sql_query_for_item("IPE_31"), language="sql")
 
@@ -503,15 +460,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             st.metric("Marketplace Refunds (IPE_34)", f"{len(data.get('IPE_34', pd.DataFrame())):,} rows")
             display_source_badge(source_info.get("IPE_34", "No Data"))
             ipe34_evidence_path = evidence_paths.get("IPE_34")
-            if ipe34_evidence_path:
-                with open(ipe34_evidence_path, "rb") as fp:
-                    st.download_button(
-                        "🔒 Download Package (ZIP)",
-                        fp,
-                        "IPE_34_Evidence.zip",
-                        "application/zip",
-                        key="dl_ipe34",
-                    )
+            render_download_controls("IPE_34", data.get('IPE_34', pd.DataFrame()), ipe34_evidence_path, "IPE_34_Evidence.zip", "dl_ipe34")
             with st.expander("View Source Query"):
                 st.code(get_sql_query_for_item("IPE_34"), language="sql")
 
