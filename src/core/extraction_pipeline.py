@@ -4,12 +4,11 @@ Extraction Pipeline Module
 Provides orchestration for IPE data extraction with evidence generation.
 This module is independent of Streamlit and returns standard Pandas DataFrames.
 
-CRITICAL: Includes the CR_05 patch for handling column names with '?' characters.
 """
 
 import os
 import logging
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, Callable
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -17,6 +16,8 @@ import pandas as pd
 from src.core.runners.mssql_runner import IPERunner
 from src.core.catalog.cpg1 import get_item_by_id
 from src.utils.aws_utils import AWSSecretsManager
+from src.utils.sql_template import render_sql
+from src.utils.query_params_builder import build_complete_query_params
 from src.core.evidence.evidence_locator import get_latest_evidence_zip
 from src.core.jdash_loader import load_jdash_data
 
@@ -25,6 +26,22 @@ logger = logging.getLogger(__name__)
 
 # Repository root path
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+
+
+def _build_sql_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Build complete SQL parameters aligned with selected period/country and query defaults."""
+    cutoff_date = params.get("cutoff_date")
+    if not cutoff_date:
+        return dict(params)
+
+    countries = params.get("countries") or params.get("company") or params.get("company_code")
+    return build_complete_query_params(
+        cutoff_date=str(cutoff_date),
+        countries=countries,
+        run_id=params.get("run_id"),
+        period=params.get("period"),
+        overrides=params,
+    )
 
 
 class ExtractionPipeline:
@@ -36,7 +53,6 @@ class ExtractionPipeline:
     - Live database extraction via IPERunner
     - Fixture fallback for development/testing
     - Evidence package generation
-    - CR_05 column name patching
     
     Attributes:
         params: Dictionary of SQL parameters for extractions
@@ -91,8 +107,6 @@ class ExtractionPipeline:
         """
         Executes extraction via IPERunner.run() with evidence generation.
         
-        Includes a CRITICAL PATCH for CR_05 to handle column names with '?' characters.
-        
         Args:
             item_id: The IPE or CR identifier (e.g., 'IPE_07', 'CR_05')
         
@@ -110,40 +124,32 @@ class ExtractionPipeline:
             logger.warning(f"Item {item_id} not found in catalog")
             self.last_extraction_source = "none"
             return pd.DataFrame(), None
-        
-        # Inject parameters into SQL query for direct execution (fallback)
-        final_query = item.sql_query
-        for key, value in self.params.items():
-            if f"{{{key}}}" in final_query:
-                final_query = final_query.replace(f"{{{key}}}", str(value))
-        
-        ipe_config = {
-            "id": item.item_id,
-            "description": getattr(item, "description", ""),
-            "secret_name": "fake",
-            "main_query": final_query,
-            "validation": {},
-        }
-        
-        runner = IPERunner(
-            ipe_config,
-            mock_secrets,
-            cutoff_date=self.params.get("cutoff_date"),
-            country=self.country_code,
-            period=self.period_str,
-            full_params=self.params
-        )
-        
-        # === CRITICAL PATCH FOR CR_05 ===
-        # Force the runner to ignore '?' in column names (CR_05 specific issue)
-        # and execute the query as-is (parameters already injected above)
-        def patched_exec(query, params=None):
-            return pd.read_sql(query, runner.connection)
-        
-        runner._execute_query_with_parameters = patched_exec
-        # ================================
+        if not item.sql_query:
+            logger.warning(f"Item {item_id} has no SQL query in catalog")
+            self.last_extraction_source = "none"
+            return pd.DataFrame(), None
         
         try:
+            sql_params = _build_sql_params(self.params)
+            final_query = render_sql(item.sql_query, sql_params, strict=True)
+
+            ipe_config = {
+                "id": item.item_id,
+                "description": getattr(item, "description", ""),
+                "secret_name": "fake",
+                "main_query": final_query,
+                "validation": {},
+            }
+
+            runner = IPERunner(
+                ipe_config,
+                mock_secrets,
+                cutoff_date=self.params.get("cutoff_date"),
+                country=self.country_code,
+                period=self.period_str,
+                full_params=sql_params,
+            )
+
             df = runner.run()
             zip_path = get_latest_evidence_zip(item_id)
             self.last_extraction_source = "live"
@@ -243,7 +249,6 @@ async def run_extraction_with_evidence(
     Standalone function for backward compatibility.
     
     Executes extraction via IPERunner.run() ensuring Rich Metadata & Evidence Generation.
-    Includes CRITICAL PATCH for CR_05 (handling columns with '?').
     
     Args:
         item_id: The IPE or CR identifier
@@ -262,7 +267,7 @@ def load_all_data(
     params: Dict[str, Any],
     uploaded_files: Optional[Dict[str, Any]] = None,
     required_ipes: Optional[list] = None,
-    progress_callback: Optional[callable] = None
+    progress_callback: Optional[Callable[[str, float, str], None]] = None
 ) -> Tuple[Dict[str, pd.DataFrame], Dict[str, Optional[str]], Dict[str, str]]:
     """
     Orchestrates loading and evidence collection for multiple IPEs.

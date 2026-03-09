@@ -22,6 +22,7 @@ from src.bridges import (
 from src.core.scope_filtering import filter_ipe08_scope
 from src.utils.fx_utils import FXConverter
 from src.utils.date_utils import format_yyyy_mm_dd
+from src.utils.query_params_builder import build_complete_query_params
 
 
 # --- LOGIC DESCRIPTIONS FOR BRIDGES ---
@@ -230,18 +231,12 @@ def main():
         if run_btn:
             st.session_state["run_reconciliation_started"] = True
 
-        year = cutoff_date.year
-        month = cutoff_date.month
-        params = {
-            "cutoff_date": format_yyyy_mm_dd(cutoff_date),
-            "year_start": f"{year}-{month:02d}-01",
-            "year_end": format_yyyy_mm_dd(cutoff_date),
-            "year": year,
-            "month": month,
-            "company": target_country,
-            "gl_accounts": "('15010','18303','18304','18406','18408','18409','18411','18412','18416','18417','18419','18421','18320','18307','18308','18309','18312','18310','18314','18380','18635','18317','18318','18319')",
-            "id_companies_active": f"('{target_country}')",
-        }
+        params = build_complete_query_params(
+            cutoff_date=format_yyyy_mm_dd(cutoff_date),
+            countries=[target_country],
+            period=cutoff_date.strftime("%Y-%m"),
+            overrides={"company": target_country},
+        )
 
     st.title("🛡️ SOXauto: C-PG-1 Control Center")
     st.markdown(

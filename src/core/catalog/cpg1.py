@@ -317,19 +317,19 @@ This provides the complete voucher liability picture for reconciliation purposes
         ],
     ),
     # =================================================================
-    # == DOC_VOUCHER_USAGE: Data for Timing Difference Bridge
+    # == IPE_08_USAGE: Data for Timing Difference Bridge
     # =================================================================
     # Baseline: "Usage May 2025 Query" from IPE_08 documentation
     # Purpose: Provides the "Usage" side for the Task 1 Timing Diff bridge.
     # =================================================================
     CatalogItem(
-        item_id="DOC_VOUCHER_USAGE",
-        item_type="DOC",
+        item_id="IPE_08_USAGE",
+        item_type="IPE",
         control="C-PG-1",
         title="Voucher Usage TV Extract (for Timing Bridge)",
         status="Completed",
         baseline_required=True,
-        change_status="New DOC",
+        change_status="Split from IPE_08",
         last_updated="2025-11-06",
         output_type="Query",
         tool="PowerPivot",
@@ -341,7 +341,7 @@ This provides the complete voucher liability picture for reconciliation purposes
             "It queries RPT_SOI with joins to V_STORECREDITVOUCHER_CLOSING and "
             "RPT_TRANSACTIONS_SELLER for enriched voucher usage data."
         ),
-        evidence_ref="DOC_VOUCHER_USAGE",
+        evidence_ref="IPE_08_USAGE",
         descriptor_excel=None,
         description="""This query extracts voucher usage data from RPT_SOI for the Timing \
 Difference Bridge reconciliation.
