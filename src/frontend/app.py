@@ -13,8 +13,8 @@ if REPO_ROOT not in sys.path:
 from src.core.catalog.cpg1 import get_item_by_id
 from src.core.extraction_pipeline import load_all_data as load_all_data_pipeline
 from src.core.jdash_loader import load_jdash_data as load_jdash_data_pipeline
+from src.core.reconciliation.voucher_classification import categorize_vouchers
 from src.bridges import (
-    categorize_nav_vouchers,
     calculate_vtc_adjustment,
     calculate_customer_posting_group_bridge,
     calculate_timing_difference_bridge,
@@ -539,7 +539,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
                 key="dl_timing",
             )
             c2.markdown("**Vouchers with Timing Difference:**")
-            c2.dataframe(proof_df.head(50), use_container_width=True)
+            c2.dataframe(proof_df.head(50), width="stretch")
 
         # --- TASK 2: VTC (Acceptance Criteria #3 - Glass Box) ---
         with tabs[1]:
@@ -547,7 +547,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             with st.expander("📖 Logic Explanation", expanded=False):
                 st.info(VTC_LOGIC)
 
-            cat_cr03 = categorize_nav_vouchers(
+            cat_cr03 = categorize_vouchers(
                 data['CR_03'],
                 ipe_08_df=data.get('IPE_08'),
                 doc_voucher_usage_df=data.get('DOC_VOUCHER_USAGE')
@@ -585,7 +585,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
                 key="dl_vtc",
             )
             c2.markdown("**Unmatched Vouchers (BOB without NAV cancellation):**")
-            c2.dataframe(proof_df_vtc.head(50), use_container_width=True)
+            c2.dataframe(proof_df_vtc.head(50), width="stretch")
 
         # --- TASK 4: Reclass (Acceptance Criteria #3 - Glass Box) ---
         with tabs[2]:
@@ -622,7 +622,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             else:
                 st.error(f"❌ FAIL: {problem_customers} customers with multiple posting groups require manual review")
                 st.markdown("**Customers with Multiple Posting Groups:**")
-                st.dataframe(proof_df_reclass, use_container_width=True)
+                st.dataframe(proof_df_reclass, width="stretch")
 
         # --- PHASE 3: SUMMARY ---
         st.markdown("---")
