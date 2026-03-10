@@ -69,6 +69,9 @@ RECLASS_LOGIC = """
 
 def get_sql_query_for_item(item_id: str) -> str:
     """Retrieve the SQL query for a catalog item."""
+    if item_id == "DOC_VOUCHER_USAGE":
+        item_id = "IPE_08_USAGE"
+
     item = get_item_by_id(item_id)
     if item and item.sql_query:
         return item.sql_query

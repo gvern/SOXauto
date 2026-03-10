@@ -30,7 +30,7 @@ LEFT JOIN (
     ON scv.ID_company = soi.[ID_Company] 
     AND scv.[code] = soi.[voucher_code]
 WHERE soi.[VOUCHER_TYPE] = 'reusablecredit'
-    AND soi.[PACKAGE_DELIVERY_DATE] < CAST({cutoff_date} AS DATE)
+    AND soi.[PACKAGE_DELIVERY_DATE] < CAST('{cutoff_date}' AS DATE)
     AND YEAR(soi.[DELIVERED_DATE]) > 2014
     AND soi.ID_Company IN {id_companies_active}
 GROUP BY

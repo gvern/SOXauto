@@ -614,8 +614,13 @@ def list_items(item_type: Optional[str] = None) -> List[CatalogItem]:
 
 def get_item_by_id(item_id: str) -> Optional[CatalogItem]:
     """Retrieve a catalog item by its ID (returns None if not found)."""
+    alias_map = {
+        "DOC_VOUCHER_USAGE": "IPE_08_USAGE",
+    }
+    resolved_item_id = alias_map.get(item_id, item_id)
+
     for it in CPG1_CATALOG:
-        if it.item_id == item_id:
+        if it.item_id == resolved_item_id:
             return it
     return None
 

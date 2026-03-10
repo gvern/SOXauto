@@ -307,9 +307,18 @@ def load_all_data(
             "IPE_31",
             "IPE_34",
             "IPE_08_TIMING",
-            "DOC_VOUCHER_USAGE",
+            "IPE_08_USAGE",
             "JDASH",
         ]
+
+    # Normalize legacy aliases to catalog-backed IDs while preserving output aliases later.
+    normalized_required_ipes: list[str] = []
+    for item_id in required_ipes:
+        if item_id == "DOC_VOUCHER_USAGE":
+            normalized_required_ipes.append("IPE_08_USAGE")
+        else:
+            normalized_required_ipes.append(item_id)
+    required_ipes = normalized_required_ipes
     
     data_store: Dict[str, pd.DataFrame] = {}
     evidence_store: Dict[str, Optional[str]] = {}
@@ -361,20 +370,22 @@ def load_all_data(
                 logger.warning(f"Error reading uploaded file for {item_id}: {e}")
                 df = None
         
-        # Priority 2: Try live SQL extraction
-        if df is None:
+        # Priority 2: Try live SQL extraction (JDASH uses dedicated loader only)
+        if df is None and item_id != "JDASH":
             try:
                 df, zip_path = asyncio.run(
                     pipeline.run_extraction_with_evidence(item_id)
                 )
-                if not df.empty:
-                    if pipeline.last_extraction_source == "fixture":
-                        source = "Local Fixture"
-                    elif pipeline.last_extraction_source == "live":
-                        source = "Live Database"
-                    else:
-                        source = "No Data"
+                if pipeline.last_extraction_source == "live":
+                    # Keep successful live extractions even when 0 rows are returned.
+                    source = "Live Database"
                     logger.info(f"{item_id}: Loaded from {source} ({len(df)} rows)")
+                elif pipeline.last_extraction_source == "fixture":
+                    if not df.empty:
+                        source = "Local Fixture"
+                        logger.info(f"{item_id}: Loaded from {source} ({len(df)} rows)")
+                    else:
+                        df = None
                 else:
                     df = None
             except Exception as e:

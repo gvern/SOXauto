@@ -10,7 +10,7 @@
 -- =========================================
 -- PART 1: REFUNDED NOT YET RETURNED
 -- =========================================
-"SELECT soi.[ID_COMPANY]
+SELECT soi.[ID_COMPANY]
       ,soi.[CURRENT_STATUS]
           ,'Refunded not yet returned' as Case_Type
       ,soi.[IS_MARKETPLACE]
@@ -73,4 +73,4 @@
   where --soi.ID_Company = 'EC_NG' 
     soi.RETURN_DATE between '2019-01-01 00:00:00' and DATEADD(second, -1, CAST('{subsequent_month_start}' AS DATETIME))
     and (soi.REFUND_DATE is NULL OR soi.REFUND_DATE >= CAST('{subsequent_month_start}' AS DATETIME))
-    and soi.[ID_COMPANY] NOT IN {excluded_countries_ipe34}"
+    and soi.[ID_COMPANY] NOT IN {excluded_countries_ipe34}
