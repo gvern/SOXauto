@@ -261,6 +261,9 @@ def test_calculate_vtc_adjustment_basic():
     assert len(proof) == 1
     assert proof.iloc[0]["id"] == "V002"
     assert metrics["total_count"] == len(proof)
+    assert metrics["refund_vouchers"] == 2
+    assert metrics["nav_cancellations"] == 1
+    assert metrics["unmatched_vouchers"] == 1
 
 
 def test_calculate_vtc_adjustment_all_matched():
@@ -707,6 +710,42 @@ def test_calculate_vtc_adjustment_with_date_filter_no_inactive_at_column():
     assert adjustment == 300.0
     assert len(proof) == 2
     assert metrics["total_count"] == 2
+
+
+def test_calculate_vtc_adjustment_with_date_filter_voucher_inactive_date_column():
+    """Test VTC adjustment month filtering with IPE_08_ISSUANCE date column name."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "voucher_inactive_date": "2024-09-10",
+                "Remaining Amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "voucher_inactive_date": "2024-08-31",
+                "Remaining Amount": 200.0,
+            },
+        ]
+    )
+
+    cr_03_df = pd.DataFrame()
+
+    adjustment, proof, metrics = calculate_vtc_adjustment(
+        ipe_08_df, cr_03_df, cutoff_date="2024-09-30"
+    )
+
+    assert adjustment == 100.0
+    assert len(proof) == 1
+    assert proof.iloc[0]["id"] == "V001"
+    assert metrics["refund_vouchers"] == 1
+    assert metrics["unmatched_vouchers"] == 1
 
 
 def test_calculate_vtc_adjustment_with_date_filter_december():

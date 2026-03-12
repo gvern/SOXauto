@@ -86,11 +86,21 @@ def calculate_vtc_adjustment(
     if "is_active" in filtered_ipe_08.columns:
         filter_condition &= (filtered_ipe_08["is_active"] == 0)
     
-    # Apply date filter if cutoff_date is provided and inactive_at column exists
+    # Apply date filter if cutoff_date is provided and an inactive-date column exists
     if cutoff_date is not None:
-        # Find the inactive_at column (handle various naming conventions)
+        # Prefer voucher inactivity columns present in IPE_08_ISSUANCE output.
+        # Keep legacy aliases for backward compatibility with fixtures/tests.
         inactive_at_col = None
-        for col in ["inactive_at", "Inactive_At", "inactive_date", "Inactive_Date"]:
+        for col in [
+            "inactive_at",
+            "Inactive_At",
+            "inactive_date",
+            "Inactive_Date",
+            "voucher_inactive_date",
+            "Voucher_Inactive_Date",
+            "min_inactive_date",
+            "Min_Inactive_Date",
+        ]:
             if col in filtered_ipe_08.columns:
                 inactive_at_col = col
                 break
@@ -125,6 +135,7 @@ def calculate_vtc_adjustment(
         source_vouchers_df[amount_col], fillna=0.0
     )
 
+    target_entries_df = pd.DataFrame()
     if categorized_cr_03_df is None or categorized_cr_03_df.empty:
         # All source vouchers are unmatched
         unmatched_df = source_vouchers_df.copy()
@@ -186,7 +197,22 @@ def calculate_vtc_adjustment(
     vtc_metrics: Dict[str, Any] = {
         "total_count": len(proof_df),
         "breakdown_by_type": {},
+        # Frontend pipeline counters
+        "refund_vouchers": len(source_vouchers_df),
+        "nav_cancellations": 0,
+        "unmatched_vouchers": len(proof_df),
     }
+
+    if not target_entries_df.empty:
+        voucher_no_col = None
+        for col in ["Voucher No_", "[Voucher No_]", "voucher_no", "Voucher_No"]:
+            if col in target_entries_df.columns:
+                voucher_no_col = col
+                break
+        if voucher_no_col is not None:
+            vtc_metrics["nav_cancellations"] = int(target_entries_df[voucher_no_col].nunique())
+        else:
+            vtc_metrics["nav_cancellations"] = len(target_entries_df)
 
     if not proof_df.empty:
         if "business_use_formatted" in proof_df.columns:
