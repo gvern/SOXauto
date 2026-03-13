@@ -14,6 +14,19 @@ from src.utils.date_utils import normalize_date, month_start, month_end
 from src.utils.pandas_utils import coerce_numeric_series
 
 
+def _normalize_voucher_key_series(series: pd.Series) -> pd.Series:
+    """Normalize voucher identifiers for robust cross-system matching.
+
+    Handles common extraction/CSV artifacts:
+    - trims surrounding whitespace
+    - uppercases for case-insensitive matching
+    - converts pure numeric float-like strings (e.g. "12345.0") to "12345"
+    """
+    normalized = series.astype(str).str.strip().str.upper()
+    normalized = normalized.str.replace(r"^(\d+)\.0$", r"\1", regex=True)
+    return normalized
+
+
 def calculate_vtc_adjustment(
     ipe_08_df: Optional[pd.DataFrame],
     categorized_cr_03_df: Optional[pd.DataFrame],
@@ -136,6 +149,9 @@ def calculate_vtc_adjustment(
     )
 
     target_entries_df = pd.DataFrame()
+    source_ids_normalized = _normalize_voucher_key_series(source_vouchers_df["id"])
+    target_ids_normalized = pd.Series(dtype=object)
+    matched_mask = pd.Series([False] * len(source_vouchers_df), index=source_vouchers_df.index)
     if categorized_cr_03_df is None or categorized_cr_03_df.empty:
         # All source vouchers are unmatched
         unmatched_df = source_vouchers_df.copy()
@@ -143,11 +159,13 @@ def calculate_vtc_adjustment(
         # Filter target entries (NAV): cancellation categories
         # Include entries where bridge_category starts with 'Cancellation' or equals 'VTC'/'VTC Manual'
         # Convert to string once for efficiency
-        bridge_categories = categorized_cr_03_df["bridge_category"].astype(str)
+        bridge_categories = (
+            categorized_cr_03_df["bridge_category"].astype(str).str.strip().str.lower()
+        )
         target_entries_df = categorized_cr_03_df[
-            bridge_categories.str.startswith("Cancellation")
-            | (bridge_categories == "VTC Manual")
-            | (bridge_categories == "VTC")
+            bridge_categories.str.startswith("cancellation")
+            | (bridge_categories == "vtc manual")
+            | (bridge_categories == "vtc")
         ].copy()
 
         # Determine voucher number column variants
@@ -157,16 +175,17 @@ def calculate_vtc_adjustment(
                 voucher_no_col = col
                 break
 
-        matched_voucher_series = (
-            target_entries_df[voucher_no_col]
+        target_ids_normalized = (
+            _normalize_voucher_key_series(target_entries_df[voucher_no_col])
             if voucher_no_col is not None
             else pd.Series(dtype=object)
         )
+        matched_mask = source_ids_normalized.isin(target_ids_normalized)
 
         # Perform left anti-join: find vouchers in source that are NOT in target
         # Left anti-join means: keep rows from left where the join key does NOT match any row in right
         unmatched_df = source_vouchers_df[
-            ~source_vouchers_df["id"].isin(matched_voucher_series)
+            ~matched_mask
         ].copy()
     proof_df = unmatched_df.copy()
 
@@ -201,6 +220,10 @@ def calculate_vtc_adjustment(
         "refund_vouchers": len(source_vouchers_df),
         "nav_cancellations": 0,
         "unmatched_vouchers": len(proof_df),
+        # Key matching observability
+        "source_unique_voucher_keys": int(source_ids_normalized[source_ids_normalized != ""].nunique()),
+        "target_unique_voucher_keys": 0,
+        "matched_source_vouchers": int(matched_mask.sum()),
     }
 
     if not target_entries_df.empty:
@@ -210,7 +233,10 @@ def calculate_vtc_adjustment(
                 voucher_no_col = col
                 break
         if voucher_no_col is not None:
-            vtc_metrics["nav_cancellations"] = int(target_entries_df[voucher_no_col].nunique())
+            normalized_target_keys = _normalize_voucher_key_series(target_entries_df[voucher_no_col])
+            normalized_target_keys = normalized_target_keys[normalized_target_keys != ""]
+            vtc_metrics["nav_cancellations"] = int(normalized_target_keys.nunique())
+            vtc_metrics["target_unique_voucher_keys"] = int(normalized_target_keys.nunique())
         else:
             vtc_metrics["nav_cancellations"] = len(target_entries_df)
 

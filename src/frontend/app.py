@@ -571,6 +571,13 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             step_cols[2].metric("Step 3: Unmatched", f"{unmatched_vouchers:,}")
             step_cols[3].metric("Step 4: VTC Amount", f"${adj_amt:,.2f}")
 
+            source_keys = vtc_metrics.get("source_unique_voucher_keys", 0)
+            target_keys = vtc_metrics.get("target_unique_voucher_keys", 0)
+            matched_source = vtc_metrics.get("matched_source_vouchers", 0)
+            st.caption(
+                f"Key Match Check: source keys={source_keys:,} | target keys={target_keys:,} | matched source rows={matched_source:,}"
+            )
+
             st.markdown("---")
 
             # Results

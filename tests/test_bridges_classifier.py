@@ -748,6 +748,86 @@ def test_calculate_vtc_adjustment_with_date_filter_voucher_inactive_date_column(
     assert metrics["unmatched_vouchers"] == 1
 
 
+def test_calculate_vtc_adjustment_matches_with_normalized_voucher_keys():
+    """VTC should match IDs despite case/space/float-like formatting differences."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": " 12345 ",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "Remaining Amount": 150.0,
+            },
+            {
+                "id": "ABC-77",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "Remaining Amount": 250.0,
+            },
+        ]
+    )
+
+    cr_03_df = pd.DataFrame(
+        [
+            {"[Voucher No_]": "12345.0", "bridge_category": "Cancellation"},
+            {"[Voucher No_]": " abc-77 ", "bridge_category": "VTC"},
+        ]
+    )
+
+    adjustment, proof, metrics = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
+
+    assert adjustment == 0.0
+    assert len(proof) == 0
+    assert metrics["nav_cancellations"] == 2
+
+
+def test_calculate_vtc_adjustment_category_matching_case_and_spaces():
+    """VTC category filter should be robust to case and surrounding spaces."""
+    ipe_08_df = pd.DataFrame(
+        [
+            {
+                "id": "V001",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "Remaining Amount": 100.0,
+            },
+            {
+                "id": "V002",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "Remaining Amount": 200.0,
+            },
+            {
+                "id": "V003",
+                "business_use_formatted": "refund",
+                "is_valid": "valid",
+                "is_active": 0,
+                "Remaining Amount": 300.0,
+            },
+        ]
+    )
+
+    cr_03_df = pd.DataFrame(
+        [
+            {"[Voucher No_]": "V001", "bridge_category": " cancellation - apology "},
+            {"[Voucher No_]": "V002", "bridge_category": " vTc Manual "},
+            {"[Voucher No_]": "VXXX", "bridge_category": "usage"},
+        ]
+    )
+
+    adjustment, proof, metrics = calculate_vtc_adjustment(ipe_08_df, cr_03_df)
+
+    # V001 and V002 should match after category normalization; only V003 remains unmatched.
+    assert adjustment == 300.0
+    assert len(proof) == 1
+    assert proof.iloc[0]["id"] == "V003"
+    assert metrics["nav_cancellations"] == 2
+
+
 def test_calculate_vtc_adjustment_with_date_filter_december():
     """Test VTC adjustment with date filter - December edge case (year boundary)."""
     ipe_08_df = pd.DataFrame(
