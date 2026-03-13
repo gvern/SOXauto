@@ -12,7 +12,8 @@
 CREATE PROCEDURE [n8n].[sp_Extract_IPE_07]
     @cutoff_date DATE,
     @customer_posting_groups NVARCHAR(500),
-    @output_path NVARCHAR(500) = 'C:\SQLExports\'
+    @output_path NVARCHAR(500) = 'C:\SQLExports\',
+    @drive_link NVARCHAR(1000)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -22,7 +23,6 @@ BEGIN
     DECLARE @openrowset_sql NVARCHAR(MAX)
     DECLARE @export_status NVARCHAR(20) = 'success'
     DECLARE @error_message NVARCHAR(4000) = NULL
-    DECLARE @webhook_url NVARCHAR(1000) = 'https://n8n.ops.jumia.com/webhook-test/10d7f0e2-995f-4e76-a766-e2bd3029e75e'
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
     DECLARE @procedure_name NVARCHAR(255)
@@ -186,9 +186,9 @@ BEGIN
     SET @sql = 'IF OBJECT_ID(''tempdb..' + @temp2_name + ''') IS NOT NULL DROP TABLE ' + @temp2_name
     EXEC sp_executesql @sql
     
-    -- Send to webhook
-    EXEC [n8n].[sp_Send_Csv_To_Webhook]
-        @webhook_url = @webhook_url,
+    -- Send to Google Drive
+    EXEC [n8n].[sp_Send_Csv_To_Drive]
+        @drive_link = @drive_link,
         @file_path = @full_path,
         @file_name = @filename,
         @procedure_name = @procedure_name,
