@@ -300,6 +300,7 @@ def load_all_data(
             "CR_04",
             "CR_03",
             "CR_05",
+            "CR_05a",
             "IPE_07",
             "IPE_08",
             "IPE_10",

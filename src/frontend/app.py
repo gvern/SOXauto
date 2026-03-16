@@ -100,6 +100,81 @@ def load_all_data(params, uploaded_files=None):
         uploaded_files=uploaded_files,
     )
 
+
+def _build_fx_rates_for_converter(
+    fx_df: pd.DataFrame,
+    fx_source_item_id: str | None,
+    target_country: str,
+) -> pd.DataFrame:
+    """Normalize FX datasets to the CR_05 shape expected by FXConverter."""
+    if fx_df is None or fx_df.empty:
+        return pd.DataFrame()
+
+    # CR_05-compatible shape already available.
+    if {"Company_Code", "FX_rate"}.issubset(fx_df.columns):
+        normalized = fx_df[["Company_Code", "FX_rate"]].copy()
+        normalized["FX_rate"] = pd.to_numeric(normalized["FX_rate"], errors="coerce")
+        return normalized.dropna(subset=["Company_Code", "FX_rate"])
+
+    # CR_05a fallback (currency-level rates): map selected entity to its local currency.
+    if fx_source_item_id == "CR_05a":
+        country_currency_map = {
+            "JD_GH": "GHS",
+            "EC_NG": "NGN",
+            "EC_KE": "KES",
+            "JM_EG": "EGP",
+        }
+        target_currency = country_currency_map.get(target_country)
+        if not target_currency:
+            return pd.DataFrame()
+
+        currency_col = next(
+            (
+                col
+                for col in ["Currency Code", "currency_code", "Currency", "currency"]
+                if col in fx_df.columns
+            ),
+            None,
+        )
+        rate_col = next(
+            (
+                col
+                for col in [
+                    "Relational Exch_ Rate Amount",
+                    "relational_exch_rate_amount",
+                    "Exchange Rate",
+                    "FX_rate",
+                ]
+                if col in fx_df.columns
+            ),
+            None,
+        )
+
+        if currency_col is None or rate_col is None:
+            return pd.DataFrame()
+
+        subset = fx_df[fx_df[currency_col].astype(str).str.upper() == target_currency].copy()
+        if subset.empty:
+            return pd.DataFrame()
+
+        subset[rate_col] = pd.to_numeric(subset[rate_col], errors="coerce")
+        subset = subset.dropna(subset=[rate_col])
+        if subset.empty:
+            return pd.DataFrame()
+
+        fx_rate_value = float(subset.iloc[0][rate_col])
+        if fx_rate_value == 0:
+            return pd.DataFrame()
+
+        return pd.DataFrame(
+            {
+                "Company_Code": [target_country],
+                "FX_rate": [fx_rate_value],
+            }
+        )
+
+    return pd.DataFrame()
+
 # --- PAGE CONFIG ---
 st.set_page_config(
     page_title="SOXauto | C-PG-1 Audit Agent",
@@ -191,6 +266,10 @@ def main():
                 "CR_05 - FX Rates", type="csv", key="upload_cr05",
                 help="Monthly closing FX rates"
             )
+            uploaded_cr05a = st.file_uploader(
+                "CR_05a - FX Rates (Fallback)", type="csv", key="upload_cr05a",
+                help="FA table FX rates used when CR_05 is unavailable"
+            )
             uploaded_ipe10 = st.file_uploader(
                 "IPE_10 - Customer Prepayments", type="csv", key="upload_ipe10",
                 help="Customer prepayments liability extract"
@@ -223,6 +302,7 @@ def main():
             "DOC_VOUCHER_USAGE": uploaded_doc_voucher,
             "IPE_08_USAGE": uploaded_doc_voucher,
             "CR_05": uploaded_cr05,
+            "CR_05a": uploaded_cr05a,
             "IPE_10": uploaded_ipe10,
             "IPE_12": uploaded_ipe12,
             "IPE_31": uploaded_ipe31,
@@ -320,6 +400,15 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
 
         data, evidence_paths, source_info = load_all_data(params, uploaded_files)
 
+        fx_source_item_id = None
+        fx_source_df = pd.DataFrame()
+        if not data.get("CR_05", pd.DataFrame()).empty:
+            fx_source_item_id = "CR_05"
+            fx_source_df = data.get("CR_05", pd.DataFrame())
+        elif not data.get("CR_05a", pd.DataFrame()).empty:
+            fx_source_item_id = "CR_05a"
+            fx_source_df = data.get("CR_05a", pd.DataFrame())
+
         # Helper function to display source badge
         def display_source_badge(source: str):
             """Display a colored badge indicating the data source."""
@@ -386,12 +475,17 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
                 st.code(get_sql_query_for_item("CR_03"), language="sql")
 
         with c3:
-            st.metric("FX Rates (CR_05)", f"{len(data['CR_05']):,} rows")
-            display_source_badge(source_info.get("CR_05", "No Data"))
-            cr05_evidence_path = evidence_paths.get("CR_05")
-            render_download_controls("CR_05", data["CR_05"], cr05_evidence_path, "CR_05_Evidence.zip", "dl_cr05")
+            fx_source_label = fx_source_item_id or "None"
+            st.metric(f"FX Rates ({fx_source_label})", f"{len(fx_source_df):,} rows")
+            fx_source_badge = source_info.get(fx_source_item_id, "No Data") if fx_source_item_id else "No Data"
+            display_source_badge(fx_source_badge)
+            fx_evidence_path = evidence_paths.get(fx_source_item_id) if fx_source_item_id else None
+            render_download_controls(fx_source_item_id or "FX_RATES", fx_source_df, fx_evidence_path, f"{fx_source_label}_Evidence.zip", "dl_cr05")
             with st.expander("View Source Query"):
-                st.code(get_sql_query_for_item("CR_05"), language="sql")
+                if fx_source_item_id:
+                    st.code(get_sql_query_for_item(fx_source_item_id), language="sql")
+                else:
+                    st.caption("No FX source query available because no FX dataset was loaded.")
 
         st.markdown("**Voucher Package (IPE_08 Split)**")
 
@@ -484,16 +578,32 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
         st.write("Applying validated business logic to identify and explain variances.")
 
         # Initialize FX Converter
+        fx_converter = None
+        amount_currency_label = "Local Currency"
+        amount_prefix = ""
+        fx_status_detail = "None (no FX dataset loaded)"
         try:
-            fx_converter = FXConverter(data["CR_05"])
+            fx_converter_input = _build_fx_rates_for_converter(
+                fx_source_df,
+                fx_source_item_id,
+                target_country,
+            )
+            fx_converter = FXConverter(fx_converter_input)
+            amount_currency_label = "USD"
+            amount_prefix = "$"
+            fx_status_detail = f"{fx_source_item_id} ({len(fx_converter.rates_dict)} rates loaded)"
             st.success(
-                f"✓ FX Converter initialized with {len(fx_converter.rates_dict)} exchange rates. All amounts reported in USD."
+                f"✓ FX Converter initialized from {fx_source_item_id} with {len(fx_converter.rates_dict)} exchange rates. Amounts reported in USD."
             )
         except Exception as e:
+            if fx_source_item_id:
+                fx_status_detail = f"{fx_source_item_id} (loaded but unusable for conversion)"
             st.warning(
-                f"⚠️ Could not initialize FX Converter: {e}. Using local currency."
+                f"⚠️ Could not initialize FX Converter from {fx_source_item_id}: {e}. Amounts are shown in local currency."
             )
-            fx_converter = None
+
+        def format_amount(amount: float) -> str:
+            return f"{amount_prefix}{amount:,.2f}"
 
         tabs = st.tabs(["Task 1: Timing Diff", "Task 2: VTC", "Task 4: Reclass"])
 
@@ -523,13 +633,13 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             step_cols[0].metric("Step 1: Total IPE_08", f"{total_ipe08_vouchers:,}")
             step_cols[1].metric("Step 2: Non-Marketing", f"{non_marketing_vouchers:,}")
             step_cols[2].metric("Step 3: In Period", f"{timing_diff_vouchers:,}")
-            step_cols[3].metric("Step 4: Bridge Amount", f"${bridge_amt:,.2f}")
+            step_cols[3].metric("Step 4: Bridge Amount", format_amount(bridge_amt))
 
             st.markdown("---")
 
             # Results
             c1, c2 = st.columns([1, 3])
-            c1.metric("Timing Difference", f"${bridge_amt:,.2f}")
+            c1.metric(f"Timing Difference ({amount_currency_label})", format_amount(bridge_amt))
             c1.download_button(
                 "📥 Download Bridge Calculation",
                 proof_df.to_csv(index=False),
@@ -569,7 +679,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             step_cols[0].metric("Step 1: Canceled Refunds (BOB)", f"{refund_vouchers:,}")
             step_cols[1].metric("Step 2: NAV Cancellations", f"{nav_cancellations:,}")
             step_cols[2].metric("Step 3: Unmatched", f"{unmatched_vouchers:,}")
-            step_cols[3].metric("Step 4: VTC Amount", f"${adj_amt:,.2f}")
+            step_cols[3].metric("Step 4: VTC Amount", format_amount(adj_amt))
 
             source_keys = vtc_metrics.get("source_unique_voucher_keys", 0)
             target_keys = vtc_metrics.get("target_unique_voucher_keys", 0)
@@ -582,7 +692,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
 
             # Results
             c1, c2 = st.columns([1, 3])
-            c1.metric("VTC Adjustment", f"${adj_amt:,.2f}")
+            c1.metric(f"VTC Adjustment ({amount_currency_label})", format_amount(adj_amt))
             c1.download_button(
                 "📥 Download Bridge Calculation",
                 proof_df_vtc.to_csv(index=False),
@@ -638,7 +748,7 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
         col1, col2, col3 = st.columns(3)
         col1.metric(
             "Total Explained Variance",
-            f"${total_explained:,.2f}",
+            format_amount(total_explained),
             delta="Automated Bridges",
         )
 
@@ -648,12 +758,13 @@ gl_accounts: {params['gl_accounts']}""", language="yaml")
             col2.success("Zero Variance")
 
         col3.info("Final Digital Evidence Package assembled.")
+        col3.caption(f"FX source used: {fx_status_detail} | Reporting currency: {amount_currency_label}")
         
         # Summary Table
         with st.expander("📋 Bridge Summary", expanded=True):
             summary_data = {
                 "Bridge Type": ["Timing Difference", "VTC Adjustment", "Customer Posting Group"],
-                "Amount (USD)": [f"${bridge_amt:,.2f}", f"${adj_amt:,.2f}", "N/A (Quality Check)"],
+                f"Amount ({amount_currency_label})": [format_amount(bridge_amt), format_amount(adj_amt), "N/A (Quality Check)"],
                 "Items Count": [len(proof_df), len(proof_df_vtc), problem_customers],
                 "Status": [
                     "✅ Calculated" if len(proof_df) > 0 else "⚪ No Items",
