@@ -1,5 +1,12 @@
 # Timing Difference Bridge - Setup Guide
 
+> ⚠️ **OBSOLETE — Phase 1 (GCP) Architecture**
+> This document describes the original Phase 1 setup where timing difference data came from **Google Sheets** via the `gspread` API.
+> **The current implementation** (`src/bridges/calculations/timing.py`) sources data directly from **SQL Server** via Teleport and does not use Google Sheets, GCP service accounts, or `gspread`.
+> This file is kept for historical reference only.
+
+---
+
 This guide will help you set up and run the `src/bridges/timing_difference.py` script to identify vouchers with timing differences between order and delivery/cancellation dates.
 
 ---

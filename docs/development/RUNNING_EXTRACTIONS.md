@@ -1,6 +1,8 @@
 # Guide d'Exécution et de Paramétrage des Extractions SQL
 
-Ce guide explique comment exécuter les extractions IPE via Apache Airflow et comment paramétrer les requêtes SQL avec des dates dynamiques.
+Ce guide explique comment exécuter les extractions IPE et la réconciliation, et comment paramétrer les requêtes SQL avec des dates dynamiques.
+
+> **Note historique**: Les sections décrivant Apache Airflow (versions antérieures au Nov 2025) sont obsolètes. L'orchestration actuelle se fait directement via `scripts/run_headless_test.py` (CLI) ou `src/frontend/app.py` (Streamlit UI). Voir [ENTRY_POINTS.md](ENTRY_POINTS.md) pour les détails.
 
 ---
 
@@ -8,7 +10,7 @@ Ce guide explique comment exécuter les extractions IPE via Apache Airflow et co
 
 Toutes les requêtes SQL sont stockées dans le catalogue (`src/core/catalog/cpg1.py`) et contiennent des **placeholders** comme `{cutoff_date}`.
 
-L'orchestration est gérée par **Apache Airflow**, qui exécute les DAGs et tasks de manière planifiée et fiable. Avant l'exécution des requêtes, les placeholders sont remplacés par les valeurs des **variables d'environnement** correspondantes via `src/utils/sql_template.py`.
+L'exécution est déclenchée via CLI ou Streamlit. Avant l'exécution des requêtes, les placeholders sont remplacés par les valeurs transmises en paramètre (ou via les **variables d'environnement**) via `src/utils/sql_template.py`.
 
 ---
 
@@ -47,44 +49,38 @@ Astuce: Placez ces variables dans un fichier `.env` et sourcez-le.
 
 ### b) Démarrer les services Airflow
 
-Airflow orchestre les extractions IPE via un DAG dédié (mensuel ou à la demande).
+**Streamlit UI (interactif)**:
 
 ```bash
-# Initialiser la base Airflow (une seule fois)
-airflow db init
-
-# Créer un utilisateur admin (si nécessaire)
-airflow users create \
-  --username admin \
-  --firstname SOX \
-  --lastname Admin \
-  --role Admin \
-  --email admin@example.com
-
-# Démarrer le scheduler
-airflow scheduler
-
-# Démarrer le webserver (dans un second terminal)
-airflow webserver --port 8080
+streamlit run src/frontend/app.py
 ```
 
-Airflow planifie et exécute les DAG runs. Les extractions peuvent être déclenchées manuellement via UI/CLI ou via un schedule mensuel.
+L'UI permet de sélectionner le `cutoff_date`, la company, et les IPEs/CRs à exécuter.
 
-### c) Déclencher un DAG Manuellement (Débogage)
+**CLI / headless (batch ou CI)**:
 
 ```bash
-# Exemple: déclencher un run avec une date de clôture
-airflow dags trigger soxauto_cpg1_reconciliation \
-  --conf '{"cutoff_date": "2025-10-01"}'
-
-# Lister les DAGs disponibles
-airflow dags list
-
-# Vérifier l'état des runs
-airflow dags list-runs -d soxauto_cpg1_reconciliation
+python scripts/run_headless_test.py \
+  --cutoff-date 2025-10-01 \
+  --company EC_NG
 ```
 
-**Note**: Les scripts historiques (`scripts/run_full_reconciliation.py`, `scripts/generate_*.py`) restent utiles pour tests ciblés, mais l'orchestration officielle passe par Airflow.
+Paramètres CLI disponibles :
+
+```bash
+# IPEs spécifiques uniquement
+python scripts/run_headless_test.py --cutoff-date 2025-10-01 --company EC_NG \
+  --ipes IPE_07,IPE_08,CR_03
+
+# Sans l'analyse bridges (plus rapide)
+python scripts/run_headless_test.py --cutoff-date 2025-10-01 --company EC_NG --no-bridges
+
+# Sortie vers fichier JSON
+python scripts/run_headless_test.py --cutoff-date 2025-10-01 --company EC_NG \
+  --output results.json
+```
+
+Aide complète : `python scripts/run_headless_test.py --help`
 
 ---
 
@@ -94,20 +90,19 @@ La fonction `render_sql` lève une erreur si des placeholders restent non résol
 
 Pour diagnostiquer une exécution:
 
-1. Consultez l'**Airflow UI** (`http://localhost:8080`) pour voir l'état du DAG run et des tasks
-2. Ouvrez le package de preuves généré: `evidence/<IPE_ID>/<timestamp>/`
-3. Consultez `01_executed_query.sql` pour voir la requête exécutée et `02_query_parameters.json` pour les paramètres
-4. Vérifiez les logs des tasks Airflow pour les erreurs d'exécution
+1. Ouvrez le package de preuves généré: `evidence/<IPE_ID>_<COMPANY>_<PERIOD>_<timestamp>/`
+2. Consultez `01_executed_query.sql` pour voir la requête exécutée et `02_query_parameters.json` pour les paramètres
+3. Consultez `07_execution_log.json` pour le log détaillé de l'exécution
+4. Utilisez les debug probes — voir [`DEBUG_MAP.md`](DEBUG_MAP.md) et [`DEBUG_PROBE.md`](DEBUG_PROBE.md)
 
 ---
 
 ## 5. Notes Opérationnelles
 
-- L'orchestration est gérée par **Apache Airflow** pour une exécution planifiée et fiable
 - La connexion SQL Server utilise un tunnel **Teleport (`tsh`)** sécurisé vers `fin-sql.jumia.local`
 - Les packages de preuves complets (8 fichiers) sont générés automatiquement par IPE dans `evidence/<IPE_ID>/`
 - La classification des "Bridges & Adjustments" est décrite dans `docs/development/BRIDGES_RULES.md`
-- L'Airflow UI permet de surveiller l'état des DAG runs et tasks en temps réel
+- Les variantes de company disponibles sont définies dans `src/core/catalog/cpg1.py`
 
 ---
 
@@ -115,5 +110,7 @@ Pour diagnostiquer une exécution:
 
 - Catalogue SQL: `src/core/catalog/cpg1.py`
 - Rendu SQL: `src/utils/sql_template.py`
-- DAG Airflow: `dags/` (orchestration mensuelle et déclenchement manuel)
 - IPE Runner: `src/core/runners/mssql_runner.py`
+- Entrée CLI: `scripts/run_headless_test.py`
+- Entrée UI: `src/frontend/app.py`
+- Réconciliation: `src/core/reconciliation/run_reconciliation.py`

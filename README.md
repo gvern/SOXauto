@@ -1,14 +1,6 @@
 # SOXauto PG-01
 
-> Architecture Update — 2025-11-06
->
-> The system is orchestrated by Apache Airflow DAGs and connects to on‑prem MSSQL via Teleport (`tsh`).
-> Previous Flask/script-based orchestration and serverless (Lambda/Fargate) plans are deprecated.
-> See `docs/development/RUNNING_EXTRACTIONS.md` and `docs/deployment/temporal_worker_deploy.md` (legacy Temporal runbook).
-
-> NOTE ON CURRENT PROJECT STATE
->
-> The system connects directly to on-premises SQL Server (`fin-sql.jumia.local`) via a secure **Teleport (`tsh`)** tunnel. All data extraction is performed using the `mssql_runner.py` module. For the current operational status and next actions, see `PROJECT_DASHBOARD.md`.
+> **Current Architecture**: The system connects directly to on-premises SQL Server (`fin-sql.jumia.local`) via a secure **Teleport (`tsh`)** tunnel. Reconciliation is run via the Streamlit UI (`src/frontend/app.py`) or CLI (`scripts/run_headless_test.py`). See `PROJECT_DASHBOARD.md` for current status.
 
 ## Connection Architecture
 
@@ -17,7 +9,7 @@ The system connects to the on-premises SQL Server database via:
 - **Database Server**: `fin-sql.jumia.local`
 - **Connection Method**: Secure Teleport (`tsh`) tunnel
 - **Runner Module**: `src/core/runners/mssql_runner.py`
-- **Orchestration**: Apache Airflow DAGs (scheduled and manually triggerable)
+- **Orchestration**: Direct Python pipeline triggered via Streamlit UI or CLI
 - **Evidence System**: Full Digital Evidence Package generation for SOX compliance
 
 For detailed implementation status and tracking, see `PROJECT_DASHBOARD.md`.
@@ -78,44 +70,48 @@ SOXauto PG-01 is an enterprise-grade automation system that transforms manual SO
 
 ```mermaid
 graph TD
-  subgraph "Apache Airflow Orchestration"
-    A[Airflow Scheduler] -- Triggers Monthly --> B[Airflow DAG Run]
-    B -- For each IPE --> C[Airflow Task: IPE Extraction]
-        C -- Reads --> D{IPE Catalog}
-        C -- Establishes tunnel --> E[Teleport tsh]
-        E -- Secure connection --> F[SQL Server fin-sql.jumia.local]
-        C -- Extracts from --> F
-        C -- Performs --> G[Validation Engine]
-        G -- Generates --> H[Digital Evidence Package]
-    end
+  subgraph "Entry Points"
+    A1[Streamlit UI\nsrc/frontend/app.py]
+    A2[CLI\nscripts/run_headless_test.py]
+  end
 
-    subgraph "Analysis & Reporting"
-        H -- All IPEs processed --> K[Reconciliation Agent]
-        K -- Calculates bridges --> L[Bridge Analysis]
-        L -- Generates --> M[PowerBI Dashboard]
-        M -- Consumed by --> N[Auditors]
-    end
-    
-    subgraph "Evidence Package Contents"
-        H --> O[SQL Query]
-        H --> P[Data Snapshot]
-        H --> Q[Crypto Hash]
-        H --> R[Validation Results]
-        H --> S[Execution Log]
-    end
+  subgraph "Extraction Pipeline"
+    A1 & A2 --> B[ExtractionPipeline\nsrc/core/extraction_pipeline.py]
+    B -- Reads --> C{IPE Catalog\nsrc/core/catalog/cpg1.py}
+    B -- Tunnel --> D[Teleport tsh]
+    D -- Secure connection --> E[SQL Server\nfin-sql.jumia.local]
+    B -- Validates --> F[Schema + Quality Checks]
+    F --> G[Digital Evidence Package]
+  end
+
+  subgraph "Reconciliation & Bridges"
+    G --> H[run_reconciliation.py]
+    H --> I[Voucher Classification]
+    H --> J[Bridge Analysis\nsrc/bridges/]
+    J --> K[Summary & Thresholds]
+  end
+
+  subgraph "Evidence Package Contents"
+    G --> L[SQL Query]
+    G --> M[Data Snapshot]
+    G --> N[Crypto Hash SHA-256]
+    G --> O[Validation Results]
+    G --> P[Execution Log]
+  end
 ```
 
 ### Core Components
 
 | Component | Role | Technology |
 |-----------|------|------------|
-| **Airflow DAG** | Main workflow orchestration | Apache Airflow |
-| **Airflow Tasks** | IPE extraction and processing | Apache Airflow Operators |
-| **Airflow Workers** | Executes task instances | Airflow Executor Workers |
-| **IPE Runner** | Individual IPE processor | Python + Pandas |
+| **Streamlit UI** | Interactive reconciliation interface | Streamlit |
+| **ExtractionPipeline** | IPE extraction and validation | Python + Pandas |
+| **run_reconciliation** | Full reconciliation orchestration | Python |
+| **IPE Runner** | SQL execution + schema validation | pyodbc + Pandas |
 | **Evidence Manager** | SOX compliance engine | Cryptographic hashing |
 | **Database Connection** | Secure tunnel to SQL Server | Teleport (tsh) |
-| **Validation Engine** | Data quality assurance | SQL + Statistical tests |
+| **Bridge Classifier** | GL entry categorization | Python rules engine |
+| **Validation Engine** | Schema + data quality assurance | Schema contracts (YAML) |
 
 ------
 
@@ -137,11 +133,11 @@ Here’s a step-by-step breakdown:
 - **Key Scripts**: `src/core/runners/mssql_runner.py`
 - **Result**: A secure, authenticated connection to `fin-sql.jumia.local` is established.
 
-#### 2. Orchestration (The "Airflow DAG")
+#### 2. Orchestration (Trigger via UI or CLI)
 
-- **What happens**: An Airflow DAG orchestrates the entire process. It loops through all the IPEs defined in your catalog and executes them one by one as Airflow tasks.
-- **Key Components**: Airflow Scheduler, Airflow Webserver, Airflow DAG tasks
-- **Result**: Each IPE is executed as a task instance with retries, logs, and scheduling managed by Airflow.
+- **What happens**: The reconciliation is triggered either from the Streamlit UI (interactive) or via `scripts/run_headless_test.py` (CLI/batch mode). Both call `run_reconciliation()` which loops through all selected IPEs and CR definitions.
+- **Key Components**: `src/frontend/app.py`, `scripts/run_headless_test.py`, `src/core/reconciliation/run_reconciliation.py`
+- **Result**: Each IPE and CR is executed in sequence with structured logging and progress tracking.
 
 #### 3. Execution (The "Runner")
 
@@ -171,7 +167,6 @@ Here’s a step-by-step breakdown:
 - Docker
 - Teleport (`tsh`) client configured with access to `fin-sql.jumia.local`
 - SQL Server ODBC Driver
-- Apache Airflow (Scheduler + Webserver + Worker/Executor)
 
 ### Local Development
 
@@ -185,18 +180,14 @@ pip install -r requirements.txt
 
 # Set environment variables
 export CUTOFF_DATE="2024-05-01"
-export AIRFLOW_HOME="$PWD/.airflow"
 
 # Establish Teleport tunnel
 tsh login --proxy=teleport.jumia.com --user=your-username
 tsh db connect fin-sql
 
-# Start Airflow services (example)
-airflow scheduler
-airflow webserver --port 8080
+# Run the Streamlit UI
+streamlit run src/frontend/app.py
 
-# Run timing difference bridge analysis
-python -m src.bridges.timing_difference
 ```
 
 ### Docker Deployment
@@ -205,9 +196,8 @@ python -m src.bridges.timing_difference
 # Build the image
 docker build -t soxauto-pg01 .
 
-# Run the Airflow worker container (project-specific command)
+# Run the container
 docker run \
-  -e AIRFLOW__CORE__EXECUTOR="LocalExecutor" \
   -e CUTOFF_DATE="2024-05-01" \
   soxauto-pg01
 ```
@@ -231,33 +221,45 @@ PG-01/
 │   │   ├── evidence/             # SOX compliance
 │   │   │   ├── __init__.py
 │   │   │   └── manager.py        # Digital evidence (SHA-256)
-│   │   ├── recon/                # Reconciliation logic
-│   │   │   ├── __init__.py
-│   │   │   └── cpg1.py           # CPG1 business rules
-│   ├── orchestrators/             # Legacy orchestration code (Temporal)
+│   │   ├── reconciliation/       # Reconciliation engine
 │   │   ├── __init__.py
-│   │   ├── cpg1_worker.py         # Legacy Temporal Worker for C-PG-1
-│   │   └── workflow.py            # Legacy Temporal Workflow definitions
+│   │   │   ├── run_reconciliation.py  # Main reconciliation entry point
+│   │   │   ├── analysis/         # Pivot and analysis modules
+│   │   │   ├── voucher_classification/  # Voucher type rules
+│   │   │   └── thresholds/       # Variance threshold contracts (YAML)
+│   │   ├── schema/               # Schema validation contracts
+│   │   ├── extraction_pipeline.py  # Full IPE extraction orchestration
+│   │   ├── scope_filtering.py    # Entity/period scope selection
+│   │   └── quality_checker.py    # Data quality validation
+│   ├── orchestrators/            # (reserved for future orchestration)
 │   ├── bridges/                  # Bridge analysis scripts
 │   │   ├── __init__.py
-│   │   └── timing_difference.py  # Timing difference automation
+│   │   ├── catalog.py            # Bridge catalog
+│   │   ├── classifier.py         # Bridge classifier entry point
+│   │   ├── categorization/       # Classification rules by type
+│   │   └── calculations/         # Bridge amount calculations
 │   ├── agents/                   # Future: AI agents
 │   │   └── __init__.py
+│   ├── frontend/                 # Streamlit UI
+│   │   └── app.py                # Main interactive application
 │   └── utils/                    # Shared utilities
 │       ├── __init__.py
 │       ├── aws_utils.py           # AWS service abstractions
 │       ├── merge_utils.py         # Merge audit (Cartesian product detection)
+│       ├── date_utils.py          # Date helpers
+│       ├── pandas_utils.py        # DataFrame casting utilities
+│       ├── fx_utils.py            # FX conversion utilities
 │       └── okta_aws_auth.py      # Okta SSO integration
 │
 ├── docs/                         # Comprehensive documentation
 │   ├── architecture/             # System design
-│   │   └── DATA_ARCHITECTURE.md
+│   │   ├── DATA_ARCHITECTURE.md
+│   │   └── reconciliation_phases.md
 │   ├── deployment/               # Deployment guides
-│   │   ├── airflow_deploy.md
-│   │   └── temporal_worker_deploy.md  # Legacy
+│   │   └── temporal_worker_deploy.md  # Legacy (Temporal runbook)
 │   ├── development/              # Development guides
 │   │   ├── TESTING_GUIDE.md
-│   │   ├── SECURITY_FIXES.md
+│   │   ├── ENTRY_POINTS.md
 │   │   └── evidence_documentation.md
 │   └── setup/                    # Setup instructions
 │       ├── DATABASE_CONNECTION.md
@@ -265,6 +267,8 @@ PG-01/
 │       └── OKTA_QUICK_REFERENCE.md
 │
 ├── scripts/                      # Automation scripts
+│   ├── run_headless_test.py      # CLI entry point for batch reconciliation
+│   ├── run_demo.py               # Offline demo with sample data
 │   ├── check_mssql_connection.py # Database connection verification
 │   └── validate_ipe_config.py    # Config validation
 │
@@ -287,11 +291,13 @@ PG-01/
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| **Orchestration** | Apache Airflow | DAG-based scheduling and workflow orchestration |
-| **Execution Runtime** | Python 3.11 | Airflow tasks running extraction/reconciliation jobs |
+| **UI** | Streamlit | Interactive reconciliation interface |
+| **Reconciliation Engine** | Python 3.11 | Direct pipeline execution |
 | **Data Access** | pyodbc + Teleport | SQL Server via secure tunnel |
 | **Database Connection** | Teleport (`tsh`) | Secure tunnel to on-premises SQL Server |
 | **Evidence System** | hashlib (SHA-256) | Cryptographic integrity verification |
+| **Schema Validation** | YAML contracts | IPE/CR data quality enforcement |
+| **Bridge Analysis** | Python rules engine | GL entry categorization |
 | **Containerization** | Docker (multi-stage build) | Production deployment |
 
 ------
@@ -430,24 +436,28 @@ Comprehensive documentation available in `docs/`:
 ### Setup Guides
 
 - **[DATABASE_CONNECTION.md](docs/setup/DATABASE_CONNECTION.md)** - Database connectivity guide via Teleport
-- **[TIMING_DIFFERENCE_SETUP.md](docs/setup/TIMING_DIFFERENCE_SETUP.md)** - Timing difference configuration
+- **[OKTA_AWS_SETUP.md](docs/setup/OKTA_AWS_SETUP.md)** - Okta SSO + AWS authentication
+- **[OKTA_QUICK_REFERENCE.md](docs/setup/OKTA_QUICK_REFERENCE.md)** - Daily auth quick reference
 
 ### Architecture
 
-- **[DATA_ARCHITECTURE.md](docs/architecture/DATA_ARCHITECTURE.md)** - System architecture
+- **[DATA_ARCHITECTURE.md](docs/architecture/DATA_ARCHITECTURE.md)** - Database and data architecture
+- **[reconciliation_phases.md](docs/architecture/reconciliation_phases.md)** - Reconciliation phases (Phase 3 + bridges)
 
 ### Development
 
 - **[TESTING_GUIDE.md](docs/development/TESTING_GUIDE.md)** - Testing best practices
 - **[MERGE_AUDIT_GUIDE.md](docs/development/MERGE_AUDIT_GUIDE.md)** - Merge audit utility documentation
-- **[SECURITY_FIXES.md](docs/development/SECURITY_FIXES.md)** - Security audit findings
 - **[evidence_documentation.md](docs/development/evidence_documentation.md)** - Evidence system specs
 - **[RUNNING_EXTRACTIONS.md](docs/development/RUNNING_EXTRACTIONS.md)** - Running extractions with SQL parameters
+- **[ENTRY_POINTS.md](docs/development/ENTRY_POINTS.md)** - CLI and UI entry points guide
+- **[SCHEMA_CONTRACT_SYSTEM.md](docs/development/SCHEMA_CONTRACT_SYSTEM.md)** - Schema validation system
+- **[THRESHOLD_CATALOG.md](docs/development/THRESHOLD_CATALOG.md)** - Variance thresholds
+- **[BRIDGES_RULES.md](docs/development/BRIDGES_RULES.md)** - Bridge classification rules
 
 ### Deployment
 
-- **[airflow_deploy.md](docs/deployment/airflow_deploy.md)** - Airflow deployment and operations
-- **[temporal_worker_deploy.md](docs/deployment/temporal_worker_deploy.md)** - Legacy Temporal deployment runbook
+- **[temporal_worker_deploy.md](docs/deployment/temporal_worker_deploy.md)** - Legacy Temporal deployment runbook (historical)
 
 ------
 

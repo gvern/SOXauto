@@ -1,8 +1,12 @@
 # 🎉 Phase Complete: Documentation & Validation
 
-**Date**: October 16, 2024  
-**Phase**: Post-Security-Hardening Documentation & Validation  
+**Date**: October 16, 2024
+**Phase**: Post-Security-Hardening Documentation & Validation
 **Status**: ✅ **COMPLETED**
+
+> 📚 **Historical Document** — File paths have changed significantly since Oct 2024:
+> `src/core/ipe_runner.py` → `src/core/runners/mssql_runner.py`
+> `src/core/config.py` → configuration is embedded in `src/core/catalog/cpg1.py`
 
 ---
 

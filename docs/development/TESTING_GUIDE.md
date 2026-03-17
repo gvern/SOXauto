@@ -1,9 +1,6 @@
 # Testing Guide for SOXauto PG-01
 
-> Update — 2025-11-06
->
-> The project now uses Temporal.io for orchestration and Teleport (`tsh`) for on‑prem MSSQL connectivity.
-> GCP- and Lambda-related sections below are historical. Prefer the Temporal worker and AWS Secrets Manager flows.
+> **Current Architecture (March 2026)**: Reconciliation is run via Streamlit UI (`streamlit run src/frontend/app.py`) or CLI (`scripts/run_headless_test.py`). Teleport (`tsh`) is used for SQL Server connectivity. GCP, Lambda, and Temporal references in this document are historical.
 
 **Pre-Production Testing Checklist**
 
