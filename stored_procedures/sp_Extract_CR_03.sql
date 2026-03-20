@@ -20,7 +20,6 @@ BEGIN
     
     DECLARE @full_path NVARCHAR(500)
     DECLARE @filename NVARCHAR(200)
-    DECLARE @openrowset_sql NVARCHAR(MAX)
     DECLARE @export_status NVARCHAR(20) = 'success'
     DECLARE @error_message NVARCHAR(4000) = NULL
     DECLARE @webhook_url NVARCHAR(1000) = 'https://n8n.ops.jumia.com/webhook-test/10d7f0e2-995f-4e76-a766-e2bd3029e75e'
@@ -117,25 +116,39 @@ BEGIN
         AND gl.[id_company] NOT LIKE ''%USD%''
     '
     
-    -- Get row count first
-    DECLARE @count_query NVARCHAR(MAX)
-    SET @count_query = 'SELECT @count = COUNT(*) FROM (' + @query + ') AS subquery'
-    EXEC sp_executesql @count_query, N'@count BIGINT OUTPUT', @row_count OUTPUT
-    
-    BEGIN TRY
-        SET @openrowset_sql = N'
-        INSERT INTO OPENROWSET(
-            ''Microsoft.ACE.OLEDB.12.0'',
-            ''Text;Database=' + REPLACE(@output_path, '''', '''''') + ';HDR=YES;FMT=Delimited'',
-            ''SELECT * FROM [' + @filename + ']'')
-        ' + @query
+    -- Create temporary table from query (with aliases preserved)
+    DECLARE @temp_table NVARCHAR(128) = '#TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
+    DECLARE @select_into_sql NVARCHAR(MAX)
+    DECLARE @bcp_command NVARCHAR(MAX)
+    DECLARE @bcp_return_code INT
 
-        EXEC sp_executesql @openrowset_sql
+    BEGIN TRY
+        -- Step 1: Populate temp table with query results
+        SET @select_into_sql = 'SELECT * INTO ' + @temp_table + ' FROM (' + @query + ') AS sq'
+        EXEC sp_executesql @select_into_sql
+
+        -- Step 2: Get row count from temp table
+        DECLARE @count_query_temp NVARCHAR(MAX) = 'SELECT @count = COUNT(*) FROM ' + @temp_table
+        EXEC sp_executesql @count_query_temp, N'@count BIGINT OUTPUT', @row_count OUTPUT
+
+        -- Step 3: Export via BCP from temp table
+        SET @bcp_command = 'bcp "SELECT * FROM ' + @temp_table + '" queryout "' + @full_path + '" -T -c'
+        EXEC @bcp_return_code = xp_cmdshell @bcp_command
+
+        IF @bcp_return_code <> 0
+        BEGIN
+            SET @export_status = 'error'
+            SET @error_message = 'BCP command failed with return code: ' + CAST(@bcp_return_code AS NVARCHAR(10))
+        END
     END TRY
     BEGIN CATCH
         SET @export_status = 'error'
         SET @error_message = ERROR_MESSAGE()
     END CATCH
+
+    -- Clean up temporary table
+    IF OBJECT_ID('tempdb..' + @temp_table) IS NOT NULL
+        EXEC ('DROP TABLE ' + @temp_table)
 
     -- Call webhook with stored procedure name variable
     EXEC [n8n].[sp_Send_Csv_To_Webhook]

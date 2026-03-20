@@ -16,7 +16,7 @@ WITH CTE AS (
         ON p.id_company = ppa.id_company 
         AND p.OMS_PACKLIST_No = ppa.OMS_PACKLIST_No
         AND ppa.OMS_PAYMENT_RECONCILED_AMOUNT IS NOT NULL
-    WHERE p.OMS_Packlist_status IN ('waitingApproval')
+    WHERE p.OMS_Packlist_Status IN ('waitingApproval')
         OR (p.OMS_Packlist_Status = 'waitingConfirmation' 
             AND ppa.OMS_PAYMENT_RECONCILED_AMOUNT IS NULL)
 )
