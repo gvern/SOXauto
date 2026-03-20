@@ -18,7 +18,6 @@ BEGIN
     
     DECLARE @full_path NVARCHAR(500)
     DECLARE @filename NVARCHAR(200)
-    DECLARE @openrowset_sql NVARCHAR(MAX)
     DECLARE @export_status NVARCHAR(20) = 'success'
     DECLARE @error_message NVARCHAR(4000) = NULL
     DECLARE @row_count BIGINT
@@ -40,61 +39,85 @@ BEGIN
     SET @query = '
     SELECT
         t1.[ID_Company],
-        t1.[Voucher_ID],
+        t1.[id] AS [Voucher_ID],
         t1.[Code],
-        t1.[Amount],
-        t1.[Currency],
+        t1.[discount_amount] AS [Amount],
+        NULL AS [Currency],
         t1.[Business_Use],
-        t1.[Origin],
-        t1.[Status],
-        t1.[Creation_Date],
-        t1.[Start_Date],
-        t1.[End_Date],
-        t1.[fk_Sales_Order_Item],
-        t1.[ID_Sales_Order_Item],
-        tTwo.[Order_Creation_Date],
-        tTwo.[Order_Delivery_Date],
-        tTwo.[Order_Cancellation_Date],
-        tTwo.[Order_Item_Status],
+        t1.[type] AS [Origin],
+        CASE
+            WHEN ISNULL(t1.[is_active], 0) = 1 THEN ''active''
+            ELSE ''inactive''
+        END AS [Status],
+        t1.[created_at] AS [Creation_Date],
+        t1.[from_date] AS [Start_Date],
+        t1.[to_date] AS [End_Date],
+        tTwo.[COD_OMS_SALES_ORDER_ITEM] AS [fk_Sales_Order_Item],
+        tTwo.[ID_Sales_Order_Item],
+        tTwo.[ORDER_CREATION_DATE] AS [Order_Creation_Date],
+        tTwo.[DELIVERED_DATE] AS [Order_Delivery_Date],
+        tTwo.[CANCELLATION_DATE] AS [Order_Cancellation_Date],
+        tTwo.[CURRENT_STATUS] AS [Order_Item_Status],
         tTwo.[Payment_Method],
         t1.[fk_Customer],
-        t1.[fk_Sales_Order],
+        tTwo.[COD_OMS_SALES_ORDER] AS [fk_Sales_Order],
         tTwo.[Order_Nr],
-        t1.[Comment],
-        t1.[Wallet_Name]
+        t1.[description] AS [Comment],
+        NULL AS [Wallet_Name]
     FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_STORECREDITVOUCHER_CLOSING] t1
     LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_SOI] tTwo
-        ON t1.fk_Sales_Order_Item = tTwo.ID_Sales_Order_Item
-    WHERE t1.[Creation_Date] < ''' + @cutoff_str + '''
-        AND t1.[Status] = ''inactive''
-        AND t1.[End_Date] >= ''' + @cutoff_str + '''
-        AND (tTwo.[Order_Item_Status] NOT IN (''delivered'', ''cancelled'', ''closed'') 
-             OR tTwo.[Order_Item_Status] IS NULL)
-        AND (tTwo.[Order_Delivery_Date] >= ''' + @cutoff_str + '''
-             OR tTwo.[Order_Delivery_Date] IS NULL)
-        AND (tTwo.[Order_Cancellation_Date] >= ''' + @cutoff_str + '''
-             OR tTwo.[Order_Cancellation_Date] IS NULL)
+        ON t1.[ID_Company] = tTwo.[ID_Company]
+        AND t1.[Code] = tTwo.[voucher_code]
+    WHERE t1.[created_at] < CAST(''' + @cutoff_str + ''' AS DATE)
+        AND ISNULL(t1.[is_active], 0) = 0
+        AND t1.[to_date] >= CAST(''' + @cutoff_str + ''' AS DATE)
+        AND (
+            tTwo.[CURRENT_STATUS] NOT IN (''delivered'', ''cancelled'', ''closed'')
+            OR tTwo.[CURRENT_STATUS] IS NULL
+        )
+        AND (
+            tTwo.[DELIVERED_DATE] >= CAST(''' + @cutoff_str + ''' AS DATE)
+            OR tTwo.[DELIVERED_DATE] IS NULL
+        )
+        AND (
+            tTwo.[CANCELLATION_DATE] >= CAST(''' + @cutoff_str + ''' AS DATE)
+            OR tTwo.[CANCELLATION_DATE] IS NULL
+        )
     '
-    
-    -- Get row count first
-    DECLARE @count_query NVARCHAR(MAX)
-    SET @count_query = 'SELECT @count = COUNT(*) FROM (' + @query + ') AS subquery'
-    EXEC sp_executesql @count_query, N'@count BIGINT OUTPUT', @row_count OUTPUT
-    
-    BEGIN TRY
-        SET @openrowset_sql = N'
-        INSERT INTO OPENROWSET(
-            ''Microsoft.ACE.OLEDB.12.0'',
-            ''Text;Database=' + REPLACE(@output_path, '''', '''''') + ';HDR=YES;FMT=Delimited'',
-            ''SELECT * FROM [' + @filename + ']'')
-        ' + @query
 
-        EXEC sp_executesql @openrowset_sql
+    -- Create temporary table from query (with aliases preserved)
+    DECLARE @temp_table NVARCHAR(128) = '#TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
+    DECLARE @select_into_sql NVARCHAR(MAX)
+    DECLARE @bcp_command NVARCHAR(MAX)
+    DECLARE @bcp_return_code INT
+
+    BEGIN TRY
+        -- Step 1: Populate temp table with query results
+        SET @select_into_sql = 'SELECT * INTO ' + @temp_table + ' FROM (' + @query + ') AS sq'
+        EXEC sp_executesql @select_into_sql
+
+        -- Step 2: Get row count from temp table
+        DECLARE @count_query_temp NVARCHAR(MAX) = 'SELECT @count = COUNT(*) FROM ' + @temp_table
+        EXEC sp_executesql @count_query_temp, N'@count BIGINT OUTPUT', @row_count OUTPUT
+
+        -- Step 3: Export via BCP from temp table
+        SET @bcp_command = 'bcp "SELECT * FROM ' + @temp_table + '" queryout "' + @full_path + '" -T -c'
+        EXEC @bcp_return_code = xp_cmdshell @bcp_command
+
+        IF @bcp_return_code <> 0
+        BEGIN
+            SET @export_status = 'error'
+            SET @error_message = 'BCP command failed with return code: ' + CAST(@bcp_return_code AS NVARCHAR(10))
+        END
     END TRY
     BEGIN CATCH
         SET @export_status = 'error'
         SET @error_message = ERROR_MESSAGE()
     END CATCH
+
+    -- Clean up temporary table
+    IF OBJECT_ID('tempdb..' + @temp_table) IS NOT NULL
+        EXEC ('DROP TABLE ' + @temp_table)
 
     EXEC [n8n].[sp_Send_Csv_To_Drive]
         @drive_link = @drive_link,
