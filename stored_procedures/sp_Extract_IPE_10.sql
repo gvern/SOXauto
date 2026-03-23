@@ -8,7 +8,7 @@
 -- Returns: File path, filename, and row count
 -- GL Accounts: Customer prepayment liability accounts
 -- =============================================
-CREATE PROCEDURE [n8n].[sp_Extract_IPE_10]
+CREATE OR ALTER PROCEDURE [n8n].[sp_Extract_IPE_10]
     @cutoff_date DATE,
     @output_path NVARCHAR(500) = 'C:\SQLExports\',
     @drive_link NVARCHAR(1000)
@@ -18,7 +18,6 @@ BEGIN
     
     DECLARE @full_path NVARCHAR(500)
     DECLARE @filename NVARCHAR(200)
-    DECLARE @openrowset_sql NVARCHAR(MAX)
     DECLARE @export_status NVARCHAR(20) = 'success'
     DECLARE @error_message NVARCHAR(4000) = NULL
     DECLARE @row_count BIGINT
@@ -113,14 +112,9 @@ BEGIN
     EXEC sp_executesql @count_query, N'@count BIGINT OUTPUT', @row_count OUTPUT
     
     BEGIN TRY
-        SET @openrowset_sql = N'
-        INSERT INTO OPENROWSET(
-            ''Microsoft.ACE.OLEDB.12.0'',
-            ''Text;Database=' + REPLACE(@output_path, '''', '''''') + ';HDR=YES;FMT=Delimited'',
-            ''SELECT * FROM [' + @filename + ']'')
-        ' + @query
-
-        EXEC sp_executesql @openrowset_sql
+        EXEC [n8n].[sp_Export_Query_To_Csv_Bcp]
+            @query = @query,
+            @output_file_path = @full_path
     END TRY
     BEGIN CATCH
         SET @export_status = 'error'
