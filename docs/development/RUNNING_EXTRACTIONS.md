@@ -1,63 +1,70 @@
-# Guide d'Exécution et de Paramétrage des Extractions SQL
+# SQL Extraction Execution and Parameterization Guide
 
-Ce guide explique comment exécuter les extractions IPE et la réconciliation, et comment paramétrer les requêtes SQL avec des dates dynamiques.
-
-> **Note historique**: Les sections décrivant Apache Airflow (versions antérieures au Nov 2025) sont obsolètes. L'orchestration actuelle se fait directement via `scripts/run_headless_test.py` (CLI) ou `src/frontend/app.py` (Streamlit UI). Voir [ENTRY_POINTS.md](ENTRY_POINTS.md) pour les détails.
+This guide explains how to run IPE extractions and reconciliation, and how to configure SQL queries with dynamic dates.
 
 ---
 
-## 1. Principe de Fonctionnement
+## 1. How It Works
 
-Toutes les requêtes SQL sont stockées dans le catalogue (`src/core/catalog/cpg1.py`) et contiennent des **placeholders** comme `{cutoff_date}`.
+All SQL queries are stored in the catalog (`src/core/catalog/cpg1.py`) and contain **placeholders** like `{cutoff_date}`.
 
-L'exécution est déclenchée via CLI ou Streamlit. Avant l'exécution des requêtes, les placeholders sont remplacés par les valeurs transmises en paramètre (ou via les **variables d'environnement**) via `src/utils/sql_template.py`.
-
----
-
-## 2. Paramètres Disponibles
-
-Les paramètres suivants sont reconnus par les scripts. Exportez-les dans votre terminal avant d'exécuter une extraction.
-
-| Variable d'Environnement | Format Requis                   | Description                                             | Utilisé par |
-|--------------------------|---------------------------------|---------------------------------------------------------|-------------|
-| `CUTOFF_DATE`            | `AAAA-MM-JJ`                    | Date de clôture (exclusive) pour la plupart des IPEs.   | IPE_07, IPE_10, IPE_31… |
-| `YEAR_START`             | `AAAA-MM-JJ`                    | Début de période annuelle pour les rapports consolidés. | CR_04       |
-| `YEAR_END`               | `AAAA-MM-JJ`                    | Fin de période annuelle pour les rapports consolidés.   | CR_04       |
-| `FX_DATE`                | `AAAA-MM-JJ HH:MM:SS.mmm`       | Date exacte pour les taux de change.                    | CR_05a      |
+Execution is triggered via CLI or Streamlit. Before the queries run, placeholders are replaced with values passed as parameters (or via **environment variables**) through `src/utils/sql_template.py`.
 
 ---
 
-## 3. Exemple: Clôture de Septembre 2025
+## 2. Available Parameters
 
-### a) Configurer l'Environnement
+The following parameters are recognized by the scripts. Export them in your terminal before running an extraction.
 
-Pour une clôture au 30/09/2025, la `CUTOFF_DATE` est le premier jour du mois suivant.
+| Environment Variable   | Required Format              | Description                                              | Used by |
+|------------------------|------------------------------|----------------------------------------------------------|---------|
+| `CUTOFF_DATE`          | `YYYY-MM-DD`                 | Cutoff date (exclusive) for most IPEs.                   | IPE_07, IPE_10, IPE_31… |
+| `YEAR_START`           | `YYYY-MM-DD`                 | Annual period start for consolidated reports.            | CR_04   |
+| `YEAR_END`             | `YYYY-MM-DD`                 | Annual period end for consolidated reports.              | CR_04   |
+| `FX_DATE`              | `YYYY-MM-DD HH:MM:SS.mmm`    | Exact date for exchange rates.                           | CR_05a  |
+| `DB_CONNECTION_STRING` | ODBC connection string        | Direct SQL Server connection (bypasses Secrets Manager). | All IPEs |
+
+---
+
+## 3. Example: September 2025 Close
+
+### a) Configure the Environment
+
+For a close at 30/09/2025, the `CUTOFF_DATE` is the first day of the following month.
 
 ```bash
-# Date de clôture (exclusive)
+# Cutoff date (exclusive)
 export CUTOFF_DATE='2025-10-01'
 
-# Période annuelle (ex: 2025)
+# Annual period (e.g. 2025)
 export YEAR_START='2025-01-01'
 export YEAR_END='2025-12-31'
 
-# Taux de change (si requis par CR_05a)
+# Exchange rate date (if required by CR_05a)
 export FX_DATE='2025-09-30 00:00:00.000'
+
+# Direct SQL Server connection via Teleport (bypasses AWS Secrets Manager)
+export DB_CONNECTION_STRING="DRIVER=ODBC Driver 17 for SQL Server;SERVER=fin-sql.jumia.local;DATABASE=AIG_Nav_Jumia_Reconciliation;Trusted_Connection=yes;"
 ```
 
-Astuce: Placez ces variables dans un fichier `.env` et sourcez-le.
+On Windows (PowerShell):
+```powershell
+$env:DB_CONNECTION_STRING="DRIVER={ODBC Driver 17 for SQL Server};SERVER=fin-sql.jumia.local;DATABASE=AIG_Nav_Jumia_Reconciliation;Trusted_Connection=yes;"
+```
 
-### b) Démarrer les services Airflow
+Tip: Place these variables in a `.env` file and source it. `DB_CONNECTION_STRING` takes precedence over AWS Secrets Manager when set.
 
-**Streamlit UI (interactif)**:
+### b) Run the extraction (UI or CLI)
+
+**Streamlit UI (interactive)**:
 
 ```bash
 streamlit run src/frontend/app.py
 ```
 
-L'UI permet de sélectionner le `cutoff_date`, la company, et les IPEs/CRs à exécuter.
+The UI allows selecting the `cutoff_date`, company, and the IPEs/CRs to execute.
 
-**CLI / headless (batch ou CI)**:
+**CLI / headless (batch or CI)**:
 
 ```bash
 python scripts/run_headless_test.py \
@@ -65,52 +72,52 @@ python scripts/run_headless_test.py \
   --company EC_NG
 ```
 
-Paramètres CLI disponibles :
+Available CLI parameters:
 
 ```bash
-# IPEs spécifiques uniquement
+# Specific IPEs only
 python scripts/run_headless_test.py --cutoff-date 2025-10-01 --company EC_NG \
   --ipes IPE_07,IPE_08,CR_03
 
-# Sans l'analyse bridges (plus rapide)
+# Without bridge analysis (faster)
 python scripts/run_headless_test.py --cutoff-date 2025-10-01 --company EC_NG --no-bridges
 
-# Sortie vers fichier JSON
+# Output to JSON file
 python scripts/run_headless_test.py --cutoff-date 2025-10-01 --company EC_NG \
   --output results.json
 ```
 
-Aide complète : `python scripts/run_headless_test.py --help`
+Full help: `python scripts/run_headless_test.py --help`
 
 ---
 
-## 4. Gestion des Erreurs et Débogage
+## 4. Error Handling and Debugging
 
-La fonction `render_sql` lève une erreur si des placeholders restent non résolus (ex: `{cutoff_date}` manquant). Cela évite des erreurs SQL obscures.
+The `render_sql` function raises an error if any placeholders remain unresolved (e.g. missing `{cutoff_date}`). This prevents obscure SQL errors.
 
-Pour diagnostiquer une exécution:
+To diagnose an execution:
 
-1. Ouvrez le package de preuves généré: `evidence/<IPE_ID>_<COMPANY>_<PERIOD>_<timestamp>/`
-2. Consultez `01_executed_query.sql` pour voir la requête exécutée et `02_query_parameters.json` pour les paramètres
-3. Consultez `07_execution_log.json` pour le log détaillé de l'exécution
-4. Utilisez les debug probes — voir [`DEBUG_MAP.md`](DEBUG_MAP.md) et [`DEBUG_PROBE.md`](DEBUG_PROBE.md)
-
----
-
-## 5. Notes Opérationnelles
-
-- La connexion SQL Server utilise un tunnel **Teleport (`tsh`)** sécurisé vers `fin-sql.jumia.local`
-- Les packages de preuves complets (8 fichiers) sont générés automatiquement par IPE dans `evidence/<IPE_ID>/`
-- La classification des "Bridges & Adjustments" est décrite dans `docs/development/BRIDGES_RULES.md`
-- Les variantes de company disponibles sont définies dans `src/core/catalog/cpg1.py`
+1. Open the generated evidence package: `evidence/<IPE_ID>_<COMPANY>_<PERIOD>_<timestamp>/`
+2. Check `01_executed_query.sql` for the executed query and `02_query_parameters.json` for the parameters
+3. Check `07_execution_log.json` for the detailed execution log
+4. Use debug probes — see [`DEBUG_MAP.md`](DEBUG_MAP.md) and [`DEBUG_PROBE.md`](DEBUG_PROBE.md)
 
 ---
 
-## 6. Référence Fichiers
+## 5. Operational Notes
 
-- Catalogue SQL: `src/core/catalog/cpg1.py`
-- Rendu SQL: `src/utils/sql_template.py`
+- The SQL Server connection uses a secure **Teleport (`tsh`)** tunnel to `fin-sql.jumia.local`
+- Complete evidence packages (8 files) are generated automatically per IPE in `evidence/<IPE_ID>/`
+- The "Bridges & Adjustments" classification is described in `docs/development/BRIDGES_RULES.md`
+- Available company variants are defined in `src/core/catalog/cpg1.py`
+
+---
+
+## 6. File Reference
+
+- SQL Catalog: `src/core/catalog/cpg1.py`
+- SQL Rendering: `src/utils/sql_template.py`
 - IPE Runner: `src/core/runners/mssql_runner.py`
-- Entrée CLI: `scripts/run_headless_test.py`
-- Entrée UI: `src/frontend/app.py`
-- Réconciliation: `src/core/reconciliation/run_reconciliation.py`
+- CLI Entry Point: `scripts/run_headless_test.py`
+- UI Entry Point: `src/frontend/app.py`
+- Reconciliation: `src/core/reconciliation/run_reconciliation.py`

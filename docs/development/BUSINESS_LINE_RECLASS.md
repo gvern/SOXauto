@@ -277,7 +277,7 @@ The IPE_07 query (`src/core/catalog/queries/IPE_07.sql`) extracts:
 
 To integrate with SOXauto's standard extraction pipeline:
 
-1. **Extract IPE_07**: Use `mssql_runner.py` to extract IPE_07 via Temporal workflow
+1. **Extract IPE_07**: Use `mssql_runner.py` to extract IPE_07 from the standard pipeline (UI/CLI)
 2. **Run Analysis**: Pass extracted IPE_07 DataFrame to `identify_business_line_reclass_candidates()`
 3. **Map Columns**: Use column mapping parameters to match IPE_07 schema
 
@@ -368,40 +368,9 @@ candidates = identify_business_line_reclass_candidates(
 
 **A:** The heuristic still works using **absolute values**. The BL with the largest absolute balance (ignoring sign) is selected as primary. Negative balances are valid and handled correctly.
 
-### Q: How do I integrate this with the Temporal workflow?
+### Q: How do I integrate this in the current SOXauto flow?
 
-**A:** Example Temporal Activity:
-
-```python
-from temporalio import activity
-from src.core.runners.mssql_runner import MSSQLRunner
-from src.bridges.categorization.business_line_reclass import (
-    identify_business_line_reclass_candidates
-)
-
-@activity.defn
-async def analyze_business_line_reclass(cutoff_date: str) -> dict:
-    # 1. Extract IPE_07 (NAV CLE) from NAV
-    runner = MSSQLRunner()
-    ipe_07_df = runner.extract_ipe("IPE_07", cutoff_date)
-    
-    # 2. Identify candidates with column mapping
-    candidates = identify_business_line_reclass_candidates(
-        ipe_07_df,
-        cutoff_date,
-        customer_id_col="Customer No_",
-        business_line_col="Busline Code",
-        amount_col="rem_amt_LCY",
-    )
-    
-    # 3. Save to S3 or evidence folder
-    candidates.to_csv(f"business_line_reclass_candidates_{cutoff_date}.csv")
-    
-    return {
-        "num_candidates": len(candidates),
-        "num_customers": candidates["customer_id"].nunique(),
-    }
-```
+**A:** Run extraction from Streamlit (`src/frontend/app.py`) or CLI (`scripts/run_headless_test.py`), then call `identify_business_line_reclass_candidates()` on the extracted IPE_07 DataFrame.
 
 ## Support
 

@@ -30,7 +30,6 @@
 | [TESTING_GUIDE.md](TESTING_GUIDE.md) | Testing procedures and validation | Developers & QA |
 | [evidence_documentation.md](evidence_documentation.md) | SOX evidence package (8-file system) | Auditors & Developers |
 | [RECONCILIATION_FLOW.md](RECONCILIATION_FLOW.md) | Full reconciliation pipeline description | Technical Team |
-| [RECONCILIATION_FLOW_DIAGRAM.md](RECONCILIATION_FLOW_DIAGRAM.md) | Manual vs. automated process visualization | All |
 
 ### Utils & Code Reference
 
@@ -68,6 +67,9 @@ Historical and working documents archived in `archive/`:
 - `2025-10-meetings/` — Meeting notes (Oct 2025)
 - `2024-12-refactoring/` — Previous refactoring docs (Dec 2024)
 - `2024-12-security-fixes/` — Security fix documentation (Dec 2024)
+
+Obsolete architecture docs moved from active paths are stored in:
+- `../archive/2026-03-obsolete-architecture/`
 
 ---
 

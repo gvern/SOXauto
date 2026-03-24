@@ -19,14 +19,17 @@ BEGIN
     DECLARE @error_line NVARCHAR(4000)
     DECLARE @throw_message NVARCHAR(2048)
 
-    IF @query IS NULL OR LTRIM(RTRIM(@query)) = ''
+    ;IF @query IS NULL OR LTRIM(RTRIM(@query)) = ''
     BEGIN
-        THROW 50001, 'BCP export query is empty.', 1;
+        RAISERROR('BCP export query is empty.', 16, 1);
+        RETURN;
     END
 
-    IF @output_file_path IS NULL OR LTRIM(RTRIM(@output_file_path)) = ''
+
+    ;IF @output_file_path IS NULL OR LTRIM(RTRIM(@output_file_path)) = ''
     BEGIN
-        THROW 50002, 'BCP output file path is empty.', 1;
+        RAISERROR('BCP output file path is empty.', 16, 1);
+        RETURN;
     END
 
     SET @server_name = COALESCE(CAST(SERVERPROPERTY('ServerName') AS NVARCHAR(255)), @@SERVERNAME)
@@ -40,10 +43,12 @@ BEGIN
         INSERT INTO @cmd_output (line)
         EXEC @xp_rc = xp_cmdshell @bcp_command
 
-        IF ISNULL(@xp_rc, 1) <> 0
+        ;IF ISNULL(@xp_rc, 1) <> 0
         BEGIN
-            THROW 50003, 'BCP export failed: xp_cmdshell returned a non-zero exit code.', 1;
+            RAISERROR('BCP export failed: xp_cmdshell returned a non-zero exit code.', 16, 1);
+            RETURN;
         END
+
 
         SELECT TOP 1 @error_line = line
         FROM @cmd_output
@@ -58,8 +63,9 @@ BEGIN
 
         IF @error_line IS NOT NULL
         BEGIN
-            SET @throw_message = 'BCP export failed: ' + LEFT(@error_line, 1800)
-            THROW 50003, @throw_message, 1;
+            SET @throw_message = 'BCP export failed: ' + LEFT(@error_line, 1800);
+            RAISERROR(@throw_message, 16, 1);
+            RETURN;
         END
     END TRY
     BEGIN CATCH

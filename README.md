@@ -256,7 +256,9 @@ PG-01/
 │   │   ├── DATA_ARCHITECTURE.md
 │   │   └── reconciliation_phases.md
 │   ├── deployment/               # Deployment guides
-│   │   └── temporal_worker_deploy.md  # Legacy (Temporal runbook)
+│   │   └── sql_server_prerequisites.sql
+│   ├── archive/                  # Archived/obsolete docs (historical only)
+│   │   └── 2026-03-obsolete-architecture/
 │   ├── development/              # Development guides
 │   │   ├── TESTING_GUIDE.md
 │   │   ├── ENTRY_POINTS.md
@@ -456,8 +458,11 @@ Comprehensive documentation available in `docs/`:
 - **[BRIDGES_RULES.md](docs/development/BRIDGES_RULES.md)** - Bridge classification rules
 
 ### Deployment
+- **[sql_server_prerequisites.sql](docs/deployment/sql_server_prerequisites.sql)** - SQL Server prerequisites and setup script
 
-- **[temporal_worker_deploy.md](docs/deployment/temporal_worker_deploy.md)** - Legacy Temporal deployment runbook (historical)
+### Archive
+
+- **[docs/archive/2026-03-obsolete-architecture](docs/archive/2026-03-obsolete-architecture/)** - Historical obsolete architecture docs (Temporal/Athena/GCP)
 
 ------
 
@@ -511,5 +516,3 @@ Enterprise proprietary software. All rights reserved.
 - **SQL Server**: [Microsoft SQL Server Documentation](https://learn.microsoft.com/en-us/sql/)
 
 ------
-
-Built with love for enterprise-grade SOX compliance

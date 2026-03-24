@@ -34,26 +34,9 @@ Get the following information from your AWS administrator:
 
 ---
 
-## Configuration Methods
+## Configuration
 
-### Method 1: Automated Setup (Recommended)
-
-Run the provided setup script:
-
-```bash
-python3 scripts/setup_okta_profile.py
-```
-
-The script will prompt you for:
-1. Profile name (e.g., `jumia-sox-prod`)
-2. Okta SSO start URL
-3. SSO region
-4. AWS account ID
-5. IAM role name
-
-### Method 2: Manual Configuration
-
-#### Step 1: Configure AWS SSO Profile
+### Step 1: Configure AWS SSO Profile
 
 Edit `~/.aws/config` and add your profile:
 
@@ -67,7 +50,7 @@ region = eu-west-1
 output = json
 ```
 
-#### Step 2: Login to Okta SSO
+### Step 2: Login to Okta SSO
 
 ```bash
 aws sso login --profile jumia-sox-prod
@@ -82,7 +65,7 @@ This will:
 
 ## Environment Configuration
 
-### Option A: Use Environment Variables
+### Use Environment Variables
 
 Create a `.env` file in your project root:
 
@@ -104,17 +87,6 @@ direnv allow
 
 # Or export manually
 export $(cat .env | xargs)
-```
-
-### Option B: Update config.py
-
-Modify `src/core/config.py`:
-
-```python
-# AWS Okta Configuration
-USE_OKTA_AUTH = os.getenv("USE_OKTA_AUTH", "true").lower() == "true"
-AWS_PROFILE = os.getenv("AWS_PROFILE", "jumia-sox-prod")
-AWS_REGION = os.getenv("AWS_REGION", "eu-west-1")
 ```
 
 ---
@@ -155,27 +127,7 @@ df = pd.DataFrame({'col1': [1, 2, 3]})
 s3.upload_dataframe_as_parquet(df, 'jumia-sox-data-lake', 'outputs/test.parquet')
 ```
 
-### 3. Using Athena with Okta
-
-```python
-from src.utils.aws_utils import AWSAthena
-
-# Initialize with Okta
-athena = AWSAthena(
-    region_name='eu-west-1',
-    s3_output_location='s3://jumia-sox-data-lake/athena-results/',
-    use_okta=True,
-    profile_name='jumia-sox-prod'
-)
-
-# Execute query
-df = athena.query_to_dataframe(
-    query="SELECT * FROM sox_data LIMIT 10",
-    database='jumia_sox_db'
-)
-```
-
-### 4. Direct Okta Authentication
+### 3. Direct Okta Authentication
 
 ```python
 from src.utils.okta_aws_auth import OktaAWSAuth
@@ -359,8 +311,7 @@ For automated deployments, use:
        aws-region: eu-west-1
    ```
 
-2. **AWS Lambda**: Use IAM roles for Lambda execution
-3. **ECS/Fargate**: Use IAM roles for tasks
+2. Use IAM roles for compute workloads (if applicable in your environment)
 
 **Never** use Okta SSO credentials in automated systems.
 
