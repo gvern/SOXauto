@@ -159,7 +159,7 @@ BEGIN
         AND comp.Flg_In_Conso_Scope = 1'
 
     -- Create temporary table from query (with aliases preserved)
-    DECLARE @temp_table NVARCHAR(128) = '#TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
+    DECLARE @temp_table NVARCHAR(128) = '##TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
     DECLARE @select_into_sql NVARCHAR(MAX)
     DECLARE @bcp_command NVARCHAR(MAX)
     DECLARE @bcp_return_code INT
