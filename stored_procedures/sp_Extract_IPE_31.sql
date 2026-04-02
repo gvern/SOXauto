@@ -13,7 +13,6 @@
 -- Business Logic: Captures all open/in-progress collection items as of period end
 -- =============================================
 CREATE PROCEDURE [n8n].[sp_Extract_IPE_31]
-    @cutoff_date DATE,
     @subsequent_month_start DATETIME,
     @excluded_countries_ipe31 NVARCHAR(500),
     @output_path NVARCHAR(500) = 'C:\SQLExports\',
@@ -29,8 +28,11 @@ BEGIN
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
     DECLARE @procedure_name NVARCHAR(255)
-    DECLARE @cutoff_str NVARCHAR(30)
     DECLARE @subsequent_str NVARCHAR(30)
+    DECLARE @temp_table NVARCHAR(128)
+    DECLARE @select_into_sql NVARCHAR(MAX)
+    DECLARE @bcp_command NVARCHAR(MAX)
+    DECLARE @bcp_return_code INT
     
     -- Store procedure name (@@PROCID doesn't work in EXEC parameters)
     SET @procedure_name = 'n8n.sp_Extract_IPE_31'
@@ -40,7 +42,6 @@ BEGIN
     SET @full_path = @output_path + @filename
     
     -- Convert parameters to strings for query
-    SET @cutoff_str = CONVERT(NVARCHAR(10), @cutoff_date, 120)
     SET @subsequent_str = CONVERT(NVARCHAR(30), @subsequent_month_start, 120)
     
     -- Build dynamic query with parameters
@@ -276,10 +277,7 @@ BEGIN
     '
 
     -- Create temporary table from query (with aliases preserved)
-    DECLARE @temp_table NVARCHAR(128) = '##TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
-    DECLARE @select_into_sql NVARCHAR(MAX)
-    DECLARE @bcp_command NVARCHAR(MAX)
-    DECLARE @bcp_return_code INT
+    SET @temp_table = '##TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
 
     BEGIN TRY
         -- Step 1: Populate temp table with query results

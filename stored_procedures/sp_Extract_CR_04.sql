@@ -30,6 +30,10 @@ BEGIN
     DECLARE @procedure_name NVARCHAR(255)
     DECLARE @year_start_str NVARCHAR(10)
     DECLARE @year_end_str NVARCHAR(10)
+    DECLARE @temp_table NVARCHAR(128)
+    DECLARE @select_into_sql NVARCHAR(MAX)
+    DECLARE @bcp_command NVARCHAR(MAX)
+    DECLARE @bcp_return_code INT
     
     -- Store procedure name (@@PROCID doesn't work in EXEC parameters)
     SET @procedure_name = 'n8n.sp_Extract_CR_04'
@@ -55,10 +59,7 @@ BEGIN
     '
     
     -- Create temporary table from query (with aliases preserved)
-    DECLARE @temp_table NVARCHAR(128) = '##TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
-    DECLARE @select_into_sql NVARCHAR(MAX)
-    DECLARE @bcp_command NVARCHAR(MAX)
-    DECLARE @bcp_return_code INT
+    SET @temp_table = '##TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
 
     BEGIN TRY
         -- Step 1: Populate temp table with query results

@@ -30,6 +30,10 @@ BEGIN
     DECLARE @temp1_name NVARCHAR(50)
     DECLARE @temp2_name NVARCHAR(50)
     DECLARE @sql NVARCHAR(MAX)
+    DECLARE @temp_table NVARCHAR(128)
+    DECLARE @select_into_sql NVARCHAR(MAX)
+    DECLARE @bcp_command NVARCHAR(MAX)
+    DECLARE @bcp_return_code INT
     
     -- Store procedure name
     SET @procedure_name = 'n8n.sp_Extract_IPE_07'
@@ -159,10 +163,7 @@ BEGIN
         AND comp.Flg_In_Conso_Scope = 1'
 
     -- Create temporary table from query (with aliases preserved)
-    DECLARE @temp_table NVARCHAR(128) = '##TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
-    DECLARE @select_into_sql NVARCHAR(MAX)
-    DECLARE @bcp_command NVARCHAR(MAX)
-    DECLARE @bcp_return_code INT
+    SET @temp_table = '##TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
 
     BEGIN TRY
         -- Step 1: Populate temp table with query results

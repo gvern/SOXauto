@@ -11,7 +11,8 @@
 -- GL Account: 15010
 -- =============================================
 CREATE PROCEDURE [n8n].[sp_Extract_CR_03]
-    @subsequent_month_start DATETIME,
+    @year_start DATE,
+    @year_end DATE,
     @gl_accounts_cr_03 NVARCHAR(500),
     @output_path NVARCHAR(500) = 'C:\SQLExports\',
     @drive_link NVARCHAR(1000)
@@ -25,8 +26,13 @@ BEGIN
     DECLARE @error_message NVARCHAR(4000) = NULL
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
-    DECLARE @subsequent_str NVARCHAR(30)
+    DECLARE @year_start_str NVARCHAR(10)
+    DECLARE @year_end_str NVARCHAR(10)
     DECLARE @procedure_name NVARCHAR(255)
+    DECLARE @temp_table NVARCHAR(128)
+    DECLARE @select_into_sql NVARCHAR(MAX)
+    DECLARE @bcp_command NVARCHAR(MAX)
+    DECLARE @bcp_return_code INT
     
     -- Store procedure name early 
     SET @procedure_name = 'n8n.sp_Extract_CR_03'
@@ -36,8 +42,9 @@ BEGIN
                     FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
     SET @full_path = @output_path + @filename
     
-    -- Convert parameter to string for query
-    SET @subsequent_str = CONVERT(NVARCHAR(30), @subsequent_month_start, 120)
+    -- Convert parameters to strings for query
+    SET @year_start_str = CONVERT(NVARCHAR(10), @year_start, 120)
+    SET @year_end_str = CONVERT(NVARCHAR(10), @year_end, 120)
     
     -- Build dynamic query with parameters
     SET @query = '
@@ -97,7 +104,7 @@ BEGIN
         FROM [AIG_Nav_DW].[dbo].[Detailed G_L Entry] det
         LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[fdw].[Dim_Company] comp
             ON comp.Company_Code = det.id_company
-        WHERE det.[Posting Date] < CAST(''' + @subsequent_str + ''' AS DATETIME)
+        WHERE det.[Posting Date] BETWEEN ''' + @year_start_str + ''' AND ''' + @year_end_str + '''
             AND det.[G_L Account No_] IN (' + @gl_accounts_cr_03 + ')
             AND comp.Flg_In_Conso_Scope = 1
         GROUP BY det.[id_company], det.[Gen_ Ledger Entry No_]
@@ -112,15 +119,12 @@ BEGIN
         AND coa.[G/L_Account_No] = gl.[Chart of Accounts No_]
     LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[GDOC_IFRS_Tabular_Mapping] ifrs
         ON ifrs.Level_4_Code = coa.Group_COA_Account_no
-    WHERE gl.[Posting Date] < CAST(''' + @subsequent_str + ''' AS DATETIME)
+    WHERE gl.[Posting Date] BETWEEN ''' + @year_start_str + ''' AND ''' + @year_end_str + '''
         AND gl.[id_company] NOT LIKE ''%USD%''
     '
     
     -- Create temporary table from query (with aliases preserved)
-    DECLARE @temp_table NVARCHAR(128) = '##TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
-    DECLARE @select_into_sql NVARCHAR(MAX)
-    DECLARE @bcp_command NVARCHAR(MAX)
-    DECLARE @bcp_return_code INT
+    SET @temp_table = '##TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
 
     BEGIN TRY
         -- Step 1: Populate temp table with query results

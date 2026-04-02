@@ -13,7 +13,6 @@
 -- Logic: Captures transactions created during the reporting period that remain unpaid
 -- =============================================
 CREATE PROCEDURE [n8n].[sp_Extract_IPE_11]
-    @cutoff_date DATE,
     @period_month_start DATETIME,
     @subsequent_month_start DATETIME,
     @output_path NVARCHAR(500) = 'C:\SQLExports\',
@@ -29,9 +28,12 @@ BEGIN
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
     DECLARE @procedure_name NVARCHAR(255)
-    DECLARE @cutoff_str NVARCHAR(30)
     DECLARE @period_start_str NVARCHAR(30)
     DECLARE @subsequent_start_str NVARCHAR(30)
+    DECLARE @temp_table NVARCHAR(128)
+    DECLARE @select_into_sql NVARCHAR(MAX)
+    DECLARE @bcp_command NVARCHAR(MAX)
+    DECLARE @bcp_return_code INT
     
     -- Store procedure name (@@PROCID doesn't work in EXEC parameters)
     SET @procedure_name = 'n8n.sp_Extract_IPE_11'
@@ -41,7 +43,6 @@ BEGIN
     SET @full_path = @output_path + @filename
     
     -- Convert parameters to strings for query
-    SET @cutoff_str = CONVERT(NVARCHAR(30), @cutoff_date, 120)
     SET @period_start_str = CONVERT(NVARCHAR(30), @period_month_start, 120)
     SET @subsequent_start_str = CONVERT(NVARCHAR(30), @subsequent_month_start, 120)
     
@@ -95,15 +96,12 @@ BEGIN
         AND asg.ASG_Level_1 = ''Revenues''
         AND (
             trs.[ID_Account_Statement] IS NULL
-            OR stt.[RING_End_Date] > ''' + @cutoff_str + '''
+            OR stt.[RING_End_Date] >= ''' + @subsequent_start_str + '''
         )
     '
 
     -- Create temporary table from query (with aliases preserved)
-    DECLARE @temp_table NVARCHAR(128) = '##TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
-    DECLARE @select_into_sql NVARCHAR(MAX)
-    DECLARE @bcp_command NVARCHAR(MAX)
-    DECLARE @bcp_return_code INT
+    SET @temp_table = '##TempExport_' + REPLACE(CONVERT(NVARCHAR(36), NEWID()), '-', '')
 
     BEGIN TRY
         -- Step 1: Populate temp table with query results
