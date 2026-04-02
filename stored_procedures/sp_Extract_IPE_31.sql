@@ -3,10 +3,10 @@
 -- Description: Extract PG Detailed TV Extraction data to CSV file
 -- Purpose: Collection accounts reconciliation - open transactions, in-progress lists, and payments
 -- Parameters: 
---   @cutoff_date: Cutoff date for extraction (YYYY-MM-DD)
---   @subsequent_month_start: Start of next month (YYYY-MM-DD HH:MM:SS)
+--   @subsequent_month_start: Start of next month (YYYY-MM-DD HH:MM:SS); closing date is derived as previous day
 --   @excluded_countries_ipe31: Comma-separated list of countries to exclude (e.g., 'XX','YY')
---   @output_path: Directory for output file (default: C:\SQLExports\)
+--   @output_path: Directory for output file (default: D:\INTFIN-Data\SOC_n8n)
+--   @drive_link: Google Drive folder link for upload target
 -- Returns: File path, filename, and row count
 -- Source: OMS (Cash Reconciliation tables)
 -- GL Accounts: Collection partner bank accounts
@@ -15,7 +15,7 @@
 CREATE PROCEDURE [n8n].[sp_Extract_IPE_31]
     @subsequent_month_start DATETIME,
     @excluded_countries_ipe31 NVARCHAR(500),
-    @output_path NVARCHAR(500) = 'C:\SQLExports\',
+    @output_path NVARCHAR(500) = 'D:\INTFIN-Data\SOC_n8n',
     @drive_link NVARCHAR(1000)
 AS
 BEGIN
@@ -28,6 +28,7 @@ BEGIN
     DECLARE @row_count BIGINT
     DECLARE @query NVARCHAR(MAX)
     DECLARE @procedure_name NVARCHAR(255)
+    DECLARE @cutoff_str NVARCHAR(10)
     DECLARE @subsequent_str NVARCHAR(30)
     DECLARE @temp_table NVARCHAR(128)
     DECLARE @select_into_sql NVARCHAR(MAX)
@@ -39,9 +40,14 @@ BEGIN
     
     -- Generate unique filename with timestamp
     SET @filename = 'IPE_31_' + FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
+    SET @output_path = CASE 
+        WHEN RIGHT(@output_path, 1) IN ('\\', '/') THEN @output_path
+        ELSE @output_path + '\\'
+    END
     SET @full_path = @output_path + @filename
     
     -- Convert parameters to strings for query
+    SET @cutoff_str = CONVERT(NVARCHAR(10), DATEADD(DAY, -1, CAST(@subsequent_month_start AS DATE)), 120)
     SET @subsequent_str = CONVERT(NVARCHAR(30), @subsequent_month_start, 120)
     
     -- Build dynamic query with parameters

@@ -1,6 +1,10 @@
 -- =============================================
 -- Stored Procedure: sp_Export_Query_To_Csv_Bcp
 -- Description: Export dynamic query results to CSV using bcp (queryout mode, no temp tables)
+-- Parameters:
+--   @query: Full SELECT query to export with bcp queryout
+--   @output_file_path: Full destination path for the CSV file
+-- Raises: SQL errors when the query/path is empty or when bcp reports a failure
 -- =============================================
 CREATE OR ALTER PROCEDURE [n8n].[sp_Export_Query_To_Csv_Bcp]
     @query NVARCHAR(MAX),

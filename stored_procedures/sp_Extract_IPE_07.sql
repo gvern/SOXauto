@@ -6,13 +6,14 @@
 -- Parameters: 
 --   @cutoff_date: Cutoff date for extraction (YYYY-MM-DD)
 --   @customer_posting_groups: Comma-separated list of posting groups (e.g., 'TV,FEE-MP')
---   @output_path: Directory for output file (default: C:\SQLExports\)
+--   @output_path: Directory for output file (default: D:\INTFIN-Data\SOC_n8n)
+--   @drive_link: Google Drive folder link for upload target
 -- Returns: File path, filename, and row count
 -- =============================================
 CREATE PROCEDURE [n8n].[sp_Extract_IPE_07]
     @cutoff_date DATE,
     @customer_posting_groups NVARCHAR(500),
-    @output_path NVARCHAR(500) = 'C:\SQLExports\',
+    @output_path NVARCHAR(500) = 'D:\INTFIN-Data\SOC_n8n',
     @drive_link NVARCHAR(1000)
 AS
 BEGIN
@@ -46,6 +47,10 @@ BEGIN
     
     -- Generate unique filename with timestamp
     SET @filename = 'IPE_07_' + FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
+    SET @output_path = CASE 
+        WHEN RIGHT(@output_path, 1) IN ('\\', '/') THEN @output_path
+        ELSE @output_path + '\\'
+    END
     SET @full_path = @output_path + @filename
     
     -- Clean up any existing temp tables

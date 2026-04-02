@@ -3,9 +3,11 @@
 -- Description: Extract NAV GL Entries data to CSV file
 -- Purpose: General ledger entries for variance analysis
 -- Parameters: 
---   @subsequent_month_start: Start of next month (YYYY-MM-DD HH:MM:SS)
+--   @year_start: Start of year range (YYYY-MM-DD)
+--   @year_end: End of year range (YYYY-MM-DD)
 --   @gl_accounts_cr_03: Comma-separated list of GL accounts (e.g., '15010')
---   @output_path: Directory for output file (default: C:\SQLExports\)
+--   @output_path: Directory for output file (default: D:\INTFIN-Data\SOC_n8n)
+--   @drive_link: Google Drive folder link for upload target
 -- Returns: File path, filename, and row count
 -- Source: NAV Data Warehouse
 -- GL Account: 15010
@@ -14,7 +16,7 @@ CREATE PROCEDURE [n8n].[sp_Extract_CR_03]
     @year_start DATE,
     @year_end DATE,
     @gl_accounts_cr_03 NVARCHAR(500),
-    @output_path NVARCHAR(500) = 'C:\SQLExports\',
+    @output_path NVARCHAR(500) = 'D:\INTFIN-Data\SOC_n8n',
     @drive_link NVARCHAR(1000)
 AS
 BEGIN
@@ -40,6 +42,10 @@ BEGIN
     -- Generate unique filename with timestamp
     SET @filename = 'CR_03_' + 
                     FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
+    SET @output_path = CASE 
+        WHEN RIGHT(@output_path, 1) IN ('\\', '/') THEN @output_path
+        ELSE @output_path + '\\'
+    END
     SET @full_path = @output_path + @filename
     
     -- Convert parameters to strings for query

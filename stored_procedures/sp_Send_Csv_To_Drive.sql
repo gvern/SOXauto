@@ -1,6 +1,18 @@
 -- =============================================
 -- Stored Procedure: sp_Send_Csv_To_Drive
 -- Description: Upload CSV file to Google Drive using PowerShell + Service Account
+-- Parameters:
+--   @file_path: Full local path of the CSV file to upload
+--   @file_name: Final file name in Google Drive
+--   @drive_link: Google Drive folder URL used to derive @folder_id when not provided
+--   @folder_id: Explicit Google Drive folder ID override
+--   @procedure_name: Source procedure name reported in the response payload
+--   @row_count: Exported row count reported in the response payload
+--   @export_status: Upstream export status; skips upload when set to error
+--   @error_message: Upstream export error propagated when upload is skipped
+--   @ps_script_path: PowerShell uploader script path
+--   @service_account_json_path: Service account credential file for Google Drive API
+-- Returns: Upload status, Drive file identifiers, and contextual metadata
 -- =============================================
 CREATE OR ALTER PROCEDURE [n8n].[sp_Send_Csv_To_Drive]
     @file_path NVARCHAR(500),

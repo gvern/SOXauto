@@ -4,14 +4,15 @@
 -- Purpose: Packages delivered but not yet reconciled (payment issues)
 -- Parameters: 
 --   @cutoff_date: Cutoff date for extraction (YYYY-MM-DD)
---   @output_path: Directory for output file (default: C:\SQLExports\)
+--   @output_path: Directory for output file (default: D:\INTFIN-Data\SOC_n8n)
+--   @drive_link: Google Drive folder link for upload target
 -- Returns: File path, filename, and row count
 -- Source: OMS
 -- Business Logic: Packages delivered up to cutoff date that remain unreconciled
 -- =============================================
 CREATE PROCEDURE [n8n].[sp_Extract_IPE_12]
     @cutoff_date DATE,
-    @output_path NVARCHAR(500) = 'C:\SQLExports\',
+    @output_path NVARCHAR(500) = 'D:\INTFIN-Data\SOC_n8n',
     @drive_link NVARCHAR(1000)
 AS
 BEGIN
@@ -38,6 +39,10 @@ BEGIN
     
     -- Generate unique filename with timestamp
     SET @filename = 'IPE_12_' + FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
+    SET @output_path = CASE 
+        WHEN RIGHT(@output_path, 1) IN ('\\', '/') THEN @output_path
+        ELSE @output_path + '\\'
+    END
     SET @full_path = @output_path + @filename
     
     -- Build dynamic query with parameters

@@ -3,10 +3,10 @@
 -- Description: Extract Marketplace Accrued Revenues data to CSV file
 -- Purpose: Seller transactions not yet paid out (accrued revenues)
 -- Parameters: 
---   @cutoff_date: Cutoff date for extraction (YYYY-MM-DD)
 --   @period_month_start: Start of reporting period (YYYY-MM-DD HH:MM:SS)
---   @subsequent_month_start: End of reporting period (YYYY-MM-DD HH:MM:SS)
---   @output_path: Directory for output file (default: C:\SQLExports\)
+--   @subsequent_month_start: Start of next month / exclusive end of reporting period (YYYY-MM-DD HH:MM:SS)
+--   @output_path: Directory for output file (default: D:\INTFIN-Data\SOC_n8n)
+--   @drive_link: Google Drive folder link for upload target
 -- Returns: File path, filename, and row count
 -- Source: RING (Seller Center)
 -- GL Accounts: Marketplace accrued revenue accounts
@@ -15,7 +15,7 @@
 CREATE PROCEDURE [n8n].[sp_Extract_IPE_11]
     @period_month_start DATETIME,
     @subsequent_month_start DATETIME,
-    @output_path NVARCHAR(500) = 'C:\SQLExports\',
+    @output_path NVARCHAR(500) = 'D:\INTFIN-Data\SOC_n8n',
     @drive_link NVARCHAR(1000)
 AS
 BEGIN
@@ -40,6 +40,10 @@ BEGIN
     
     -- Generate unique filename with timestamp
     SET @filename = 'IPE_11_' + FORMAT(GETDATE(), 'yyyyMMdd_HHmmss') + '.csv'
+    SET @output_path = CASE 
+        WHEN RIGHT(@output_path, 1) IN ('\\', '/') THEN @output_path
+        ELSE @output_path + '\\'
+    END
     SET @full_path = @output_path + @filename
     
     -- Convert parameters to strings for query
