@@ -4,6 +4,8 @@
 **Status**: ✅ COMPLETE
 **Migration**: Phase 1 (Deprecation shims active)
 
+> 📚 **Historical Document** — This refactoring introduced an Athena-based runner (`ipe_runner_athena.py`) which was subsequently abandoned in favour of a direct SQL Server connection via Teleport (`src/core/runners/mssql_runner.py`). File paths and module names described here are outdated.
+
 ## Executive Summary
 
 Successfully refactored the flat `src/core/` structure into an organized package-based architecture with clear separation of concerns. All code compiles successfully, deprecation shims are in place for backward compatibility, and the catalog is now the single source of truth for IPE/CR definitions.

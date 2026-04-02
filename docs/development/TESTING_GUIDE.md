@@ -1,446 +1,96 @@
 # Testing Guide for SOXauto PG-01
 
-> Update — 2025-11-06
->
-> The project now uses Temporal.io for orchestration and Teleport (`tsh`) for on‑prem MSSQL connectivity.
-> GCP- and Lambda-related sections below are historical. Prefer the Temporal worker and AWS Secrets Manager flows.
+**Last Updated**: 23 March 2026
+**Scope**: Current architecture only (Streamlit/CLI + SQL Server via Teleport)
 
-**Pre-Production Testing Checklist**
+## Testing Objectives
 
-This guide provides comprehensive testing procedures to validate the SOXauto application before production deployment, with special focus on the security-hardened CTE-based validation queries.
+- Validate catalog and SQL template consistency
+- Validate extraction/reconciliation behavior
+- Validate evidence package generation
+- Detect regressions in bridge classification and thresholds
 
----
-
-## Table of Contents
-
-1. [Quick Start](#quick-start)
-2. [Configuration Validation](#configuration-validation)
-3. [Security Testing](#security-testing)
-4. [Integration Testing](#integration-testing)
-5. [End-to-End Testing](#end-to-end-testing)
-6. [Performance Testing](#performance-testing)
-7. [Evidence System Testing](#evidence-system-testing)
-
----
-
-## Quick Start
-
-### Prerequisites
+## Prerequisites
 
 ```bash
-# Ensure Python 3.11+ is installed
 python3 --version
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Teleport login (example)
-tsh login --proxy=teleport.example.com --user "$USER"
-
-# Optional: set a default cutoff date for local runs
-export CUTOFF_DATE="2024-05-01"
 ```
 
-### Run All Tests
+For integration tests requiring database access:
 
 ```bash
-# 1. Configuration validation (no database required)
+tsh login --proxy=<your-teleport-proxy> --user "$USER"
+```
+
+## Quick Test Sequence
+
+```bash
+# 1. Static config checks
 python3 scripts/validate_ipe_config.py
 
-# 2. Syntax validation
-python3 -m py_compile src/core/*.py src/bridges/*.py src/utils/*.py
-
-# 3. Run unit tests (Temporal serialization, catalog smoke, etc.)
+# 2. Unit/integration test suite
 pytest tests/ -q
 
-# 4. (Optional) Build worker image
-docker build -t soxauto-worker:test .
-
-# 5. (Optional) Start worker locally
-python -m src.orchestrators.cpg1_worker
+# 3. Optional targeted tests
+pytest tests/test_smoke_core_modules.py -v
+pytest tests/test_single_ipe_extraction.py -v
 ```
 
----
+## Recommended Test Layers
 
-## Configuration Validation
+### 1) Static Validation (No DB)
 
-### Automated Configuration Check
+- `scripts/validate_ipe_config.py`
+- SQL placeholder/rendering checks (`src/utils/sql_template.py`)
+- Schema contract presence and compatibility checks
 
-The `validate_ipe_config.py` script performs static analysis on IPE configurations:
+### 2) Unit Tests (No DB)
+
+- Utilities under `src/utils/`
+- Bridge rule logic under `src/bridges/`
+- Reconciliation transformations and threshold checks
+
+### 3) Integration Tests (DB + Teleport)
+
+- SQL Server connectivity and query execution
+- IPE extraction for representative IDs (for example: `IPE_07`, `IPE_08`, `CR_03`)
+- Evidence package generation under `evidence/`
+
+## Smoke Run (Headless)
+
+Use the CLI entry point for a realistic end-to-end verification:
 
 ```bash
-python3 scripts/validate_ipe_config.py
+python3 scripts/run_headless_test.py \
+  --cutoff-date 2025-10-01 \
+  --company EC_NG \
+  --ipes IPE_07,IPE_08,CR_03
 ```
 
-**What it checks:**
-- ✅ All required fields present (id, description, secret_name, main_query)
-- ✅ Main queries use parameterized `?` placeholders
-- ✅ Validation queries use secure CTE patterns
-- ✅ No SQL injection risks (no `.format()`, `%s`, string concatenation)
-- ✅ GCP_PROJECT_ID uses `os.getenv()` instead of hardcoded value
+Expected outcomes:
 
-**Expected Output:**
-```
-✅ ALL CHECKS PASSED - Configuration is secure!
-```
+- Successful run summary in console
+- Evidence directory created with run artifacts
+- No unresolved SQL placeholders
 
-### Manual Configuration Review
+## Evidence Validation Checklist
 
-Review `src/core/config.py` for:
+For each run, confirm:
 
-```python
-# ✅ CORRECT: Environment variable
-GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "default-project")
-
-# ❌ WRONG: Hardcoded
-GCP_PROJECT_ID = "my-production-project"
-```
-
----
-
-## Security Testing
-
-### SQL Injection Prevention
-
-**Test 1: Verify Parameterized Queries**
-
-```python
-# All queries should use ? placeholders
-python3 -c "
-from src.core.config import IPE_CONFIGS
-for ipe in IPE_CONFIGS:
-    assert '?' in ipe['main_query'], f'Missing placeholders in {ipe[\"id\"]}'
-    print(f'✅ {ipe[\"id\"]}: Uses parameterized queries')
-"
-```
-
-**Test 2: Verify CTE Pattern**
-
-```python
-# All validation queries should use CTEs
-python3 -c "
-from src.core.config import IPE_CONFIGS
-for ipe in IPE_CONFIGS:
-    for vtype in ['completeness_query', 'accuracy_positive_query']:
-        if vtype in ipe.get('validation', {}):
-            query = ipe['validation'][vtype]
-            assert 'WITH' in query.upper(), f'Missing CTE in {ipe[\"id\"]} {vtype}'
-            print(f'✅ {ipe[\"id\"]} {vtype}: Uses CTE pattern')
-"
-```
-
-**Test 3: No Format Strings**
-
-```bash
-# Grep for dangerous patterns (should return no results)
-grep -r "\.format(" src/core/config.py
-grep -r "%s" src/core/config.py | grep -v "# "
-grep -r "f\"{" src/core/config.py | grep SELECT
-```
-
-Expected: No matches (or only in comments)
-
----
-
-## Integration Testing (Temporal + Teleport)
-
-### Temporal Activity Retry (Design)
-
-- Activities that call MSSQL should be executed with a RetryPolicy (exponential backoff, max attempts)
-- Non-retryable errors: IPEValidationError (business failure), programming/syntax errors
-- Transient errors: pyodbc OperationalError/InterfaceError, Teleport tunnel drops
-
-Validate by simulating a transient error (e.g., blocking the port) and asserting workflow retries before success.
-
-### Test Query Execution (Manual)
-
-Important: Requires DB access via Teleport.
-
-```python
-import pyodbc
-from src.core.config import IPE_CONFIGS
-import os
-
-# Get first IPE config
-ipe = IPE_CONFIGS[0]
-
-# Get credentials (either from env or AWS Secrets Manager inside activity)
-conn_str = os.getenv("DB_CONNECTION_STRING")
-
-# Test connection
-conn = pyodbc.connect(conn_str)
-cursor = conn.cursor()
-
-# Test parameterized query
-test_query = "SELECT COUNT(*) FROM [table] WHERE date < ?"
-cursor.execute(test_query, ('2024-01-01',))
-result = cursor.fetchone()
-
-print(f"✅ Query executed successfully: {result[0]} rows")
-conn.close()
-```
-
----
-
-## End-to-End Testing
-
-### Test IPE Extraction
-
-Create a test script to run a single IPE:
-
-```python
-# tests/test_ipe_extraction.py
-import os
-from src.core.ipe_runner import IPERunner
-from src.core.config import IPE_CONFIGS
-from src.utils.gcp_utils import GCPSecretManager
-
-def test_single_ipe():
-    """Test complete IPE extraction flow."""
-    # Get test IPE (use IPE_07 or smallest dataset)
-    ipe_config = next(c for c in IPE_CONFIGS if c['id'] == 'IPE_07')
-    
-    # Setup
-    project_id = os.getenv("GCP_PROJECT_ID")
-    secret_manager = GCPSecretManager(project_id)
-    
-    # Create runner
-    runner = IPERunner(
-        ipe_config=ipe_config,
-        secret_manager=secret_manager,
-        cutoff_date="2024-01-01"  # Use test date
-    )
-    
-    # Execute
-    try:
-        df = runner.run()
-        print(f"✅ IPE Extraction: {len(df)} rows extracted and validated")
-        return True
-    except Exception as e:
-        print(f"❌ IPE Extraction failed: {e}")
-        return False
-
-if __name__ == "__main__":
-    success = test_single_ipe()
-    exit(0 if success else 1)
-```
-
-Run:
-```bash
-python3 tests/test_ipe_extraction.py
-```
-
-### Test Validation Queries
-
-Verify that all three validation types execute correctly:
-
-```python
-# tests/test_validations.py
-from src.core.ipe_runner import IPERunner
-from src.core.config import IPE_CONFIGS
-from src.utils.gcp_utils import GCPSecretManager
-import os
-
-def test_all_validations():
-    """Test all validation query types."""
-    project_id = os.getenv("GCP_PROJECT_ID")
-    sm = GCPSecretManager(project_id)
-    
-    for ipe_config in IPE_CONFIGS[:2]:  # Test first 2 IPEs
-        print(f"\nTesting {ipe_config['id']}...")
-        
-        runner = IPERunner(ipe_config, sm, cutoff_date="2024-01-01")
-        
-        try:
-            # Run extraction (includes all validations)
-            df = runner.run()
-            
-            # Check validation results
-            validations = runner.validation_results
-            
-            assert 'completeness' in validations
-            assert validations['completeness']['status'] == 'PASS'
-            print(f"  ✅ Completeness: {validations['completeness']}")
-            
-            if 'accuracy_positive' in validations:
-                assert validations['accuracy_positive']['status'] == 'PASS'
-                print(f"  ✅ Accuracy Positive: {validations['accuracy_positive']}")
-            
-            if 'accuracy_negative' in validations:
-                assert validations['accuracy_negative']['status'] == 'PASS'
-                print(f"  ✅ Accuracy Negative: {validations['accuracy_negative']}")
-            
-        except Exception as e:
-            print(f"  ❌ Validation failed: {e}")
-            return False
-    
-    print("\n✅ All validation tests passed!")
-    return True
-
-if __name__ == "__main__":
-    success = test_all_validations()
-    exit(0 if success else 1)
-```
-
----
-
-## Performance Testing
-
-### Query Performance Benchmarks
-
-```python
-# tests/test_performance.py
-import time
-import pandas as pd
-from src.core.ipe_runner import IPERunner
-from src.core.config import IPE_CONFIGS
-from src.utils.gcp_utils import GCPSecretManager
-import os
-
-def benchmark_ipe(ipe_id: str, iterations: int = 3):
-    """Benchmark IPE execution time."""
-    ipe_config = next(c for c in IPE_CONFIGS if c['id'] == ipe_id)
-    sm = GCPSecretManager(os.getenv("GCP_PROJECT_ID"))
-    
-    times = []
-    for i in range(iterations):
-        runner = IPERunner(ipe_config, sm, cutoff_date="2024-01-01")
-        
-        start = time.time()
-        df = runner.run()
-        elapsed = time.time() - start
-        
-        times.append(elapsed)
-        print(f"  Run {i+1}: {elapsed:.2f}s ({len(df)} rows)")
-    
-    avg_time = sum(times) / len(times)
-    print(f"\n✅ Average time: {avg_time:.2f}s")
-    
-    # Performance threshold (adjust based on your requirements)
-    assert avg_time < 300, f"Performance issue: {avg_time}s > 5min threshold"
-    
-    return avg_time
-
-if __name__ == "__main__":
-    print("IPE Performance Benchmark")
-    print("=" * 50)
-    benchmark_ipe("IPE_07")
-```
-
----
-
-## Evidence System Testing
-
-### Test Digital Evidence Generation
-
-```python
-# tests/test_evidence.py
-from src.core.evidence_manager import DigitalEvidenceManager, IPEEvidenceGenerator
-import pandas as pd
-import os
-
-def test_evidence_generation():
-    """Test complete evidence package generation."""
-    # Create test data
-    test_df = pd.DataFrame({
-        'id': [1, 2, 3],
-        'amount': [100.0, 200.0, 300.0],
-        'date': ['2024-01-01', '2024-01-02', '2024-01-03']
-    })
-    
-    # Generate evidence
-    em = DigitalEvidenceManager()
-    generator = IPEEvidenceGenerator(
-        ipe_id="TEST_IPE",
-        ipe_description="Test IPE for evidence validation",
-        evidence_manager=em
-    )
-    
-    test_query = "SELECT * FROM test WHERE date < ?"
-    test_params = ('2024-01-01',)
-    
-    generator.set_query_info(test_query, test_params)
-    generator.set_data(test_df)
-    generator.add_validation_result("completeness", {"status": "PASS", "count": 3})
-    
-    # Create evidence package
-    zip_path = generator.create_evidence_package()
-    
-    # Validate package exists and has content
-    assert os.path.exists(zip_path), "Evidence package not created"
-    assert os.path.getsize(zip_path) > 0, "Evidence package is empty"
-    
-    print(f"✅ Evidence package created: {zip_path}")
-    print(f"   Size: {os.path.getsize(zip_path)} bytes")
-    
-    # Validate integrity
-    hash_info = em._compute_integrity_hash(test_df)
-    print(f"   Hash: {hash_info['hash_value'][:16]}...")
-    
-    return True
-
-if __name__ == "__main__":
-    test_evidence_generation()
-```
-
----
-
-## Test Execution Checklist
-
-### Before Production Deployment
-
-- [ ] **Configuration Validation**: `python3 scripts/validate_ipe_config.py`
-- [ ] **Syntax Check**: All Python files compile without errors
-- [ ] **Security Scan**: No SQL injection vulnerabilities detected
-- [ ] **Connection Test**: GCP Secret Manager accessible
-- [ ] **Query Test**: All validation queries execute successfully
-- [ ] **Performance Test**: IPE extraction completes within acceptable time
-- [ ] **Evidence Test**: Evidence packages generate with correct integrity hashes
-- [ ] **Docker Build**: Container builds successfully
-- [ ] **Environment Variables**: All required variables documented and set
-
-### Production Smoke Test
-
-After deployment, run a limited smoke test:
-
-```bash
-# 1. Health check
-curl https://your-cloud-run-url/health
-
-# 2. Test single IPE extraction
-curl -X POST https://your-cloud-run-url/run-ipe \
-  -H "Content-Type: application/json" \
-  -d '{"ipe_id": "IPE_07", "cutoff_date": "2024-01-01"}'
-```
-
----
+- Query text and parameters are captured
+- Row counts and validation summary are present
+- Integrity hash is produced
+- Execution log is complete and timestamped
 
 ## Troubleshooting
 
-### Common Issues
+- `tsh` not authenticated: run `tsh login` again
+- ODBC connectivity errors: verify tunnel and DSN/connection string
+- Empty output: verify `--cutoff-date` and company scope
+- SQL template error: inspect unresolved placeholders in execution logs
 
-**Issue**: `GCP_PROJECT_ID not set`
-**Solution**: Export environment variable: `export GCP_PROJECT_ID="your-project"`
+## Notes on Historical Content
 
-**Issue**: `Secret not found`
-**Solution**: Verify secret exists in GCP Secret Manager and service account has access
-
-**Issue**: `SQL injection warning`
-**Solution**: Ensure all queries use `?` placeholders and CTE patterns
-
-**Issue**: `Validation failed`
-**Solution**: Check witness data exists in database for the test date range
-
----
-
-## Additional Resources
-
-- **Security Audit Report**: `docs/development/SECURITY_FIXES.md`
-- **Deployment Guide**: `docs/deployment/deploy.md`
-- **Architecture Diagram**: `docs/architecture/PG-01 Diagram.png`
-- **Evidence Documentation**: `docs/development/evidence_documentation.md`
-
----
-
-**Last Updated**: December 2024  
-**Version**: 2.0 (Post Security Hardening)
+This guide intentionally excludes old Temporal/Athena/GCP test workflows.
+Historical test references are preserved in archive documentation only.

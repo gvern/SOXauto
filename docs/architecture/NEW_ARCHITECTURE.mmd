@@ -1,29 +1,30 @@
+%% SOXauto PG-01 — Current Architecture (March 2026)
+%% This diagram reflects the actual runtime architecture.
+%% No Airflow/Temporal orchestration — direct pipeline triggered via UI or CLI.
 graph TD
-    A[<b>1. Scheduler Temporal</b><br>(Planifie le workflow)]:::blue --> B[<b>2. Workflow de Réconciliation C-PG-1</b><br>(Votre logique d'orchestration en Python)]:::blue
-    
-    B --> C(<b>Activité 1 : Extraire IPE-07</b><br>scripts/generate_customer_accounts.py):::green
-    B --> D(<b>Activité 2 : Extraire IPE-31</b><br>scripts/generate_collection_accounts.py):::green
-    B --> E(<b>Activité 3 : Extraire Autres IPEs</b><br>scripts/generate_other_ar.py):::green
-    
-    subgraph "Tâches d'Extraction (Exécutées par un 'Worker')"
-        direction LR
-        C --> F[DB SQL Server]:::purple
-        D --> F
-        E --> F
+    subgraph "Entry Points"
+        UI["Streamlit UI\n(src/frontend/app.py)"]:::blue
+        CLI["CLI / Headless\n(scripts/run_headless_test.py)"]:::blue
     end
 
-    C --> G[<b>3. Consolidation</b><br>(Le Workflow attend la fin des 3 extractions)]:::blue
-    D --> G
-    E --> G
-    
-    G --> H(<b>Activité 4 : Classifier les Écarts</b><br>scripts/classify_bridges.py):::green
-    H --> I[<b>4. Vision "Agentique" (Niveau 1)</b>]:::orange
-    
-    I --> J(<b>Activité 5 : Générer les Preuves</b><br>src/core/evidence/manager.py):::green
-    J --> K(<b>Activité 6 : Déposer le Rapport Final</b><br>sur S3 / Google Drive):::green
-    K --> L[<b>5. Fin</b>]:::blue
+    UI & CLI --> RC["run_reconciliation()\n(src/core/reconciliation/run_reconciliation.py)"]:::blue
+
+    RC --> EP["ExtractionPipeline\n(src/core/extraction_pipeline.py)"]:::green
+    EP -- "reads catalog" --> CAT["IPE Catalog\n(src/core/catalog/cpg1.py)"]:::purple
+    EP -- "secure tunnel" --> TSH["Teleport tsh"]:::purple
+    TSH --> DB["SQL Server\nfin-sql.jumia.local"]:::purple
+    EP --> VAL["Schema + Quality Validation\n(src/core/schema/ + quality_checker.py)"]:::green
+    VAL --> EV["Digital Evidence Package\n(src/core/evidence/manager.py)"]:::green
+
+    RC --> VC["Voucher Classification\n(src/core/reconciliation/voucher_classification/)"]:::green
+    RC --> BR["Bridge Analysis\n(src/bridges/classifier.py)"]:::green
+    BR --> BRC["Categorization\n(src/bridges/categorization/)"]:::green
+    BR --> BRCA["Calculations\n(src/bridges/calculations/)"]:::green
+
+    RC --> SUM["Summary + Thresholds\n(summary_builder.py + thresholds/)"]:::blue
+
+    EV --> S3["S3 Evidence Bucket\n(S3_BUCKET_EVIDENCE)"]:::purple
 
     classDef blue fill:#e6f0ff,stroke:#1f4bd8,stroke-width:2px,color:#0b2a8a
     classDef green fill:#ecfdf5,stroke:#16a34a,stroke-width:2px,color:#065f46
     classDef purple fill:#f3e8ff,stroke:#7c3aed,stroke-width:2px,color:#3b0764
-    classDef orange fill:#fff7ed,stroke:#ea580c,stroke-width:2px,color:#7c2d12

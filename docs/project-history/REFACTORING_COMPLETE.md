@@ -1,7 +1,11 @@
 # Code Refactoring Complete - Ready for Team Input
 
-**Date**: 17 October 2025  
+**Date**: 17 October 2025
 **Status**: ✅ Code Prepared, ⏳ Awaiting Database Mapping
+
+> 📚 **Historical Document** — File paths referenced here have since changed:
+> `src/core/catalog/pg1_catalog.py` → now `src/core/catalog/cpg1.py`
+> The Athena table mapping dependency mentioned below was subsequently resolved by switching to direct SQL Server via Teleport (Nov 2025).
 
 ---
 

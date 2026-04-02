@@ -10,7 +10,8 @@
 
 ### 1. Code Changes
 
-#### Modified: `src/core/ipe_runner.py`
+#### Modified: `src/core/runners/mssql_runner.py`
+*(Previously `src/core/ipe_runner.py` before the Jan 2025 refactoring)*
 - Added `import os` to imports
 - Updated `_get_database_connection()` method to check for `DB_CONNECTION_STRING` environment variable
 - Fallback order:

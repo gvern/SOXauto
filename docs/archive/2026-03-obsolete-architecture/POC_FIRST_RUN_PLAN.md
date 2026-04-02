@@ -1,5 +1,12 @@
 # POC SOXauto — Plan d’action et liste des besoins
 
+> ⚠️ **OBSOLETE — Phase 1 (GCP/Athena) Architecture**
+> This document was written for the initial POC using AWS Athena and GCP Cloud Run.
+> Both Athena and GCP have been replaced by a direct SQL Server connection via Teleport.
+> Kept for historical reference — do not follow these instructions for the current system.
+
+---
+
 ## Objectif
 
 Réaliser un POC end-to-end démontrant la capacité à:
