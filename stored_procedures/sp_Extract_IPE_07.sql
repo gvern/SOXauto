@@ -33,7 +33,7 @@ BEGIN
     DECLARE @sql NVARCHAR(MAX)
     DECLARE @temp_table NVARCHAR(128)
     DECLARE @select_into_sql NVARCHAR(MAX)
-    DECLARE @bcp_command NVARCHAR(MAX)
+    DECLARE @bcp_command VARCHAR(8000)
     DECLARE @bcp_return_code INT
     
     -- Store procedure name

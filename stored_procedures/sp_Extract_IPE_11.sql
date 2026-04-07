@@ -32,7 +32,7 @@ BEGIN
     DECLARE @subsequent_start_str NVARCHAR(30)
     DECLARE @temp_table NVARCHAR(128)
     DECLARE @select_into_sql NVARCHAR(MAX)
-    DECLARE @bcp_command NVARCHAR(MAX)
+    DECLARE @bcp_command VARCHAR(8000)
     DECLARE @bcp_return_code INT
     
     -- Store procedure name (@@PROCID doesn't work in EXEC parameters)

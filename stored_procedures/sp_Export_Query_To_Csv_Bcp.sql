@@ -13,7 +13,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @bcp_command NVARCHAR(MAX)
+    DECLARE @bcp_command VARCHAR(8000)
     DECLARE @server_name NVARCHAR(255)
     DECLARE @xp_rc INT
     DECLARE @cmd_output TABLE (
