@@ -5,7 +5,7 @@
 -- Parameters: 
 --   @subsequent_month_start: Start of next month (YYYY-MM-DD HH:MM:SS); closing date is derived as previous day
 --   @excluded_countries_ipe31: Comma-separated list of countries to exclude (e.g., 'XX','YY')
---   @output_path: Directory for output file (default: D:\INTFIN-Data\SOC_n8n)
+--   @output_path: Directory for output file (default: D:\SOC_n8n\)
 --   @drive_link: Google Drive folder link for upload target
 -- Returns: File path, filename, and row count
 -- Source: OMS (Cash Reconciliation tables)
@@ -15,7 +15,7 @@
 CREATE PROCEDURE [n8n].[sp_Extract_IPE_31]
     @subsequent_month_start DATETIME,
     @excluded_countries_ipe31 NVARCHAR(500),
-    @output_path NVARCHAR(500) = 'D:\INTFIN-Data\SOC_n8n',
+    @output_path NVARCHAR(500) = 'D:\SOC_n8n\',
     @drive_link NVARCHAR(1000)
 AS
 BEGIN
@@ -73,6 +73,7 @@ BEGIN
         comp.[Company_Country],
         CAST(''' + @cutoff_str + ''' AS DATE) AS Closing_date,
         bankacc.[G_L Bank Account No_]
+        {{INTO_CLAUSE}}
     FROM (
         SELECT
             t1.[ID_Company],
@@ -287,7 +288,7 @@ BEGIN
 
     BEGIN TRY
         -- Step 1: Populate temp table with query results
-        SET @select_into_sql = 'SELECT * INTO ' + @temp_table + ' FROM (' + @query + ') AS sq'
+        SET @select_into_sql = REPLACE(@query, '{{INTO_CLAUSE}}', ' INTO ' + QUOTENAME(@temp_table))
         EXEC sp_executesql @select_into_sql
 
         -- Step 2: Get row count from temp table
@@ -295,7 +296,7 @@ BEGIN
         EXEC sp_executesql @count_query_temp, N'@count BIGINT OUTPUT', @row_count OUTPUT
 
         -- Step 3: Export via BCP from temp table
-        SET @bcp_command = 'bcp "SELECT * FROM ' + @temp_table + '" queryout "' + @full_path + '" -T -c'
+        SET @bcp_command = 'bcp "SELECT * FROM ' + @temp_table + '" queryout "' + @full_path + '" -c -T -S CHAOS\INTFIN2019'
         EXEC @bcp_return_code = xp_cmdshell @bcp_command
 
         IF @bcp_return_code <> 0

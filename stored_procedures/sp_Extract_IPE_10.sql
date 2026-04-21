@@ -4,14 +4,14 @@
 -- Purpose: Customer prepayment balances - orders paid but not yet delivered/refunded
 -- Parameters: 
 --   @cutoff_date: Cutoff date for extraction (YYYY-MM-DD)
---   @output_path: Directory for output file (default: D:\INTFIN-Data\SOC_n8n)
+--   @output_path: Directory for output file (default: D:\SOC_n8n\)
 --   @drive_link: Google Drive folder link for upload target
 -- Returns: File path, filename, and row count
 -- GL Accounts: Customer prepayment liability accounts
 -- =============================================
 CREATE PROCEDURE [n8n].[sp_Extract_IPE_10]
     @cutoff_date DATE,
-    @output_path NVARCHAR(500) = 'D:\INTFIN-Data\SOC_n8n',
+    @output_path NVARCHAR(500) = 'D:\SOC_n8n\',
     @drive_link NVARCHAR(1000)
 AS
 BEGIN
@@ -128,7 +128,7 @@ BEGIN
         EXEC sp_executesql @count_query_temp, N'@count BIGINT OUTPUT', @row_count OUTPUT
 
         -- Step 3: Export via BCP from temp table
-        SET @bcp_command = 'bcp "SELECT * FROM ' + @temp_table + '" queryout "' + @full_path + '" -T -c'
+        SET @bcp_command = 'bcp "SELECT * FROM ' + @temp_table + '" queryout "' + @full_path + '" -c -T -S CHAOS\INTFIN2019'
         EXEC @bcp_return_code = xp_cmdshell @bcp_command
 
         IF @bcp_return_code <> 0

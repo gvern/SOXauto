@@ -6,14 +6,14 @@
 -- Parameters: 
 --   @cutoff_date: Cutoff date for extraction (YYYY-MM-DD)
 --   @customer_posting_groups: Comma-separated list of posting groups (e.g., 'TV,FEE-MP')
---   @output_path: Directory for output file (default: D:\INTFIN-Data\SOC_n8n)
+--   @output_path: Directory for output file (default: D:\SOC_n8n\)
 --   @drive_link: Google Drive folder link for upload target
 -- Returns: File path, filename, and row count
 -- =============================================
 CREATE PROCEDURE [n8n].[sp_Extract_IPE_07]
     @cutoff_date DATE,
     @customer_posting_groups NVARCHAR(500),
-    @output_path NVARCHAR(500) = 'D:\INTFIN-Data\SOC_n8n',
+    @output_path NVARCHAR(500) = 'D:\SOC_n8n\',
     @drive_link NVARCHAR(1000)
 AS
 BEGIN
@@ -180,7 +180,7 @@ BEGIN
         EXEC sp_executesql @count_query_temp, N'@count BIGINT OUTPUT', @row_count OUTPUT
 
         -- Step 3: Export via BCP from temp table
-        SET @bcp_command = 'bcp "SELECT * FROM ' + @temp_table + '" queryout "' + @full_path + '" -T -c'
+        SET @bcp_command = 'bcp "SELECT * FROM ' + @temp_table + '" queryout "' + @full_path + '" -c -T -S CHAOS\INTFIN2019'
         EXEC @bcp_return_code = xp_cmdshell @bcp_command
 
         IF @bcp_return_code <> 0
