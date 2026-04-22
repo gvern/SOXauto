@@ -52,15 +52,13 @@ BEGIN
     SET @year_end_str = CONVERT(NVARCHAR(10), @year_end, 120)
     
     -- Build dynamic query with parameters
+    -- Canonical CR_04 query is an as-of extraction (single closing date).
+    -- We map the existing @year_end parameter to that cutoff date to avoid a breaking signature change.
     SET @query = '
     SELECT *
     FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[V_BS_ANAPLAN_IMPORT_IFRS_MAPPING_CURRENCY_SPLIT]
-    WHERE CLOSING_DATE BETWEEN CAST(''' + @year_start_str + ''' AS DATE) AND CAST(''' + @year_end_str + ''' AS DATE)
-        AND (
-            GROUP_COA_ACCOUNT_NO LIKE ''145%'' 
-            OR GROUP_COA_ACCOUNT_NO LIKE ''15%'' 
-            OR GROUP_COA_ACCOUNT_NO IN (' + @gl_accounts_cr_04 + ')
-        )
+    WHERE CLOSING_DATE = CAST(''' + @year_end_str + ''' AS DATE)
+        AND GROUP_COA_ACCOUNT_NO IN (' + @gl_accounts_cr_04 + ')
     '
     
     -- Create temporary table from query (with aliases preserved)

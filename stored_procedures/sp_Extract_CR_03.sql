@@ -126,7 +126,7 @@ BEGIN
     LEFT JOIN [AIG_Nav_Jumia_Reconciliation].[dbo].[GDOC_IFRS_Tabular_Mapping] ifrs
         ON ifrs.Level_4_Code = coa.Group_COA_Account_no
     WHERE gl.[Posting Date] BETWEEN ''' + @year_start_str + ''' AND ''' + @year_end_str + '''
-        AND gl.[id_company] NOT LIKE ''%USD%''
+        AND comp.Flg_In_Conso_Scope = 1
     '
     
     -- Create temporary table from query (with aliases preserved)
