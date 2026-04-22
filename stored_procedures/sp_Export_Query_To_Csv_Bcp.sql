@@ -58,8 +58,8 @@ BEGIN
         FROM @cmd_output
         WHERE line IS NOT NULL
           AND (
-              line LIKE '%Error = %'
-              OR line LIKE '%SQLState = %'
+                            (line LIKE '%Error = %' AND line NOT LIKE '%Warning:%')
+                            OR (line LIKE '%SQLState = %' AND line NOT LIKE '%SQLState = 01000%')
               OR line LIKE '%Unable to open BCP host data-file%'
               OR line LIKE '%BCP copy out failed%'
           )

@@ -53,7 +53,7 @@ BEGIN
     -- Build dynamic query with parameters
     -- Note: Complex query with CTE, needs careful string concatenation
     SET @query = '
-    WITH CTE AS (
+    ;WITH CTE AS (
         SELECT DISTINCT 
             CONCAT(p.[ID_Company], p.[OMS_Packlist_No]) AS conc
         FROM [AIG_Nav_Jumia_Reconciliation].[dbo].[RPT_PACKLIST_PACKAGES] p

@@ -96,7 +96,7 @@ BEGIN
     END
 
     SET @ps_command =
-        'powershell.exe -ExecutionPolicy Bypass -NoProfile -File "' + REPLACE(@ps_script_path, '"', '""') + '" ' +
+        'powershell.exe -ExecutionPolicy Bypass -NoLogo -NoProfile -NonInteractive -File "' + REPLACE(@ps_script_path, '"', '""') + '" ' +
         '-FilePath "' + REPLACE(@file_path, '"', '""') + '" ' +
         '-FolderId "' + REPLACE(@folder_id, '"', '""') + '" ' +
         '-FileName "' + REPLACE(@file_name, '"', '""') + '" ' +
@@ -109,7 +109,7 @@ BEGIN
 
         SELECT TOP 1 @json_result = line
         FROM @cmd_output
-        WHERE line IS NOT NULL AND line LIKE '{%}'
+        WHERE line IS NOT NULL AND LTRIM(line) LIKE '{%}'
         ORDER BY line_no DESC
 
         IF @json_result IS NOT NULL
